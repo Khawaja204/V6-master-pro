@@ -29,7 +29,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 main.py"
+args = "bash bootstrap.sh"
 waitForPort = 8080
 
 [agent]
@@ -43,6 +43,10 @@ timeoutMs = 20000
 [[ports]]
 localPort = 3000
 externalPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 6000
 
 [[ports]]
 localPort = 8000
@@ -77,6 +81,18 @@ localPort = 8086
 externalPort = 4200
 
 [[ports]]
+localPort = 8087
+externalPort = 6800
+
+[[ports]]
+localPort = 8088
+externalPort = 8008
+
+[[ports]]
+localPort = 8089
+externalPort = 8081
+
+[[ports]]
 localPort = 8090
 externalPort = 5173
 
@@ -85,4 +101,4 @@ localPort = 9000
 externalPort = 9000
 
 [nix]
-packages = ["psmisc"]
+packages = ["psmisc", "lsof", "nettools_mptcp", "pwntools"]

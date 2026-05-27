@@ -1,102 +1,81 @@
 <!DOCTYPE html>
-<html lang="ur">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>V6 MASTER PRO — SNIPER TERMINAL</title>
-    <style>
-        :root { --bg-dark: #0b0f19; --card-bg: #111827; --neon-blue: #00e5ff; --neon-green: #00e676; --neon-red: #ff3d00; --text-gray: #9ca3af; --gold: #ffd700; }
-        body { background-color: var(--bg-dark); color: #ffffff; font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; }
-        #lock-screen { position: fixed; top:0; left:0; width:100%; height:100%; background:#0a0c10; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; }
-        .login-box { background:var(--card-bg); padding:30px; border-radius:12px; border: 1px solid var(--neon-red); text-align:center; box-shadow: 0 0 20px rgba(255,61,0,0.2); }
-        .login-box h2 { color:var(--neon-red); margin-bottom:20px; font-size:1.4rem; letter-spacing:1px; }
-        .login-box input { background:#1f2937; border:1px solid #374151; color:#fff; padding:12px; border-radius:6px; width:240px; margin-bottom:15px; text-align:center; }
-        .login-box button { background:var(--neon-red); color:white; border:none; padding:12px 25px; border-radius:6px; cursor:pointer; width:100%; }
-        .header-panel { background: var(--card-bg); border-bottom: 2px solid var(--neon-blue); padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .grid-container { display: grid; grid-template-columns: 1.4fr 1.2fr; gap: 20px; }
-        .main-panel, .sidebar-panel { background: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid #1f2937; }
-        .table-container { max-height: 650px; overflow-y: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: #1f2937; color: var(--text-gray); padding: 10px; text-align: left; position: sticky; top: 0; }
-        td { padding: 12px 10px; border-bottom: 1px solid #1f2937; }
-        .status-badge { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
-        .status-buy { background: rgba(0, 230, 118, 0.2); color: var(--neon-green); }
-        .status-sell { background: rgba(255, 61, 0, 0.2); color: var(--neon-red); }
-        .status-whale { background: rgba(0, 229, 255, 0.2); color: var(--neon-blue); }
-        .heatmap-bar { display: flex; width: 100%; height: 6px; border-radius: 3px; overflow: hidden; background: #374151; margin-top: 4px; }
-        .heat-bid { background: var(--neon-green); height: 100%; }
-        .heat-ask { background: var(--neon-red); height: 100%; }
-        .pin-btn { background: none; border: 1px solid var(--text-gray); color: var(--text-gray); padding: 2px 6px; border-radius: 4px; cursor: pointer; }
-        .pin-btn.pinned { background: var(--gold); border-color: var(--gold); color: #000; font-weight: bold; }
-    </style>
+<html>
+<head><title>V6 Elite Terminal</title>
+<style>
+    body { background: #050505; color: #00ff00; font-family: monospace; }
+    .login-box { text-align: center; margin-top: 100px; }
+    input { padding: 10px; margin: 5px; background: #111; color: #0f0; border: 1px solid #333; }
+    .table-container { overflow-x: auto; display: none; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #333; padding: 12px; text-align: center; }
+    .buy { color: #00ff00; font-weight: bold; }
+    .sell { color: #ff0000; font-weight: bold; }
+    .close { color: #00ff00; font-weight: bold; } 
+    .far { color: #ff9900; font-weight: bold; }
+</style>
 </head>
 <body>
-    <div id="lock-screen">
-        <div class="login-box">
-            <h2>🜲 V6 GATEWAY ACCESS</h2>
-            <input type="password" id="access-key" placeholder="ENTER CLIENT KEY">
-            <button onclick="validateAndLogin()">INITIALIZE CORE</button>
-        </div>
+    <div id="login-section" class="login-box">
+        <h1>🐋 V6 Elite Login</h1>
+        <input id="uid" placeholder="UserID"><br>
+        <input id="upass" type="password" placeholder="Password"><br>
+        <button onclick="checkLogin()">Enter Terminal</button>
     </div>
-    <div id="master-layout" style="display: none;">
-        <div class="header-panel">
-            <span>V6 MASTER TERMINAL — PRO PLATINUM</span>
-            <input type="text" id="coinSearch" class="search-box" placeholder="Search Coin..." onkeyup="filterCoins()">
-        </div>
-        <div class="grid-container">
-            <div class="main-panel">
-                <h2>MARKET SIGNALS ENGINE</h2>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>PIN</th><th>STATUS</th><th>COIN</th><th>RATE</th><th>SIGNAL</th></tr></thead>
-                        <tbody id="signals-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="sidebar-panel">
-                <h2>WHALE TRACKING CORE</h2>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>WHALE / COIN</th><th>ACTION</th></tr></thead>
-                        <tbody id="whales-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    <div id="dashboard" class="table-container">
+        <h1>🐋 V6 Elite-Sniper Live Dashboard</h1>
+        <table>
+            <tr style="background:#111;">
+                <th>Time</th><th>Whale ID</th><th>Coin</th><th>Action</th><th>Spoof</th>
+                <th>Avg</th><th>Impact</th><th>Zone</th><th>Sig</th><th>Price (%)</th><th>PRO ACTION</th>
+            </tr>
+            <tbody id="terminal"></tbody>
+        </table>
     </div>
     <script>
-        let clientKey = "";
-        // یہاں ہم نے URL فکس کر دیا ہے تاکہ 8080 پورٹ پر کنکشن مستحکم رہے
-        const BACKEND_URL = window.location.origin + '/v6_live_stream';
+        async function checkLogin() {
+            let id = document.getElementById('uid').value;
+            let pass = document.getElementById('upass').value;
+            
+            let formData = new URLSearchParams();
+            formData.append('id', id);
+            formData.append('pass', pass);
 
-        function validateAndLogin() {
-            clientKey = document.getElementById("access-key").value;
-            if(!clientKey) return;
-            document.getElementById("lock-screen").style.display = "none";
-            document.getElementById("master-layout").style.display = "block";
-            fetchTerminalData();
+            let res = await fetch('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: formData
+            });
+            
+            let text = await res.text();
+            if(text === "ACTIVE") {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                loadData();
+                setInterval(loadData, 3000);
+            } else { alert("Access Denied!"); }
         }
 
-        async function fetchTerminalData() {
-            if(!clientKey) return;
-            try {
-                const response = await fetch(BACKEND_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ secret_key: clientKey })
+        async function loadData() {
+            let res = await (await fetch('/api/v6_data', {method:'POST'})).json();
+            let html = '';
+            const BASE_PRICE = 2.45;
+            
+            if (res.whales) {
+                res.whales.forEach(r => {
+                    let currentPrice = parseFloat(r[9]);
+                    let diff = ((currentPrice - BASE_PRICE) / BASE_PRICE * 100).toFixed(2);
+                    let colorClass = Math.abs(diff) > 2 ? 'far' : 'close'; 
+                    html += `<tr>
+                        <td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td>
+                        <td class="${r[3]=='ACCUMULATING'?'buy':'sell'}">${r[3]}</td>
+                        <td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]}</td><td>${r[8]}</td>
+                        <td class="${colorClass}">${currentPrice}<br><small>(${diff}%)</small></td>
+                        <td style="background:#222; color:yellow;">${r[10]}</td>
+                    </tr>`;
                 });
-                const terminalData = await response.json();
-                
-                // یہاں آپ کا اصل ڈیٹا رینڈرنگ لاجک ہے جو آپ نے پہلے بھیجا تھا
-                // نوٹ: اپنے پرانے کوڈ کے وہ حصے یہاں کاپی کر لیں جو ڈیٹا ٹیبلز میں بھرتے ہیں
-                
-            } catch (error) { 
-                console.error("Sync Error: ", error); 
-                // اگر کنکشن فیل ہو تو 5 سیکنڈ بعد دوبارہ کوشش کرے گا
-                setTimeout(fetchTerminalData, 5000); 
             }
+            document.getElementById('terminal').innerHTML = html;
         }
-        setInterval(fetchTerminalData, 3000);
     </script>
 </body>
 </html>
