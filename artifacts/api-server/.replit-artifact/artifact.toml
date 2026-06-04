@@ -10,22 +10,12 @@ name = "API Server"
 paths = ["/api"]
 
 [services.development]
-run = "pnpm --filter @workspace/api-server run dev"
+run = "echo 'API Server not used in this project'"
 
 [services.production]
 
-[services.production.build]
-args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
-
-[services.production.build.env]
-NODE_ENV = "production"
-
 [services.production.run]
-args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+args = ["echo", "API Server not used"]
 
 [services.production.run.env]
 PORT = "5000"
-NODE_ENV = "production"
-
-[services.production.health.startup]
-path = "/api/healthz"
