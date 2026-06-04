@@ -2,7 +2,7 @@
 set -e
 
 echo "[bootstrap] Installing/upgrading dependencies..."
-pip install -r requirements.txt --upgrade -q
+python3 -m pip install -r requirements.txt --upgrade -q
 
 echo "[bootstrap] Clearing port 8080..."
 fuser -k 8080/tcp 2>/dev/null || true

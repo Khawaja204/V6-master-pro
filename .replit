@@ -1,4 +1,5 @@
 run = "python3 main.py"
+modules = ["python-3.11"]
 
 [nix]
 channel = "stable-23_11"
@@ -18,3 +19,27 @@ externalPort = 8080
 [[ports]]
 localPort = 8081
 externalPort = 80
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash bootstrap.sh"
+waitForPort = 8080
+
+[workflows.workflow.metadata]
+outputType = "webview"
