@@ -6,11 +6,25 @@ from fastapi.responses import HTMLResponse
 
 load_dotenv()
 
+LOG_FILE = "system.log"
+MAX_LOG_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+
+def rotate_log_if_needed():
+    try:
+        if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > MAX_LOG_SIZE_BYTES:
+            with open(LOG_FILE, "w") as f:
+                f.write("")
+            print("[log-rotation] system.log exceeded 5MB — truncated.")
+    except Exception as e:
+        print(f"[log-rotation] Error: {e}")
+
+rotate_log_if_needed()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("system.log"),
+        logging.FileHandler(LOG_FILE),
         logging.StreamHandler()
     ]
 )
@@ -22,8 +36,20 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 PORT = int(os.environ.get('PORT', 8080))
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 SECRET_KEY = os.getenv('SECRET_KEY', '786')
+CHAT_ID = os.getenv('CHAT_ID', '8743601537')
 GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx1SOPCmi-6AJeIWZTQWVKSzIR5pSLaAuL3zo52tpjo9vDCD3a8rf4R-4Cge4QbloLVZA/exec"
 GLOBAL_DATA = {"signals": [], "whales": []}
+
+def send_telegram(msg: str):
+    if not BOT_TOKEN:
+        log.warning("BOT_TOKEN not set — Telegram notification skipped.")
+        return
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
+        log.info("Telegram startup notification sent.")
+    except Exception as e:
+        log.warning(f"Telegram notification failed: {e}")
 
 def data_engine():
     log.info("Data engine started.")
@@ -41,14 +67,15 @@ def data_engine():
 
 def keep_alive_loop():
     time.sleep(30)
-    url = f"http://0.0.0.0:{PORT}/"
-    log.info(f"Keep-alive started, pinging {url} every 300s")
+    url = f"http://127.0.0.1:{PORT}/"
+    log.info(f"Keep-alive started — pinging every 300s")
     while True:
         try:
             r = requests.get(url, timeout=10)
             log.info(f"Keep-alive ping OK: {r.status_code}")
         except Exception as e:
             log.warning(f"Keep-alive ping failed: {e}")
+        rotate_log_if_needed()
         time.sleep(300)
 
 @app.get("/", response_class=HTMLResponse)
@@ -62,6 +89,7 @@ def stream(req: Request):
 
 if __name__ == '__main__':
     log.info(f"V6 Elite Terminal starting — PORT={PORT} | BOT_TOKEN={'SET' if BOT_TOKEN else 'NOT SET'} | SECRET_KEY={'SET' if SECRET_KEY else 'NOT SET'}")
+    send_telegram(f"🟢 <b>V6 Elite Terminal ONLINE</b>\nPORT: {PORT}\nStatus: All systems operational.")
     threading.Thread(target=data_engine, daemon=True).start()
     threading.Thread(target=keep_alive_loop, daemon=True).start()
     uvicorn.run(app, host='0.0.0.0', port=PORT)
