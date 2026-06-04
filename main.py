@@ -1,20 +1,77 @@
+import subprocess, sys
+
+# ── Auto-repair: validate/install critical modules BEFORE anything else ──────
+REQUIRED_PACKAGES = {
+    "requests":   "requests",
+    "fastapi":    "fastapi",
+    "uvicorn":    "uvicorn[standard]",
+    "dotenv":     "python-dotenv",
+}
+
+# Candidate pip executables — tries each in order until one works
+_PIP_CANDIDATES = [
+    [sys.executable, "-m", "pip"],
+    ["/home/runner/workspace/.pythonlibs/bin/pip"],
+    ["pip3"],
+    ["pip"],
+]
+
+def _find_pip():
+    for candidate in _PIP_CANDIDATES:
+        try:
+            subprocess.check_call(
+                candidate + ["--version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10
+            )
+            return candidate
+        except Exception:
+            continue
+    return None
+
+def auto_repair():
+    repaired = False
+    for module, pip_name in REQUIRED_PACKAGES.items():
+        try:
+            __import__(module)
+        except ImportError:
+            print(f"[auto-repair] Missing module '{module}' — attempting install of '{pip_name}'...")
+            pip = _find_pip()
+            if pip:
+                try:
+                    subprocess.check_call(pip + ["install", pip_name, "-q"], timeout=120)
+                    print(f"[auto-repair] '{pip_name}' installed successfully.")
+                    repaired = True
+                except Exception as e:
+                    print(f"[auto-repair] WARNING: Could not install '{pip_name}': {e}")
+            else:
+                print(f"[auto-repair] WARNING: No pip found — '{pip_name}' cannot be auto-installed.")
+    if repaired:
+        print("[auto-repair] Repair complete — continuing startup.")
+
+auto_repair()  # Must run before any third-party imports
+
+# ── Standard imports (safe after auto_repair) ─────────────────────────────────
 import time, requests, json, threading, os, uvicorn, logging
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from keep_alive import keep_alive
 
 load_dotenv()
 
+# ── Log rotation ──────────────────────────────────────────────────────────────
 LOG_FILE = "system.log"
-MAX_LOG_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+MAX_LOG_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 def rotate_log_if_needed():
     try:
         if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > MAX_LOG_SIZE_BYTES:
             with open(LOG_FILE, "w") as f:
                 f.write("")
-            print("[log-rotation] system.log exceeded 5MB — truncated.")
+            print("[log-rotation] system.log exceeded 5 MB — truncated.")
     except Exception as e:
         print(f"[log-rotation] Error: {e}")
 
@@ -30,54 +87,75 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# ── Config from environment secrets (no hard-coded keys) ──────────────────────
+PORT              = int(os.environ.get("PORT", 8080))
+BOT_TOKEN         = os.getenv("BOT_TOKEN")
+SECRET_KEY        = os.getenv("SECRET_KEY")
+CHAT_ID           = os.getenv("CHAT_ID", "8743601537")
+GOOGLE_WEBAPP_URL = (
+    "https://script.google.com/macros/s/"
+    "AKfycbx1SOPCmi-6AJeIWZTQWVKSzIR5pSLaAuL3zo52tpjo9vDCD3a8rf4R-4Cge4QbloLVZA/exec"
+)
+
+GLOBAL_DATA: dict = {"signals": [], "whales": []}
+
+# ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
-PORT = int(os.environ.get('PORT', 8080))
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-SECRET_KEY = os.getenv('SECRET_KEY', '786')
-CHAT_ID = os.getenv('CHAT_ID', '8743601537')
-GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx1SOPCmi-6AJeIWZTQWVKSzIR5pSLaAuL3zo52tpjo9vDCD3a8rf4R-4Cge4QbloLVZA/exec"
-GLOBAL_DATA = {"signals": [], "whales": []}
-
-def send_telegram(msg: str):
+# ── Telegram with retry on unstable internet ──────────────────────────────────
+def send_telegram(msg: str, max_retries: int = 3, retry_wait: int = 10):
     if not BOT_TOKEN:
         log.warning("BOT_TOKEN not set — Telegram notification skipped.")
         return
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=10)
-        log.info("Telegram startup notification sent.")
-    except Exception as e:
-        log.warning(f"Telegram notification failed: {e}")
+    for attempt in range(1, max_retries + 1):
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            requests.post(
+                url,
+                json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"},
+                timeout=10
+            )
+            log.info("Telegram notification sent successfully.")
+            return
+        except Exception as e:
+            log.warning(f"Telegram attempt {attempt}/{max_retries} failed: {e}")
+            if attempt < max_retries:
+                log.info(f"Internet may be unstable — retrying in {retry_wait}s...")
+                time.sleep(retry_wait)
+    log.warning("Telegram notification failed after all retries — continuing.")
 
+# ── Data engine: syncs signals from Google Sheets ────────────────────────────
 def data_engine():
     log.info("Data engine started.")
     while True:
         try:
             res = requests.get(
-                f'{GOOGLE_WEBAPP_URL}?action=get_terminal_data&secret_key=Sargodha_V6_Secure_Key_786',
+                f"{GOOGLE_WEBAPP_URL}?action=get_terminal_data&secret_key={SECRET_KEY}",
                 timeout=10
             ).json()
             GLOBAL_DATA.update(res)
-            log.info(f"Sync OK — signals: {len(GLOBAL_DATA.get('signals', []))}, whales: {len(GLOBAL_DATA.get('whales', []))}")
+            log.info(
+                f"Sync OK — signals: {len(GLOBAL_DATA.get('signals', []))}, "
+                f"whales: {len(GLOBAL_DATA.get('whales', []))}"
+            )
         except Exception as e:
             log.warning(f"Google Sheets sync failed — serving cached data. Reason: {e}")
         time.sleep(3)
 
-def keep_alive_loop():
-    time.sleep(30)
-    url = f"http://127.0.0.1:{PORT}/"
-    log.info(f"Keep-alive started — pinging every 300s")
+# ── Hourly heartbeat ──────────────────────────────────────────────────────────
+def heartbeat_loop():
     while True:
-        try:
-            r = requests.get(url, timeout=10)
-            log.info(f"Keep-alive ping OK: {r.status_code}")
-        except Exception as e:
-            log.warning(f"Keep-alive ping failed: {e}")
+        time.sleep(3600)
         rotate_log_if_needed()
-        time.sleep(300)
+        log.info(f"[SYSTEM OK - {time.strftime('%Y-%m-%d %H:%M:%S')}]")
 
+# ── Routes ────────────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     with open("index.html", "r", encoding="utf-8") as f:
@@ -87,9 +165,26 @@ def read_root():
 def stream(req: Request):
     return GLOBAL_DATA
 
-if __name__ == '__main__':
-    log.info(f"V6 Elite Terminal starting — PORT={PORT} | BOT_TOKEN={'SET' if BOT_TOKEN else 'NOT SET'} | SECRET_KEY={'SET' if SECRET_KEY else 'NOT SET'}")
-    send_telegram(f"🟢 <b>V6 Elite Terminal ONLINE</b>\nPORT: {PORT}\nStatus: All systems operational.")
-    threading.Thread(target=data_engine, daemon=True).start()
-    threading.Thread(target=keep_alive_loop, daemon=True).start()
-    uvicorn.run(app, host='0.0.0.0', port=PORT)
+# ── Entry point ───────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    try:
+        log.info(
+            f"V6 Elite Terminal starting — PORT={PORT} | "
+            f"BOT_TOKEN={'SET' if BOT_TOKEN else 'NOT SET'} | "
+            f"SECRET_KEY={'SET' if SECRET_KEY else 'NOT SET'}"
+        )
+        # Telegram connect AFTER auto_repair and with internet retry
+        send_telegram(
+            f"🟢 <b>V6 Elite Terminal ONLINE</b>\n"
+            f"PORT: {PORT}\n"
+            f"Status: All systems operational."
+        )
+        threading.Thread(target=data_engine,   daemon=True).start()
+        threading.Thread(target=keep_alive,    daemon=True).start()
+        threading.Thread(target=heartbeat_loop, daemon=True).start()
+        uvicorn.run(app, host="0.0.0.0", port=PORT)
+    except Exception as e:
+        log.error(f"Fatal error in main.py: {e}", exc_info=True)
+        raise
+    finally:
+        log.info("main.py shutting down — bootstrap.sh will restart automatically.")

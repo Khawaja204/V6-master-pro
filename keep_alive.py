@@ -1,19 +1,13 @@
 import time, requests, os, logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("system.log"),
-        logging.StreamHandler()
-    ]
-)
 log = logging.getLogger(__name__)
 
-PORT = int(os.environ.get('PORT', 8080))
+PORT = int(os.environ.get("PORT", 8080))
 
 def keep_alive():
-    url = f"http://0.0.0.0:{PORT}/"
+    """Pings the local server every 300 seconds to prevent sleep."""
+    url = f"http://127.0.0.1:{PORT}/"
+    time.sleep(30)  # Let the server fully start before first ping
     log.info(f"Keep-alive started — pinging {url} every 300s")
     while True:
         try:
@@ -24,4 +18,12 @@ def keep_alive():
         time.sleep(300)
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler("system.log"),
+            logging.StreamHandler()
+        ]
+    )
     keep_alive()
