@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 
-echo "[bootstrap] Installing/upgrading dependencies..."
-python3 -m pip install -r requirements.txt --upgrade -q
+# Install dependencies if pip is available (dev env); Nix packages cover production
+python3 -m pip install -r requirements.txt -q 2>/dev/null || true
 
-echo "[bootstrap] Auto-restart loop active — V6 Elite Terminal will restart on crash."
+echo "[bootstrap] Starting V6 Elite Terminal — auto-restart on crash enabled."
 while true; do
-    fuser -k 8080/tcp 2>/dev/null || true
-    sleep 1
     python3 main.py
-    echo "[bootstrap] main.py exited. Restarting in 1 second..."
-    sleep 1
+    echo "[bootstrap] main.py exited — restarting in 2 seconds..."
+    sleep 2
 done

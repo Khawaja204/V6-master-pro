@@ -2,3 +2,7 @@ fastapi
 uvicorn[standard]
 requests
 python-dotenv
+fastapi
+python-dotenv
+requests
+uvicorn[standard]
