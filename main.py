@@ -97,7 +97,10 @@ GOOGLE_WEBAPP_URL = (
     "AKfycbx1SOPCmi-6AJeIWZTQWVKSzIR5pSLaAuL3zo52tpjo9vDCD3a8rf4R-4Cge4QbloLVZA/exec"
 )
 
-GLOBAL_DATA: dict = {"signals": [], "whales": []}
+GLOBAL_DATA: dict    = {"signals": [], "whales": []}
+START_TIME: float    = time.time()
+LAST_SYNC_TIME: str  = "pending"
+LAST_SYNC_STATUS: str = "pending"
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -132,6 +135,7 @@ def send_telegram(msg: str, max_retries: int = 3, retry_wait: int = 10):
 
 # ── Data engine: syncs signals from Google Sheets ────────────────────────────
 def data_engine():
+    global LAST_SYNC_TIME, LAST_SYNC_STATUS
     log.info("Data engine started.")
     while True:
         try:
@@ -140,11 +144,14 @@ def data_engine():
                 timeout=10
             ).json()
             GLOBAL_DATA.update(res)
+            LAST_SYNC_TIME   = time.strftime("%Y-%m-%d %H:%M:%S")
+            LAST_SYNC_STATUS = "OK"
             log.info(
                 f"Sync OK — signals: {len(GLOBAL_DATA.get('signals', []))}, "
                 f"whales: {len(GLOBAL_DATA.get('whales', []))}"
             )
         except Exception as e:
+            LAST_SYNC_STATUS = f"failed: {e}"
             log.warning(f"Google Sheets sync failed — serving cached data. Reason: {e}")
         time.sleep(3)
 
@@ -164,6 +171,26 @@ def read_root():
 @app.post("/v6_live_stream")
 def stream(req: Request):
     return GLOBAL_DATA
+
+@app.get("/status")
+def status():
+    uptime_secs = int(time.time() - START_TIME)
+    hours, rem  = divmod(uptime_secs, 3600)
+    mins, secs  = divmod(rem, 60)
+    log_size_mb = round(os.path.getsize(LOG_FILE) / (1024 * 1024), 2) if os.path.exists(LOG_FILE) else 0
+    return {
+        "status":        "online",
+        "system_health": "OK",
+        "uptime":        f"{hours}h {mins}m {secs}s",
+        "uptime_seconds": uptime_secs,
+        "last_sync_time":   LAST_SYNC_TIME,
+        "last_sync_status": LAST_SYNC_STATUS,
+        "signal_count":  len(GLOBAL_DATA.get("signals", [])),
+        "whale_count":   len(GLOBAL_DATA.get("whales", [])),
+        "log_file_mb":   log_size_mb,
+        "port":          PORT,
+        "timestamp":     time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
