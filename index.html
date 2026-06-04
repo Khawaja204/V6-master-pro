@@ -1,81 +1,73 @@
 <!DOCTYPE html>
-<html>
-<head><title>V6 Elite Terminal</title>
-<style>
-    body { background: #050505; color: #00ff00; font-family: monospace; }
-    .login-box { text-align: center; margin-top: 100px; }
-    input { padding: 10px; margin: 5px; background: #111; color: #0f0; border: 1px solid #333; }
-    .table-container { overflow-x: auto; display: none; padding: 20px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #333; padding: 12px; text-align: center; }
-    .buy { color: #00ff00; font-weight: bold; }
-    .sell { color: #ff0000; font-weight: bold; }
-    .close { color: #00ff00; font-weight: bold; } 
-    .far { color: #ff9900; font-weight: bold; }
-</style>
+<html lang="ur">
+<head>
+    <meta charset="UTF-8">
+    <title>ADEEL'S V6 MASTER PRO</title>
+    <style>
+        :root { --bg: #0b0e14; --col: #181c22; --text: #fff; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; padding: 15px; }
+        .dashboard { display: grid; grid-template-columns: 200px 1fr 1fr; gap: 15px; }
+        .sidebar { background: var(--col); padding: 15px; border-radius: 8px; }
+        #sentiment-box { margin-top: 20px; padding: 10px; background: #2a2e36; border-radius: 5px; text-align: center; }
+        .column { background: var(--col); padding: 15px; border-radius: 8px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: center; border: 1px solid #333; font-size: 11px; }
+        .liq-hunter { background-color: #0b2e1f !important; color: #00ff00 !important; }
+        .stuck-highlight { background-color: #8b8b00 !important; }
+    </style>
 </head>
 <body>
-    <div id="login-section" class="login-box">
-        <h1>🐋 V6 Elite Login</h1>
-        <input id="uid" placeholder="UserID"><br>
-        <input id="upass" type="password" placeholder="Password"><br>
-        <button onclick="checkLogin()">Enter Terminal</button>
-    </div>
-    <div id="dashboard" class="table-container">
-        <h1>🐋 V6 Elite-Sniper Live Dashboard</h1>
-        <table>
-            <tr style="background:#111;">
-                <th>Time</th><th>Whale ID</th><th>Coin</th><th>Action</th><th>Spoof</th>
-                <th>Avg</th><th>Impact</th><th>Zone</th><th>Sig</th><th>Price (%)</th><th>PRO ACTION</th>
-            </tr>
-            <tbody id="terminal"></tbody>
-        </table>
+    <div class="dashboard">
+        <div class="sidebar">
+            <h3>Folders</h3>
+            <button onclick="setFilter('ALL')">ALL</button>
+            <button onclick="setFilter('PUMP')">PUMP</button>
+            <button onclick="setFilter('STUCK')">STUCK</button>
+            <div id="sentiment-box">Sentiment: <span id="sent">...</span></div>
+        </div>
+        <div class="column">
+            <h2>VMC FOLDER</h2>
+            <table>
+                <thead><tr><th>Time</th><th>Asset</th><th>Signal</th><th>VMC</th><th>Price (Sci)</th><th>Stuck</th></tr></thead>
+                <tbody id="vmc-body"></tbody>
+            </table>
+        </div>
+        <div class="column">
+            <h2>WHALE WALLET</h2>
+            <table>
+                <thead><tr><th>Asset</th><th>Flow</th><th>Conc%</th><th>BigTicket</th><th>Price</th></tr></thead>
+                <tbody id="whale-body"></tbody>
+            </table>
+        </div>
     </div>
     <script>
-        async function checkLogin() {
-            let id = document.getElementById('uid').value;
-            let pass = document.getElementById('upass').value;
-            
-            let formData = new URLSearchParams();
-            formData.append('id', id);
-            formData.append('pass', pass);
+        let currentFilter = 'ALL';
+        // Automatic URL detection
+        const BACKEND_URL = window.location.origin + '/get-data';
 
-            let res = await fetch('/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: formData
-            });
-            
-            let text = await res.text();
-            if(text === "ACTIVE") {
-                document.getElementById('login-section').style.display = 'none';
-                document.getElementById('dashboard').style.display = 'block';
-                loadData();
-                setInterval(loadData, 3000);
-            } else { alert("Access Denied!"); }
-        }
-
-        async function loadData() {
-            let res = await (await fetch('/api/v6_data', {method:'POST'})).json();
-            let html = '';
-            const BASE_PRICE = 2.45;
-            
-            if (res.whales) {
-                res.whales.forEach(r => {
-                    let currentPrice = parseFloat(r[9]);
-                    let diff = ((currentPrice - BASE_PRICE) / BASE_PRICE * 100).toFixed(2);
-                    let colorClass = Math.abs(diff) > 2 ? 'far' : 'close'; 
-                    html += `<tr>
-                        <td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td>
-                        <td class="${r[3]=='ACCUMULATING'?'buy':'sell'}">${r[3]}</td>
-                        <td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]}</td><td>${r[8]}</td>
-                        <td class="${colorClass}">${currentPrice}<br><small>(${diff}%)</small></td>
-                        <td style="background:#222; color:yellow;">${r[10]}</td>
-                    </tr>`;
+        async function updateData() {
+            try {
+                const res = await fetch(BACKEND_URL);
+                const data = await res.json();
+                
+                document.getElementById('sent').innerText = data.sentiment;
+                const vmcBody = document.getElementById('vmc-body');
+                vmcBody.innerHTML = '';
+                
+                const filtered = currentFilter === 'ALL' ? data.vmc_list : data.vmc_list.filter(r => r.folder === currentFilter);
+                
+                filtered.forEach(row => {
+                    let tr = document.createElement('tr');
+                    if(row.vmc >= 100) tr.classList.add('liq-hunter');
+                    // 'signal' property agar data mein na ho to 'N/A' show karega
+                    tr.innerHTML = `<td>${row.time}</td><td>${row.asset}</td><td>${row.signal || 'N/A'}</td><td>${row.vmc}</td><td>${row.price}</td><td>${row.stuck}</td>`;
+                    vmcBody.appendChild(tr);
                 });
-            }
-            document.getElementById('terminal').innerHTML = html;
+            } catch(e) { console.error("Error fetching data:", e); }
         }
+        
+        function setFilter(f) { currentFilter = f; updateData(); }
+        setInterval(updateData, 1000);
     </script>
 </body>
 </html>
