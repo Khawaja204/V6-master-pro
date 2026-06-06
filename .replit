@@ -1,40 +1,15 @@
-run = "bash bootstrap.sh"
+run = "python main.py"
 modules = ["python-3.11"]
-
-[nix]
-channel = "stable-23_11"
-packages = ["python3", "python3Packages.fastapi", "python3Packages.python-dotenv", "python3Packages.requests", "python3Packages.uvicorn"]
-
-[agent]
-expertMode = true
-
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash bootstrap.sh"
-waitForPort = 8080
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[ports]]
 localPort = 8080
 externalPort = 80
+
+[agent]
+expertMode = true
+
+[nix]
+packages = ["psmisc"]
 
 [deployment]
 deploymentTarget = "cloudrun"
