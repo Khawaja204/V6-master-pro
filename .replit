@@ -10,6 +10,31 @@ expertMode = true
 
 [nix]
 packages = ["psmisc"]
+channel = "stable-25_05"
 
 [deployment]
 deploymentTarget = "cloudrun"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 main.py"
+waitForPort = 8080
+
+[workflows.workflow.metadata]
+outputType = "webview"

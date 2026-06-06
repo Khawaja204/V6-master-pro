@@ -1,0 +1,39 @@
+{
+  "vmc": {
+    "score_threshold": 55,
+    "rsi_oversold": 38,
+    "rsi_overbought": 62,
+    "rsi_golden_max": 60,
+    "volatility_stuck_max": 0.5,
+    "volatility_max": 20.0,
+    "volume_boom_multiplier": 2.0,
+    "pump_change_min": 4.0,
+    "golden_score_min": 75,
+    "vip_score_min": 88,
+    "entry_rsi_max": 42,
+    "exit_rsi_min": 62,
+    "rsi_top_n": 100,
+    "favorite_coins": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT"]
+  },
+  "whale": {
+    "wall_proximity_pct": 3.0,
+    "min_wall_size_usdt": 80000,
+    "spoofing_ratio_threshold": 2.5,
+    "blink_push_proximity_pct": 1.5,
+    "alert_cooldown_seconds": 300,
+    "order_book_depth": 20,
+    "top_coins_for_whale": 50
+  },
+  "scanner": {
+    "coins_limit": 500,
+    "cache_clear_interval_seconds": 60,
+    "heartbeat_interval_seconds": 300,
+    "quote_asset": "USDT",
+    "min_quote_volume_24h": 500000
+  },
+  "telegram": {
+    "vip_alert_min_score": 85,
+    "vip_alert_cooldown_seconds": 600,
+    "whale_alert_min_proximity": 1.0
+  }
+}

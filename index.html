@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>V6 Master Pro — Elite Terminal</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    color: #c9d1d9;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Status Bar ── */
+  #status-bar {
+    background: #111827;
+    border-bottom: 1px solid #21262d;
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: 11px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #status-bar .title  { color: #FFD700; font-weight: bold; font-size: 13px; letter-spacing: 1px; }
+  #status-bar .item   { color: #8b949e; }
+  #status-bar .item span { color: #58a6ff; }
+  #status-bar .live   { color: #00FF00; animation: blink 2s infinite; }
+  #status-bar .error  { color: #FF4500; }
+  #refresh-count      { color: #888; font-size: 10px; }
+  @keyframes blink { 50% { opacity: 0.4; } }
+
+  /* ── Main layout: two horizontal halves ── */
+  #main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Each half ── */
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #panel-a { border-bottom: 2px solid #333; }
+
+  .panel-header {
+    background: #161b22;
+    border-bottom: 1px solid #21262d;
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .panel-label { font-weight: bold; font-size: 12px; letter-spacing: 0.5px; color: #e6edf3; }
+  .panel-a-label { color: #58a6ff; }
+  .panel-b-label { color: #bc8cff; }
+
+  /* ── Folder Tabs ── */
+  #tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 6px 12px;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+  }
+  .tab {
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid #30363d;
+    background: #161b22;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 11px;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .tab:hover         { border-color: #58a6ff; color: #e6edf3; }
+  .tab.active        { background: #1f6feb; border-color: #388bfd; color: #fff; }
+  .tab .cnt          { font-size: 9px; opacity: 0.8; margin-left: 3px; }
+
+  /* ── Signal Colors ── */
+  .tag-GOLDEN        { color: #FFD700; font-weight: bold; }
+  .tag-VIP           { color: #da70d6; font-weight: bold; }
+  .tag-ENTRY         { color: #00FF00; font-weight: bold; }
+  .tag-PUMP          { color: #FF69B4; font-weight: bold; }
+  .tag-BOOM          { color: #FFA500; font-weight: bold; }
+  .tag-EXIT          { color: #FF6B6B; }
+  .tag-STUCK         { color: #666; font-style: italic; }
+  .tag-FAV           { color: #58a6ff; }
+  .tag-ALL           { color: #c9d1d9; }
+  .tag-WHALE-TRAP    { color: #FF4500; font-weight: bold; }
+  .tag-BLINK         { color: #00BFFF; font-weight: bold; }
+  .tag-WALL          { color: #9b9b9b; }
+
+  /* ── Tables ── */
+  .table-wrap {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #30363d #0a0a0f;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: #161b22;
+    color: #8b949e;
+    text-align: left;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #21262d;
+    z-index: 1;
+  }
+  tbody tr { border-bottom: 1px solid #161b22; transition: background 0.1s; }
+  tbody tr:hover { background: #161b22; }
+  td { padding: 4px 8px; font-size: 12px; white-space: nowrap; }
+  .col-sym   { font-weight: bold; min-width: 110px; }
+  .col-score { color: #58a6ff; }
+  .col-rsi   { }
+  .pos  { color: #3fb950; }
+  .neg  { color: #f85149; }
+  .neu  { color: #8b949e; }
+  .empty-row td { color: #444; text-align: center; padding: 20px; font-size: 12px; }
+
+  /* ── Score bar ── */
+  .score-bar {
+    display: inline-block;
+    height: 8px;
+    border-radius: 3px;
+    background: #1f6feb;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Status Bar -->
+<div id="status-bar">
+  <span class="title">⚡ V6 MASTER PRO</span>
+  <span class="item">Status: <span id="sb-status">—</span></span>
+  <span class="item">Updated: <span id="sb-update">—</span></span>
+  <span class="item">Cycles: <span id="sb-cycles">—</span></span>
+  <span class="item">Heartbeat: <span id="sb-heart">—</span></span>
+  <span id="refresh-count">Refreshing in <span id="countdown">10</span>s</span>
+</div>
+
+<!-- Main: Side A top, Side B bottom -->
+<div id="main">
+
+  <!-- SIDE A: VMC Signals -->
+  <div class="panel" id="panel-a">
+    <div class="panel-header">
+      <span class="panel-label panel-a-label">▲ SIDE A — VMC Signal Engine</span>
+      <span id="a-summary" style="font-size:10px;color:#555;"></span>
+    </div>
+    <div id="tabs"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Price</th>
+            <th>Change%</th>
+            <th>Score</th>
+            <th>RSI</th>
+            <th>Volume(USDT)</th>
+            <th>PricePos%</th>
+          </tr>
+        </thead>
+        <tbody id="vmc-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SIDE B: Whale Walls -->
+  <div class="panel" id="panel-b">
+    <div class="panel-header">
+      <span class="panel-label panel-b-label">▼ SIDE B — Whale Wall Scanner</span>
+      <span id="b-summary" style="font-size:10px;color:#555;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Price</th>
+            <th>Label</th>
+            <th>Walls</th>
+            <th>Min Dist%</th>
+            <th>Blink→Push</th>
+            <th>Spoofing</th>
+            <th>Closest Wall</th>
+          </tr>
+        </thead>
+        <tbody id="whale-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const SK       = new URLSearchParams(window.location.search).get('sk') || '786';
+const FOLDERS  = ['ALL','FAV','STUCK','GOLDEN','BOOM','ENTRY','EXIT','PUMP','VIP'];
+let activeTab  = 'VIP';
+let countdown  = 10;
+let data       = null;
+
+// ── Tab system ────────────────────────────────────────────────────────────────
+function buildTabs(vmc) {
+  const wrap = document.getElementById('tabs');
+  wrap.innerHTML = '';
+  FOLDERS.forEach(f => {
+    const cnt = (vmc[f] || []).length;
+    const el  = document.createElement('button');
+    el.className = 'tab' + (f === activeTab ? ' active' : '');
+    el.dataset.folder = f;
+    el.innerHTML = `${f} <span class="cnt">(${cnt})</span>`;
+    el.onclick = () => { activeTab = f; renderVMC(vmc); };
+    wrap.appendChild(el);
+  });
+}
+
+// ── VMC Render ────────────────────────────────────────────────────────────────
+function renderVMC(vmc) {
+  buildTabs(vmc);
+  const rows   = vmc[activeTab] || [];
+  const tbody  = document.getElementById('vmc-body');
+  const cls    = 'tag-' + activeTab;
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No ${activeTab} signals yet — scanning…</td></tr>`;
+    document.getElementById('a-summary').textContent = '';
+    return;
+  }
+
+  document.getElementById('a-summary').textContent =
+    `${rows.length} signals | top score: ${rows[0].score}`;
+
+  tbody.innerHTML = rows.slice(0, 100).map(c => {
+    const chgCls  = c.change_pct > 0 ? 'pos' : c.change_pct < 0 ? 'neg' : 'neu';
+    const rsiCls  = c.rsi < 38 ? 'pos' : c.rsi > 62 ? 'neg' : 'neu';
+    const barW    = Math.round(c.score * 0.6);
+    const vol     = fmtVol(c.volume_usdt);
+    return `<tr>
+      <td class="col-sym ${cls}">${c.symbol.replace('USDT','')}</td>
+      <td>${fmtPrice(c.price)}</td>
+      <td class="${chgCls}">${c.change_pct > 0 ? '+' : ''}${c.change_pct}%</td>
+      <td class="col-score">${c.score}<span class="score-bar" style="width:${barW}px"></span></td>
+      <td class="${rsiCls}">${c.rsi}</td>
+      <td>${vol}</td>
+      <td>${c.price_pos_pct}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Whale Render ──────────────────────────────────────────────────────────────
+function renderWhale(whales) {
+  const tbody = document.getElementById('whale-body');
+  document.getElementById('b-summary').textContent =
+    whales.length ? `${whales.length} whale signals detected` : '';
+
+  if (!whales.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="8">No whale walls detected — scanning…</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = whales.slice(0, 60).map(w => {
+    const lbl = w.label;
+    const lblCls = lbl === 'WHALE TRAP' ? 'tag-WHALE-TRAP'
+                 : lbl === 'BLINK→PUSH' ? 'tag-BLINK'
+                 : 'tag-WALL';
+    const b2p  = w.blink_to_push ? '<span class="tag-BLINK">⚡ YES</span>' : '<span class="neu">—</span>';
+    const spf  = w.spoofing.details !== 'Clean'
+               ? `<span class="tag-WHALE-TRAP">${w.spoofing.details}</span>`
+               : '<span class="neu">Clean</span>';
+    const closest = w.walls.length
+      ? `${w.walls[0].side} @ ${fmtPrice(w.walls[0].price_level)} (${w.walls[0].dist_pct}%)`
+      : '—';
+    return `<tr>
+      <td class="col-sym tag-FAV">${w.symbol.replace('USDT','')}</td>
+      <td>${fmtPrice(w.price)}</td>
+      <td class="${lblCls}">${lbl}</td>
+      <td>${w.wall_count}</td>
+      <td>${w.min_dist_pct ? w.min_dist_pct.toFixed(3) + '%' : '—'}</td>
+      <td>${b2p}</td>
+      <td>${spf}</td>
+      <td class="neu" style="font-size:11px">${closest}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Status Bar ────────────────────────────────────────────────────────────────
+function renderStatus(d) {
+  const sEl = document.getElementById('sb-status');
+  sEl.textContent = d.status;
+  sEl.className   = d.status === 'live' ? 'live' : 'error';
+  document.getElementById('sb-update').textContent  = d.last_update || '—';
+  document.getElementById('sb-cycles').textContent  = d.cycle_count || '0';
+  document.getElementById('sb-heart').textContent   = d.heartbeat   || '—';
+}
+
+// ── Fetch cycle ───────────────────────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const res = await fetch('/dashboard_data');
+    if (!res.ok) { console.warn('Dashboard data fetch failed:', res.status); return; }
+    data = await res.json();
+    renderStatus(data);
+    renderVMC(data.vmc   || {});
+    renderWhale(data.whale || []);
+  } catch(e) {
+    console.error('Fetch error:', e);
+    document.getElementById('sb-status').textContent = 'fetch error';
+    document.getElementById('sb-status').className   = 'error';
+  }
+}
+
+// ── Countdown & auto-refresh ──────────────────────────────────────────────────
+function tick() {
+  countdown--;
+  document.getElementById('countdown').textContent = countdown;
+  if (countdown <= 0) {
+    countdown = 10;
+    fetchData();
+  }
+}
+
+// ── Formatters ────────────────────────────────────────────────────────────────
+function fmtPrice(p) {
+  if (p >= 1000)  return p.toFixed(2);
+  if (p >= 1)     return p.toFixed(4);
+  if (p >= 0.001) return p.toFixed(6);
+  return p.toFixed(8);
+}
+function fmtVol(v) {
+  if (v >= 1e9)  return (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6)  return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3)  return (v/1e3).toFixed(0) + 'K';
+  return v.toString();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+fetchData();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
