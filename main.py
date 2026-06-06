@@ -36,6 +36,7 @@ PORT               = int(os.getenv("PORT", "8080"))
 GLOBAL_DATA = {
     "vmc": {k: [] for k in ["ALL", "FAV", "STUCK", "GOLDEN", "BOOM", "ENTRY", "EXIT", "PUMP", "VIP"]},
     "whale": [],
+    "alert_history": [],   # last 50 alerts — VIP + Whale combined
     "last_update":  None,
     "heartbeat":    None,
     "uptime_start": time.time(),
@@ -44,6 +45,23 @@ GLOBAL_DATA = {
 }
 _previous_walls   = {}
 _alert_cooldown   = {}   # symbol → last alert timestamp
+_HISTORY_MAX      = 50
+
+
+def _record_alert(alert_type: str, symbol: str, label: str, price, detail: str):
+    """Append an alert to GLOBAL_DATA['alert_history'], keeping the last 50."""
+    entry = {
+        "time":   time.strftime("%Y-%m-%d %H:%M:%S"),
+        "type":   alert_type,          # "VIP" | "WHALE" | "GOLDEN"
+        "symbol": symbol,
+        "label":  label,
+        "price":  price,
+        "detail": detail,
+    }
+    hist = GLOBAL_DATA["alert_history"]
+    hist.insert(0, entry)              # newest first
+    if len(hist) > _HISTORY_MAX:
+        GLOBAL_DATA["alert_history"] = hist[:_HISTORY_MAX]
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -80,6 +98,13 @@ def alert_vip(coin: dict):
             f"Price: {coin['price']} | Change: {coin['change_pct']}%\n"
             f"Score: {coin['score']} | RSI: {coin['rsi']}"
         )
+        _record_alert(
+            alert_type="VIP",
+            symbol=coin["symbol"],
+            label="VIP SIGNAL",
+            price=coin["price"],
+            detail=f"Score:{coin['score']} | RSI:{coin['rsi']} | Change:{coin['change_pct']}%"
+        )
 
 
 def alert_whale(whale: dict):
@@ -91,6 +116,18 @@ def alert_whale(whale: dict):
             f"Walls: {whale['wall_count']} | Closest: {whale['min_dist_pct']:.2f}%\n"
             f"Spoofing: {whale['spoofing']['details']}\n"
             f"Blink→Push: {'YES ⚡' if whale['blink_to_push'] else 'No'}"
+        )
+        _record_alert(
+            alert_type="WHALE",
+            symbol=whale["symbol"],
+            label=whale["label"],
+            price=whale["price"],
+            detail=(
+                f"Walls:{whale['wall_count']} | "
+                f"MinDist:{whale['min_dist_pct']:.2f}% | "
+                f"Blink:{'YES' if whale['blink_to_push'] else 'No'} | "
+                f"{whale['spoofing']['details']}"
+            )
         )
 
 

@@ -39,7 +39,7 @@
   #refresh-count      { color: #888; font-size: 10px; }
   @keyframes blink { 50% { opacity: 0.4; } }
 
-  /* ── Main layout: two horizontal halves ── */
+  /* ── Main layout: three horizontal stacked sections ── */
   #main {
     display: flex;
     flex-direction: column;
@@ -47,14 +47,11 @@
     overflow: hidden;
   }
 
-  /* ── Each half ── */
-  .panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  #panel-a { border-bottom: 2px solid #333; }
+  /* ── Each section ── */
+  .panel          { display: flex; flex-direction: column; overflow: hidden; }
+  #panel-a        { flex: 1.4; border-bottom: 2px solid #333; }
+  #panel-b        { flex: 1.2; border-bottom: 2px solid #333; }
+  #panel-c        { flex: 0.8; }
 
   .panel-header {
     background: #161b22;
@@ -65,9 +62,19 @@
     gap: 10px;
     flex-shrink: 0;
   }
-  .panel-label { font-weight: bold; font-size: 12px; letter-spacing: 0.5px; color: #e6edf3; }
+  .panel-label   { font-weight: bold; font-size: 12px; letter-spacing: 0.5px; color: #e6edf3; }
   .panel-a-label { color: #58a6ff; }
   .panel-b-label { color: #bc8cff; }
+  .panel-c-label { color: #3fb950; }
+
+  /* ── Alert History ── */
+  .hist-VIP   { color: #da70d6; font-weight: bold; }
+  .hist-WHALE { color: #FF4500; font-weight: bold; }
+  .hist-GOLDEN{ color: #FFD700; font-weight: bold; }
+  .hist-time  { color: #444; font-size: 10px; white-space: nowrap; }
+  .hist-detail{ color: #6e7681; font-size: 11px; }
+  .hist-new   { animation: flashNew 1s ease-out; }
+  @keyframes flashNew { from { background: #1a2a1a; } to { background: transparent; } }
 
   /* ── Folder Tabs ── */
   #tabs {
@@ -219,6 +226,29 @@
     </div>
   </div>
 
+  <!-- SIDE C: Signal Alert History -->
+  <div class="panel" id="panel-c">
+    <div class="panel-header">
+      <span class="panel-label panel-c-label">◆ ALERT HISTORY — Last 50 Signals</span>
+      <span id="c-summary" style="font-size:10px;color:#555;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:130px">Time</th>
+            <th style="width:60px">Type</th>
+            <th style="width:100px">Symbol</th>
+            <th style="width:110px">Label</th>
+            <th style="width:100px">Price</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -312,6 +342,41 @@ function renderWhale(whales) {
   }).join('');
 }
 
+// ── Alert History Render ──────────────────────────────────────────────────────
+let _prevHistLen = 0;
+function renderHistory(alerts) {
+  const tbody = document.getElementById('history-body');
+  const cSum  = document.getElementById('c-summary');
+
+  if (!alerts.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="6">No alerts fired yet — VIP and Whale Trap alerts will appear here.</td></tr>`;
+    cSum.textContent = '';
+    return;
+  }
+
+  cSum.textContent = `${alerts.length} / 50 alerts logged`;
+  const isNew = alerts.length > _prevHistLen;
+  _prevHistLen = alerts.length;
+
+  tbody.innerHTML = alerts.map((a, i) => {
+    const typeCls = a.type === 'VIP'   ? 'hist-VIP'
+                  : a.type === 'WHALE' ? 'hist-WHALE'
+                  : 'hist-GOLDEN';
+    const newCls  = (i === 0 && isNew) ? 'hist-new' : '';
+    const icon    = a.type === 'VIP'   ? '⭐'
+                  : a.type === 'WHALE' ? '🐋'
+                  : '✨';
+    return `<tr class="${newCls}">
+      <td class="hist-time">${a.time}</td>
+      <td class="${typeCls}">${icon} ${a.type}</td>
+      <td class="col-sym ${typeCls}">${a.symbol.replace('USDT','')}</td>
+      <td class="${typeCls}">${a.label}</td>
+      <td>${fmtPrice(Number(a.price))}</td>
+      <td class="hist-detail">${a.detail}</td>
+    </tr>`;
+  }).join('');
+}
+
 // ── Status Bar ────────────────────────────────────────────────────────────────
 function renderStatus(d) {
   const sEl = document.getElementById('sb-status');
@@ -329,8 +394,9 @@ async function fetchData() {
     if (!res.ok) { console.warn('Dashboard data fetch failed:', res.status); return; }
     data = await res.json();
     renderStatus(data);
-    renderVMC(data.vmc   || {});
-    renderWhale(data.whale || []);
+    renderVMC(data.vmc            || {});
+    renderWhale(data.whale        || []);
+    renderHistory(data.alert_history || []);
   } catch(e) {
     console.error('Fetch error:', e);
     document.getElementById('sb-status').textContent = 'fetch error';
