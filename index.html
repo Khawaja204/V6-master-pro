@@ -5,351 +5,350 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>V6 Master Pro — Institutional Terminal</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
-    background: #0a0a0f;
-    color: #c9d1d9;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+body {
+  background: #0a0a0f; color: #c9d1d9;
+  font-family: 'Courier New', monospace; font-size: 12px;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
 
-  /* ── Status Bar ── */
-  #status-bar {
-    background: #111827;
-    border-bottom: 1px solid #21262d;
-    padding: 5px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-    font-size: 11px;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  #status-bar .title  { color: #FFD700; font-weight: bold; font-size: 13px; letter-spacing: 1px; }
-  #status-bar .item   { color: #8b949e; }
-  #status-bar .item span { color: #58a6ff; }
-  .live   { color: #00FF00; animation: blink 2s infinite; }
-  .error  { color: #FF4500; }
-  @keyframes blink { 50% { opacity: 0.4; } }
+/* ── Status Bar ── */
+#status-bar {
+  background: #111827; border-bottom: 1px solid #21262d;
+  padding: 4px 12px; display: flex; align-items: center;
+  gap: 8px; flex-shrink: 0; font-size: 11px; flex-wrap: wrap;
+}
+#status-bar .title { color: #FFD700; font-weight: bold; font-size: 12px; letter-spacing: 1px; }
+.live  { color: #00FF00; animation: blink 2s infinite; }
+.error { color: #FF4500; }
+@keyframes blink { 50% { opacity: 0.4; } }
+.sep { color: #333; }
+.sb-val { color: #58a6ff; }
 
-  /* ── BTC Sentiment Bar ── */
-  #btc-bar {
-    background: #0d1117;
-    border-bottom: 1px solid #21262d;
-    padding: 3px 14px;
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    flex-shrink: 0;
-    font-size: 11px;
-  }
-  .btc-bull  { color: #3fb950; font-weight: bold; }
-  .btc-bear  { color: #FF4500; font-weight: bold; }
-  .btc-neut  { color: #58a6ff; font-weight: bold; }
-  .btc-pause { background: #4a1515; color: #FF4500; padding: 2px 8px; border-radius: 3px;
-               font-weight: bold; animation: blink 1s infinite; }
-  .tl-green  { color: #00FF00; font-size: 15px; text-shadow: 0 0 8px #00FF00; }
-  .tl-yellow { color: #FFD700; font-size: 15px; text-shadow: 0 0 8px #FFD700; }
-  .tl-red    { color: #FF4500; font-size: 15px; text-shadow: 0 0 8px #FF4500; }
+/* ── BTC Sentinel Bar ── */
+#btc-bar {
+  background: #0d1117; border-bottom: 1px solid #21262d;
+  padding: 3px 12px; display: flex; gap: 12px; align-items: center;
+  flex-shrink: 0; font-size: 11px; flex-wrap: wrap;
+}
+.btc-bull { color: #3fb950; font-weight: bold; }
+.btc-bear { color: #FF4500; font-weight: bold; }
+.btc-neut { color: #58a6ff; }
+.pause-tag { background: #4a1515; color: #FF4500; padding: 1px 8px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
+.tl-green  { color: #00FF00; text-shadow: 0 0 6px #00FF00; font-weight: bold; }
+.tl-yellow { color: #FFD700; text-shadow: 0 0 6px #FFD700; font-weight: bold; }
+.tl-red    { color: #FF4500; text-shadow: 0 0 6px #FF4500; font-weight: bold; }
+.regime-volatile { color: #FF4500; } .regime-trending { color: #3fb950; } .regime-ranging { color: #8b949e; }
 
-  /* ── Main layout ── */
-  #main {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    overflow: hidden;
-  }
+/* ── Main ── */
+#main { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.panel { display: flex; flex-direction: column; overflow: hidden; }
+#panel-a { flex: 1.4; border-bottom: 2px solid #1a1a2e; }
+#panel-b { flex: 1.0; border-bottom: 2px solid #1a1a2e; }
+#panel-c { flex: 0.85; border-bottom: 2px solid #1a1a2e; }
+#panel-d { flex: 0.85; border-bottom: 2px solid #1a1a2e; }
+#panel-e { flex: 0.65; }
 
-  .panel          { display: flex; flex-direction: column; overflow: hidden; }
-  #panel-a        { flex: 1.5; border-bottom: 2px solid #1a1a2e; }
-  #panel-b        { flex: 1.1; border-bottom: 2px solid #1a1a2e; }
-  #panel-c        { flex: 0.75; border-bottom: 2px solid #1a1a2e; }
-  #panel-d        { flex: 0.75; }
+.panel-header {
+  background: #161b22; border-bottom: 1px solid #21262d;
+  padding: 4px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+}
+.panel-label { font-weight: bold; font-size: 11px; letter-spacing: 0.5px; }
+.panel-a-label { color: #58a6ff; } .panel-b-label { color: #bc8cff; }
+.panel-c-label { color: #3fb950; } .panel-d-label { color: #f0883e; }
+.panel-e-label { color: #da70d6; }
 
-  .panel-header {
-    background: #161b22;
-    border-bottom: 1px solid #21262d;
-    padding: 4px 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  .panel-label   { font-weight: bold; font-size: 11px; letter-spacing: 0.5px; }
-  .panel-a-label { color: #58a6ff; }
-  .panel-b-label { color: #bc8cff; }
-  .panel-c-label { color: #3fb950; }
-  .panel-d-label { color: #f0883e; }
+.table-wrap { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
+table { width: 100%; border-collapse: collapse; }
+th { position: sticky; top: 0; background: #0d1117; color: #58a6ff; padding: 4px 8px;
+     text-align: left; font-size: 10px; border-bottom: 1px solid #21262d; z-index: 1; }
+td { padding: 3px 8px; border-bottom: 1px solid #111; font-size: 11px; }
+tr:hover td { background: #161b22; cursor: pointer; }
+.empty-row td { color: #444; text-align: center; padding: 10px; }
 
-  .table-wrap { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
-  table { width: 100%; border-collapse: collapse; }
-  th    { position: sticky; top: 0; background: #0d1117; color: #58a6ff; padding: 4px 8px;
-          text-align: left; font-size: 10px; border-bottom: 1px solid #21262d; z-index: 1; }
-  td    { padding: 3px 8px; border-bottom: 1px solid #111; font-size: 11px; }
-  tr:hover td { background: #161b22; }
-  .empty-row td { color: #444; text-align: center; padding: 12px; font-size: 11px; }
+/* ── Tabs ── */
+#tabs {
+  display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
+  padding: 4px 12px; background: #0d1117; border-bottom: 1px solid #21262d;
+  flex-shrink: 0; scrollbar-width: thin;
+}
+.tab {
+  padding: 2px 8px; border-radius: 4px; border: 1px solid #30363d;
+  background: #161b22; color: #8b949e; cursor: pointer;
+  font-size: 10px; white-space: nowrap; font-family: monospace;
+}
+.tab:hover { border-color: #58a6ff; color: #e6edf3; }
+.tab.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+.tab .cnt { font-size: 9px; opacity: 0.7; margin-left: 2px; }
 
-  /* ── Folder Tabs ── */
-  #tabs {
-    display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
-    padding: 4px 12px; background: #0d1117;
-    border-bottom: 1px solid #21262d; flex-shrink: 0; scrollbar-width: thin;
-  }
-  .tab {
-    padding: 3px 8px; border-radius: 4px; border: 1px solid #30363d;
-    background: #161b22; color: #8b949e; cursor: pointer;
-    font-size: 10px; white-space: nowrap; transition: all 0.15s; font-family: monospace;
-  }
-  .tab:hover         { border-color: #58a6ff; color: #e6edf3; }
-  .tab.active        { background: #1f6feb; border-color: #388bfd; color: #fff; }
-  .tab .cnt          { font-size: 9px; opacity: 0.8; margin-left: 2px; }
+/* ── Colors ── */
+.pos { color: #3fb950; } .neg { color: #FF4500; } .neu { color: #8b949e; }
+.col-sym { font-weight: bold; }
+.tag-ALL { color: #8b949e; } .tag-FAV { color: #FFD700; }
+.tag-STUCK { color: #555; } .tag-GOLDEN { color: #FFD700; text-shadow: 0 0 5px #FFD700; }
+.tag-BOOM { color: #FF6B35; } .tag-ENTRY { color: #3fb950; }
+.tag-EXIT { color: #FF4500; } .tag-PUMP { color: #bc8cff; }
+.tag-VIP { color: #da70d6; font-weight: bold; text-shadow: 0 0 5px #da70d6; }
+.tag-WHALE-TRAP { color: #FF4500; font-weight: bold; }
+.tag-BLINK { color: #FFD700; font-weight: bold; }
+.tag-WALL  { color: #58a6ff; }
 
-  /* ── Signal Colors ── */
-  .pos { color: #3fb950; } .neg { color: #FF4500; } .neu { color: #8b949e; }
-  .col-sym  { font-weight: bold; font-size: 11px; }
-  .col-score{ position: relative; }
-  .score-bar{ display: inline-block; height: 3px; background: #1f6feb;
-              border-radius: 2px; vertical-align: middle; margin-left: 4px; }
+/* ── Traffic light cells ── */
+.tl-g { color: #00FF00; font-weight: bold; } .tl-y { color: #FFD700; font-weight: bold; } .tl-r { color: #FF4500; font-weight: bold; }
 
-  .tag-ALL    { color: #8b949e; }
-  .tag-FAV    { color: #FFD700; }
-  .tag-STUCK  { color: #555; }
-  .tag-GOLDEN { color: #FFD700; text-shadow: 0 0 6px #FFD700; }
-  .tag-BOOM   { color: #FF6B35; }
-  .tag-ENTRY  { color: #3fb950; }
-  .tag-EXIT   { color: #FF4500; }
-  .tag-PUMP   { color: #bc8cff; }
-  .tag-VIP    { color: #da70d6; font-weight: bold; text-shadow: 0 0 6px #da70d6; }
-  .tag-WHALE-TRAP { color: #FF4500; font-weight: bold; }
-  .tag-BLINK  { color: #FFD700; font-weight: bold; }
-  .tag-WALL   { color: #58a6ff; }
+/* ── Spike tag ── */
+.spike-tag { display: inline-block; background: #4a0000; color: #FF4500; border: 1px solid #FF4500;
+             border-radius: 3px; padding: 1px 4px; font-size: 9px; font-weight: bold;
+             animation: spblink 0.5s infinite; }
+@keyframes spblink { 50% { background: #FF4500; color: #fff; } }
 
-  /* ── Traffic Lights ── */
-  .tl-cell-green  { color: #00FF00; font-weight: bold; text-shadow: 0 0 6px #00FF00; }
-  .tl-cell-yellow { color: #FFD700; font-weight: bold; text-shadow: 0 0 6px #FFD700; }
-  .tl-cell-red    { color: #FF4500; font-weight: bold; text-shadow: 0 0 6px #FF4500; }
+/* ── HOT COIN tag ── */
+.hot-tag { display: inline-block; background: #4a1f00; color: #FF6B35; border: 1px solid #FF6B35;
+           border-radius: 3px; padding: 1px 4px; font-size: 9px; font-weight: bold; animation: spblink 1s infinite; }
 
-  /* ── Spike Tag ── */
-  .spike-tag {
-    display: inline-block; background: #4a0000; color: #FF4500;
-    border: 1px solid #FF4500; border-radius: 3px;
-    padding: 1px 5px; font-size: 9px; font-weight: bold;
-    animation: spike-blink 0.6s infinite;
-  }
-  @keyframes spike-blink { 50% { background: #FF4500; color: #fff; } }
+/* ── Battery bar ── */
+.bat-wrap { display: inline-flex; align-items: center; gap: 3px; }
+.bat-outer { width: 36px; height: 8px; border: 1px solid #444; border-radius: 2px; background: #0d1117; display: inline-block; }
+.bat-fill  { height: 100%; border-radius: 1px; }
+.bat-h { background: #3fb950; } .bat-m { background: #FFD700; } .bat-l { background: #FF4500; }
 
-  /* ── Battery Bar ── */
-  .battery-wrap { display: inline-flex; align-items: center; gap: 3px; }
-  .battery-outer { width: 40px; height: 9px; border: 1px solid #444; border-radius: 2px;
-                   background: #0d1117; position: relative; display: inline-block; }
-  .battery-fill  { height: 100%; border-radius: 1px; transition: width 0.3s; }
-  .bat-high  { background: #3fb950; }
-  .bat-mid   { background: #FFD700; }
-  .bat-low   { background: #FF4500; }
+/* ── Heatmap ── */
+.heat-hot { color: #FF6B35; font-weight: bold; } .heat-warm { color: #FFD700; } .heat-cold { color: #555; }
 
-  /* ── Heatmap Cell ── */
-  .heat-hot  { color: #FF6B35; font-weight: bold; }
-  .heat-warm { color: #FFD700; }
-  .heat-cold { color: #8b949e; }
+/* ── TP badges ── */
+.tp-b { color: #3fb950; font-size: 10px; } .sl-b { color: #FF4500; font-size: 10px; }
 
-  /* ── TP Zone Badge ── */
-  .tp-badge { font-size: 9px; color: #3fb950; }
-  .sl-badge { font-size: 9px; color: #FF4500; }
+/* ── Confidence bar ── */
+.conf-bar { display: inline-block; height: 3px; border-radius: 2px; vertical-align: middle; margin-left: 3px; }
 
-  /* ── Alert History ── */
-  .hist-VIP    { color: #da70d6; font-weight: bold; }
-  .hist-WHALE  { color: #FF4500; font-weight: bold; }
-  .hist-GOLDEN { color: #FFD700; font-weight: bold; }
-  .hist-time   { color: #444; font-size: 10px; white-space: nowrap; }
-  .hist-detail { color: #6e7681; font-size: 10px; }
-  .hist-new    { animation: flashNew 1.5s ease-out; }
-  @keyframes flashNew { from { background: #1a2a1a; } to { background: transparent; } }
+/* ── Backtest ── */
+.bt-win     { color: #3fb950; font-weight: bold; } .bt-loss { color: #FF4500; font-weight: bold; }
+.bt-open    { color: #58a6ff; } .bt-timeout { color: #8b949e; }
+.bt-tp1 { color: #3fb950; } .bt-tp2 { color: #FFD700; } .bt-tp3 { color: #da70d6; }
 
-  /* ── OBI indicator ── */
-  .obi-pos { color: #3fb950; } .obi-neg { color: #FF4500; } .obi-spike { color: #FFD700; font-weight:bold; }
+/* ── Alert History ── */
+.hist-VIP   { color: #da70d6; font-weight: bold; } .hist-WHALE { color: #FF4500; font-weight: bold; }
+.hist-GOLDEN{ color: #FFD700; font-weight: bold; }
+.hist-time  { color: #444; font-size: 10px; white-space: nowrap; }
+.hist-detail{ color: #6e7681; font-size: 10px; }
+.hist-new   { animation: flashNew 1.5s ease-out; }
+@keyframes flashNew { from { background: #1a2a1a; } to { background: transparent; } }
 
-  /* ── Sizing badge ── */
-  .siz-green { color: #3fb950; } .siz-yellow { color: #FFD700; } .siz-red { color: #FF4500; }
+/* ── OBI ── */
+.obi-pos { color: #3fb950; } .obi-neg { color: #FF4500; } .obi-spike { color: #FFD700; font-weight: bold; }
+
+/* ── Sniper Modal ── */
+#sniper-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  z-index: 100; align-items: center; justify-content: center;
+}
+#sniper-overlay.active { display: flex; }
+#sniper-panel {
+  background: #111827; border: 1px solid #30363d; border-radius: 8px;
+  width: 90%; max-width: 860px; max-height: 90vh; overflow-y: auto; padding: 0;
+}
+.sniper-header {
+  background: #161b22; padding: 12px 20px; display: flex; justify-content: space-between;
+  align-items: center; border-bottom: 1px solid #21262d;
+}
+.sniper-title { color: #FFD700; font-size: 16px; font-weight: bold; }
+.sniper-close { color: #FF4500; cursor: pointer; font-size: 20px; font-weight: bold; }
+.sniper-body  { padding: 16px; }
+.sniper-grid  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.s-card { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; }
+.s-card h4 { color: #58a6ff; font-size: 11px; margin-bottom: 8px; }
+.s-row  { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; }
+.s-label{ color: #555; } .s-val { color: #c9d1d9; }
+.s-big  { font-size: 22px; font-weight: bold; color: #FFD700; margin: 4px 0; }
+.sniper-table th { font-size: 10px; } .sniper-table td { font-size: 11px; }
+
+/* ── Score bar (inline) ── */
+.score-bar { display: inline-block; height: 3px; background: #1f6feb;
+             border-radius: 2px; vertical-align: middle; margin-left: 3px; }
+
+/* ── Win Streak badge ── */
+.streak-badge { background: #1a3a1a; color: #3fb950; border: 1px solid #3fb950;
+                border-radius: 3px; padding: 1px 6px; font-size: 10px; font-weight: bold; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  body { font-size: 11px; height: auto; overflow: auto; }
+  #main { height: auto; overflow: visible; }
+  .panel { height: auto; overflow: visible; min-height: 300px; }
+  .table-wrap { overflow-y: visible; max-height: 300px; overflow-y: auto; }
+  #panel-a,#panel-b,#panel-c,#panel-d,#panel-e { flex: none; }
+  #status-bar { font-size: 10px; padding: 4px 8px; gap: 5px; }
+  #btc-bar { font-size: 10px; padding: 3px 8px; }
+  .sniper-grid { grid-template-columns: 1fr 1fr; }
+  th, td { padding: 3px 5px; font-size: 10px; }
+  #sniper-panel { width: 96%; }
+}
+@media (max-width: 480px) {
+  .sniper-grid { grid-template-columns: 1fr; }
+}
 </style>
 
 <!-- Alert Sounds -->
 <script>
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let _ctx = null;
-function _ctx_() { if (!_ctx) { try { _ctx = new AudioCtx(); } catch(e){} } return _ctx; }
-
-function playTone(freq, dur, type='sine', vol=0.15) {
+function _ac() { if (!_ctx) { try { _ctx = new AudioCtx(); } catch(e){} } return _ctx; }
+function playTone(freq, dur, type='sine', vol=0.12) {
   try {
-    const ctx = _ctx_(); if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = type; osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-    osc.start(); osc.stop(ctx.currentTime + dur);
+    const c = _ac(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    o.start(); o.stop(c.currentTime + dur);
   } catch(e){}
 }
-
-function soundCriticalWhale() {
-  // Urgent descending sweep
-  [880, 660, 440, 880, 660].forEach((f, i) => setTimeout(() => playTone(f, 0.2, 'sawtooth', 0.25), i * 150));
-}
-function soundSuddenSpike() {
-  // Rising chirp
-  [440, 660, 880, 1100].forEach((f, i) => setTimeout(() => playTone(f, 0.15, 'square', 0.2), i * 80));
-}
-function soundVIP() {
-  // Pleasant chime
-  [523, 659, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.3, 'sine', 0.15), i * 120));
-}
-// Unlock AudioContext on first user gesture
-document.addEventListener('click', () => _ctx_(), { once: true });
+function soundCriticalWhale() { [880,660,440,880,660].forEach((f,i) => setTimeout(() => playTone(f,0.2,'sawtooth',0.22),i*140)); }
+function soundSuddenSpike()   { [440,660,880,1100].forEach((f,i) => setTimeout(() => playTone(f,0.14,'square',0.18),i*75)); }
+function soundVIP()           { [523,659,784].forEach((f,i) => setTimeout(() => playTone(f,0.28,'sine',0.13),i*110)); }
+function soundHotCoin()       { [660,880,660,880].forEach((f,i) => setTimeout(() => playTone(f,0.15,'triangle',0.16),i*90)); }
+document.addEventListener('click', () => _ac(), { once: true });
 </script>
 </head>
 <body>
 
 <!-- Status Bar -->
 <div id="status-bar">
-  <span class="title">V6 MASTER PRO ⚡ INSTITUTIONAL</span>
-  <span class="item">STATUS: <span id="sb-status" class="live">init</span></span>
-  <span class="item">UPDATED: <span id="sb-update">—</span></span>
-  <span class="item">CYCLE: <span id="sb-cycles">0</span></span>
-  <span class="item">HEART: <span id="sb-heart">—</span></span>
-  <span class="item">EXCHANGE: <span id="sb-exchange">BINANCE</span></span>
-  <span class="item">ENTRIES: <span id="sb-entries">ACTIVE</span></span>
-  <span id="sb-hb-dot" style="font-size:14px;color:#00FF00;" title="Heartbeat">●</span>
-  <span id="countdown" style="color:#888;font-size:10px;">10s</span>
-  <a href="/admin" style="color:#FFD700;font-size:10px;text-decoration:none;" target="_blank">🔐 ADMIN</a>
+  <span class="title">V6 MASTER PRO ⚡</span>
+  <span class="sep">|</span>
+  <span style="color:#555">STATUS:</span> <span id="sb-status" class="live">init</span>
+  <span class="sep">|</span>
+  <span style="color:#555">CYCLE:</span> <span class="sb-val" id="sb-cycles">0</span>
+  <span class="sep">|</span>
+  <span style="color:#555">UPD:</span> <span class="sb-val" id="sb-update">—</span>
+  <span class="sep">|</span>
+  <span style="color:#555">EX:</span> <span class="sb-val" id="sb-exchange">BINANCE</span>
+  <span class="sep">|</span>
+  <span style="color:#555">ENTRIES:</span> <span id="sb-entries" style="color:#3fb950">ACTIVE</span>
+  <span class="sep">|</span>
+  <span style="color:#555">WIN:</span> <span class="sb-val" id="sb-winrate">—%</span>
+  <span id="sb-streak" class="streak-badge" style="display:none">🔥 0</span>
+  <span class="sep">|</span>
+  <span style="color:#555">NEXT:</span> <span id="countdown" style="color:#888">30s</span>
+  <span id="sb-hb" style="color:#00FF00;font-size:13px" title="Heartbeat">●</span>
+  <span style="margin-left:auto">
+    <a href="/admin" style="color:#FFD700;font-size:10px;text-decoration:none" target="_blank">🔐 ADMIN</a>
+    <span class="sep" style="margin: 0 4px">|</span>
+    <a href="/client" style="color:#3fb950;font-size:10px;text-decoration:none" target="_blank">👤 CLIENT</a>
+  </span>
 </div>
 
-<!-- BTC Sentiment Bar -->
+<!-- BTC Sentinel Bar -->
 <div id="btc-bar">
-  <span style="color:#555;">BTC:</span>
-  <span id="btc-price" style="color:#58a6ff;">—</span>
-  <span id="btc-change" class="btc-neut">—%</span>
-  <span id="btc-sentiment" class="btc-neut">—</span>
-  <span id="btc-vol-pct" style="color:#555;">Vol: —%</span>
-  <span id="btc-pause-tag" class="btc-pause" style="display:none;">⛔ ENTRIES PAUSED — BTC BEARISH</span>
-  <span style="color:#555;margin-left:auto;">TRAFFIC LIGHT:</span>
+  <span style="color:#555">BTC:</span>
+  <span id="btc-price" class="btc-neut">—</span>
+  <span id="btc-chg"   class="btc-neut">—%</span>
+  <span id="btc-sent"  class="btc-neut">—</span>
+  <span style="color:#555">REGIME:</span>
+  <span id="btc-regime" class="regime-ranging">RANGING</span>
+  <span id="btc-pause" class="pause-tag" style="display:none">⛔ ENTRIES PAUSED</span>
+  <span style="margin-left:auto;color:#555">TRAFFIC LIGHT:</span>
   <span id="global-tl" class="tl-green">● GREEN</span>
-  <span style="color:#555;">INST SCORE:</span>
-  <span id="global-inst-score" style="color:#58a6ff;">—</span>
+  <span style="color:#555;margin-left:8px">INST:</span>
+  <span id="global-inst" style="color:#58a6ff">—</span>
+  <span style="color:#555;margin-left:8px">HOT COINS:</span>
+  <span id="hot-cnt" style="color:#FF6B35">0</span>
+  <span style="color:#555;margin-left:8px">W/L:</span>
+  <span id="wl-ratio" style="color:#3fb950">—</span>
 </div>
 
-<!-- Main Dashboard -->
+<!-- Main -->
 <div id="main">
 
-  <!-- SIDE A: VMC Signal Engine -->
+  <!-- PANEL A: VMC Signal Engine -->
   <div class="panel" id="panel-a">
     <div class="panel-header">
       <span class="panel-label panel-a-label">▲ SIDE A — VMC Signal Engine</span>
-      <span id="a-summary" style="font-size:10px;color:#555;"></span>
-      <div id="tabs"></div>
+      <span id="a-summary" style="font-size:10px;color:#555"></span>
     </div>
+    <div id="tabs"></div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Price</th>
-            <th>Chg%</th>
-            <th>Score</th>
-            <th>Battery</th>
-            <th>RSI</th>
-            <th>Vol</th>
-            <th>Heatmap</th>
-            <th>Pos%</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Symbol</th><th>Price</th><th>Chg%</th><th>Score</th>
+          <th>Battery</th><th>RSI</th><th>Vol</th><th>Heatmap</th><th>Pos%</th><th>Tag</th>
+        </tr></thead>
         <tbody id="vmc-body"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- SIDE B: Institutional Signals + TP Zones + Traffic Lights -->
+  <!-- PANEL B: Institutional Signals -->
   <div class="panel" id="panel-b">
     <div class="panel-header">
-      <span class="panel-label panel-b-label">★ INSTITUTIONAL SIGNALS — Traffic Light + ATR Zones + Position Sizing</span>
-      <span id="b-summary" style="font-size:10px;color:#555;"></span>
+      <span class="panel-label panel-b-label">★ INSTITUTIONAL — Traffic Light + ATR Zones + Confidence + Position Sizing</span>
+      <span id="b-summary" style="font-size:10px;color:#555"></span>
     </div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Signal</th>
-            <th>Symbol</th>
-            <th>Folder</th>
-            <th>Light</th>
-            <th>InstScore</th>
-            <th>WhalePow%</th>
-            <th>OFI</th>
-            <th>Stop Loss</th>
-            <th>TP1</th>
-            <th>TP2</th>
-            <th>TP3</th>
-            <th>Position</th>
-            <th>Confirms</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>#</th><th>Symbol</th><th>Folder</th><th>Light</th>
+          <th>Inst%</th><th>Conf%</th><th>WhalePow</th><th>OFI</th>
+          <th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Position</th><th>C/3</th>
+        </tr></thead>
         <tbody id="inst-body"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- SIDE C: Whale Wall Scanner + OBI -->
+  <!-- PANEL C: Whale Wall -->
   <div class="panel" id="panel-c">
     <div class="panel-header">
-      <span class="panel-label panel-c-label">▼ WHALE WALL SCANNER — OBI Velocity + Spoofing Detection</span>
-      <span id="c-summary" style="font-size:10px;color:#555;"></span>
+      <span class="panel-label panel-c-label">▼ WHALE WALL SCANNER — OBI Velocity + Spoofing + 24h Top Moves</span>
+      <span id="c-summary" style="font-size:10px;color:#555"></span>
+      <span id="whale24-summary" style="font-size:10px;color:#bc8cff;margin-left:auto"></span>
     </div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Price</th>
-            <th>WhalePow%</th>
-            <th>Label</th>
-            <th>Walls</th>
-            <th>MinDist%</th>
-            <th>Blink→Push</th>
-            <th>OBI</th>
-            <th>OBI Spike</th>
-            <th>Spoofing</th>
-            <th>Closest Wall</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Symbol</th><th>Price</th><th>WhalePow%</th><th>Label</th>
+          <th>Walls</th><th>MinDist%</th><th>Blink</th><th>OBI</th><th>OBI Spk</th><th>Spoofing</th><th>Closest</th>
+        </tr></thead>
         <tbody id="whale-body"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- SIDE D: Alert History -->
+  <!-- PANEL D: Live Backtesting -->
   <div class="panel" id="panel-d">
     <div class="panel-header">
-      <span class="panel-label panel-d-label">◆ ALERT HISTORY — Last 50 Signals</span>
-      <span id="d-summary" style="font-size:10px;color:#555;"></span>
+      <span class="panel-label panel-d-label">⚡ LIVE BACKTESTING — Entry Price → TP Hit Status → Win/Loss Result</span>
+      <span id="d-summary" style="font-size:10px;color:#555"></span>
+      <span id="d-winrate" style="font-size:11px;color:#3fb950;margin-left:auto"></span>
     </div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th style="width:120px">Time</th>
-            <th style="width:55px">Type</th>
-            <th style="width:90px">Symbol</th>
-            <th style="width:100px">Label</th>
-            <th style="width:80px">Price</th>
-            <th style="width:60px">Light</th>
-            <th>Detail</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Time</th><th>Symbol</th><th>Folder</th><th>Entry</th>
+          <th>Conf%</th><th>TP1</th><th>TP2</th><th>TP3</th><th>SL</th>
+          <th>Exit</th><th>PnL%</th><th>Result</th><th>Status</th>
+        </tr></thead>
+        <tbody id="bt-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PANEL E: Alert History -->
+  <div class="panel" id="panel-e">
+    <div class="panel-header">
+      <span class="panel-label panel-e-label">◆ ALERT HISTORY — Last 50 Alerts</span>
+      <span id="e-summary" style="font-size:10px;color:#555"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:120px">Time</th><th style="width:55px">Type</th>
+          <th style="width:90px">Symbol</th><th style="width:100px">Label</th>
+          <th style="width:75px">Price</th><th style="width:55px">Conf%</th>
+          <th style="width:55px">Light</th><th>Detail</th>
+        </tr></thead>
         <tbody id="history-body"></tbody>
       </table>
     </div>
@@ -357,58 +356,80 @@ document.addEventListener('click', () => _ctx_(), { once: true });
 
 </div><!-- #main -->
 
+<!-- Sniper Modal -->
+<div id="sniper-overlay">
+  <div id="sniper-panel">
+    <div class="sniper-header">
+      <span class="sniper-title" id="sniper-title">⚡ SINGLE COIN SNIPER</span>
+      <span class="sniper-close" onclick="closeSniper()">✕</span>
+    </div>
+    <div class="sniper-body" id="sniper-body">
+      <p style="color:#555;text-align:center;padding:20px">Loading sniper data…</p>
+    </div>
+  </div>
+</div>
+
 <script>
 const FOLDERS = ['ALL','FAV','STUCK','GOLDEN','BOOM','ENTRY','EXIT','PUMP','VIP'];
-let activeTab   = 'VIP';
-let countdown   = 10;
-let data        = null;
-let _prevHistLen = 0;
-let _prevWhaleAlerts = 0;
-let _prevInstSpike   = false;
+let activeTab       = 'VIP';
+let countdown       = 30;
+let data            = null;
+let _prevHistLen    = 0;
+let _prevWhaleCrit  = 0;
+let _prevInstSpike  = false;
+let _prevHotCnt     = 0;
 
 // ── Formatters ────────────────────────────────────────────────────────────────
-function fmtPrice(p) {
-  if (!p || isNaN(p)) return '—';
+function fmtP(p) {
+  if (!p && p !== 0) return '—';
   p = Number(p);
-  if (p >= 1000)  return p.toFixed(2);
-  if (p >= 1)     return p.toFixed(4);
-  if (p >= 0.001) return p.toFixed(6);
+  if (p >= 1000) return p.toFixed(2);
+  if (p >= 1)    return p.toFixed(4);
+  if (p >= 0.001)return p.toFixed(6);
   return p.toFixed(8);
-}
-function fmtVol(v) {
-  if (v >= 1e9)  return (v/1e9).toFixed(1) + 'B';
-  if (v >= 1e6)  return (v/1e6).toFixed(1) + 'M';
-  if (v >= 1e3)  return (v/1e3).toFixed(0) + 'K';
-  return v.toString();
 }
 function fmtPct(p) {
   if (p === undefined || p === null) return '—';
   const n = Number(p);
   return (n > 0 ? '+' : '') + n.toFixed(2) + '%';
 }
-
-// ── Battery Bar ───────────────────────────────────────────────────────────────
-function batteryBar(score) {
-  const pct = Math.max(0, Math.min(100, score));
-  const cls = pct >= 70 ? 'bat-high' : pct >= 40 ? 'bat-mid' : 'bat-low';
-  return `<div class="battery-outer"><div class="battery-fill ${cls}" style="width:${pct}%"></div></div>`;
+function fmtVol(v) {
+  if (v >= 1e9) return (v/1e9).toFixed(1)+'B';
+  if (v >= 1e6) return (v/1e6).toFixed(1)+'M';
+  if (v >= 1e3) return (v/1e3).toFixed(0)+'K';
+  return v.toString();
+}
+function fmtPnl(p) {
+  if (p === null || p === undefined) return '—';
+  const n = Number(p);
+  const c = n > 0 ? 'pos' : n < 0 ? 'neg' : 'neu';
+  return `<span class="${c}">${n > 0 ? '+' : ''}${n.toFixed(3)}%</span>`;
+}
+function tlCell(light) {
+  if (light === 'GREEN')  return '<span class="tl-g">● G</span>';
+  if (light === 'YELLOW') return '<span class="tl-y">● Y</span>';
+  return '<span class="tl-r">● R</span>';
+}
+function batBar(score) {
+  const p = Math.max(0, Math.min(100, score));
+  const c = p >= 70 ? 'bat-h' : p >= 40 ? 'bat-m' : 'bat-l';
+  return `<div class="bat-outer"><div class="bat-fill ${c}" style="width:${p}%"></div></div>`;
+}
+function confBar(conf) {
+  const p = Math.max(0, Math.min(100, conf));
+  const c = p >= 70 ? '#3fb950' : p >= 40 ? '#FFD700' : '#FF4500';
+  return `<span class="conf-bar" style="width:${Math.round(p*0.4)}px;background:${c}"></span>`;
+}
+function heatCell(vol) {
+  if (vol >= 50_000_000) return '<span class="heat-hot">🔥HOT</span>';
+  if (vol >= 10_000_000) return '<span class="heat-warm">◆WARM</span>';
+  return '<span class="heat-cold">○COLD</span>';
+}
+function isHot(symbol) {
+  return (data && data.hot_coins || []).some(h => h.symbol === symbol);
 }
 
-// ── Heatmap ───────────────────────────────────────────────────────────────────
-function heatmap(vol) {
-  if (vol >= 50_000_000)  return '<span class="heat-hot">🔥 HOT</span>';
-  if (vol >= 10_000_000)  return '<span class="heat-warm">◆ WARM</span>';
-  return '<span class="heat-cold">○ COLD</span>';
-}
-
-// ── Traffic Light ─────────────────────────────────────────────────────────────
-function trafficLight(light) {
-  if (light === 'GREEN')  return '<span class="tl-cell-green">● GREEN</span>';
-  if (light === 'YELLOW') return '<span class="tl-cell-yellow">● YELLOW</span>';
-  return '<span class="tl-cell-red">● RED</span>';
-}
-
-// ── Tab system ────────────────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────────────────
 function buildTabs(vmc) {
   const wrap = document.getElementById('tabs');
   wrap.innerHTML = '';
@@ -416,145 +437,140 @@ function buildTabs(vmc) {
     const cnt = (vmc[f] || []).length;
     const el  = document.createElement('button');
     el.className = 'tab' + (f === activeTab ? ' active' : '');
-    el.dataset.folder = f;
     el.innerHTML = `${f} <span class="cnt">(${cnt})</span>`;
     el.onclick = () => { activeTab = f; renderVMC(vmc); };
     wrap.appendChild(el);
   });
 }
 
-// ── VMC Render ────────────────────────────────────────────────────────────────
+// ── VMC ───────────────────────────────────────────────────────────────────────
 function renderVMC(vmc) {
   buildTabs(vmc);
   const rows  = vmc[activeTab] || [];
   const tbody = document.getElementById('vmc-body');
   const cls   = 'tag-' + activeTab;
-
   if (!rows.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">No ${activeTab} signals yet — scanning…</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="10">No ${activeTab} signals yet…</td></tr>`;
     document.getElementById('a-summary').textContent = '';
     return;
   }
-
   document.getElementById('a-summary').textContent =
-    `${rows.length} signals | top score: ${rows[0].score}`;
+    `${rows.length} signals | top: ${rows[0].score}`;
 
+  const hot = (data && data.hot_coins || []).map(h => h.symbol);
   tbody.innerHTML = rows.slice(0, 100).map(c => {
-    const chgCls = c.change_pct > 0 ? 'pos' : c.change_pct < 0 ? 'neg' : 'neu';
-    const rsiCls = c.rsi < 38 ? 'pos' : c.rsi > 62 ? 'neg' : 'neu';
-    const barW   = Math.round(c.score * 0.5);
-    return `<tr>
-      <td class="col-sym ${cls}">${c.symbol.replace('USDT','')}</td>
-      <td>${fmtPrice(c.price)}</td>
-      <td class="${chgCls}">${fmtPct(c.change_pct)}</td>
-      <td class="col-score">${c.score}<span class="score-bar" style="width:${barW}px"></span></td>
-      <td>${batteryBar(c.score)}</td>
-      <td class="${rsiCls}">${c.rsi}</td>
+    const cc = c.change_pct > 0 ? 'pos' : c.change_pct < 0 ? 'neg' : 'neu';
+    const rc = c.rsi < 38 ? 'pos' : c.rsi > 62 ? 'neg' : 'neu';
+    const hotTag = hot.includes(c.symbol) ? '<span class="hot-tag">🔥HOT</span>' : '';
+    return `<tr onclick="openSniper('${c.symbol}')">
+      <td class="col-sym ${cls}">${c.symbol.replace('USDT','')}${hotTag}</td>
+      <td>${fmtP(c.price)}</td>
+      <td class="${cc}">${fmtPct(c.change_pct)}</td>
+      <td>${c.score}<span class="score-bar" style="width:${Math.round(c.score*0.45)}px"></span></td>
+      <td>${batBar(c.score)}</td>
+      <td class="${rc}">${c.rsi}</td>
       <td>${fmtVol(c.volume_usdt)}</td>
-      <td>${heatmap(c.volume_usdt)}</td>
+      <td>${heatCell(c.volume_usdt)}</td>
       <td>${c.price_pos_pct}%</td>
+      <td class="${cls}">${activeTab}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Institutional Signals ─────────────────────────────────────────────────────
+// ── Institutional ─────────────────────────────────────────────────────────────
 function renderInst(signals) {
   const tbody = document.getElementById('inst-body');
   const bSum  = document.getElementById('b-summary');
   if (!signals || !signals.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="13">Institutional signals computed after first scan…</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="14">Computing institutional signals…</td></tr>`;
     bSum.textContent = '';
     return;
   }
-
-  bSum.textContent = `${signals.length} signals | top inst: ${signals[0]?.inst?.inst_score ?? '—'}`;
-
-  // Update global traffic light
+  bSum.textContent = `${signals.length} signals | top conf: ${signals[0]?.confidence ?? '—'}%`;
   const top = signals[0];
   if (top && top.inst) {
     const tl = top.inst.traffic || 'RED';
     const el = document.getElementById('global-tl');
     el.textContent = '● ' + tl;
     el.className   = tl === 'GREEN' ? 'tl-green' : tl === 'YELLOW' ? 'tl-yellow' : 'tl-red';
-    document.getElementById('global-inst-score').textContent = top.inst.inst_score ?? '—';
+    document.getElementById('global-inst').textContent = top.inst.inst_score ?? '—';
   }
-
-  // Sound alerts
   const hasSpike = signals.some(s => s.inst && s.inst.spike);
   if (hasSpike && !_prevInstSpike) soundSuddenSpike();
   _prevInstSpike = hasSpike;
 
   tbody.innerHTML = signals.slice(0, 20).map((s, i) => {
-    const inst = s.inst || {};
-    const tp   = s.tp_zones || {};
-    const siz  = s.sizing || {};
-    const tl   = inst.traffic || 'RED';
-    const sizCls = tl === 'GREEN' ? 'siz-green' : tl === 'YELLOW' ? 'siz-yellow' : 'siz-red';
-    const spike  = inst.spike ? '<span class="spike-tag">⚡ SPIKE</span>' : '';
-    const obi    = (inst.ofi_score || 0) >= 55 ? '<span class="obi-pos">▲BID</span>'
-                 : (inst.ofi_score || 0) <= 45 ? '<span class="obi-neg">▼ASK</span>'
-                 : '<span class="neu">—</span>';
-    return `<tr>
-      <td>${spike} ${i === 0 && inst.spike ? '🥇' : '#' + (i+1)}</td>
-      <td class="col-sym tag-VIP">${(s.symbol||'').replace('USDT','')}</td>
+    const inst  = s.inst   || {};
+    const tp    = s.tp_zones || {};
+    const siz   = s.sizing  || {};
+    const tl    = inst.traffic || 'RED';
+    const spike = inst.spike ? '<span class="spike-tag">⚡SPIKE</span>' : '';
+    const conf  = s.confidence ?? 0;
+    const sizCls = tl === 'GREEN' ? 'pos' : tl === 'YELLOW' ? '' : 'neg';
+    const ofi   = (inst.ofi_score || 0) >= 55 ? '<span class="obi-pos">▲</span>' :
+                  (inst.ofi_score || 0) <= 45 ? '<span class="obi-neg">▼</span>' : '<span class="neu">—</span>';
+    const hotTag = isHot(s.symbol) ? '<span class="hot-tag">🔥</span>' : '';
+    return `<tr onclick="openSniper('${s.symbol}')">
+      <td>${spike}${i===0&&inst.spike?'👑':'#'+(i+1)}</td>
+      <td class="col-sym tag-VIP">${(s.symbol||'').replace('USDT','')}${hotTag}</td>
       <td><span class="tag-${s.folder||'ALL'}">${s.folder||'—'}</span></td>
-      <td>${trafficLight(tl)}</td>
+      <td>${tlCell(tl)}</td>
       <td>${inst.inst_score ?? '—'}</td>
-      <td><div class="battery-wrap">${batteryBar(inst.whale_power||0)}<span style="font-size:9px;color:#555">${inst.whale_power||0}%</span></div></td>
-      <td>${obi}</td>
-      <td class="sl-badge">▼ ${fmtPrice(tp.stop_loss)}</td>
-      <td class="tp-badge">▲ ${fmtPrice(tp.tp1)}</td>
-      <td class="tp-badge">▲▲ ${fmtPrice(tp.tp2)}</td>
-      <td class="tp-badge">▲▲▲ ${fmtPrice(tp.tp3)}</td>
+      <td>${conf}%${confBar(conf)}</td>
+      <td><div class="bat-wrap">${batBar(inst.whale_power||0)}<span style="font-size:9px;color:#555">${inst.whale_power||0}%</span></div></td>
+      <td>${ofi}</td>
+      <td class="sl-b">▼${fmtP(tp.stop_loss)}</td>
+      <td class="tp-b">▲${fmtP(tp.tp1)}</td>
+      <td class="tp-b">▲▲${fmtP(tp.tp2)}</td>
+      <td class="tp-b">▲▲▲${fmtP(tp.tp3)}</td>
       <td class="${sizCls}">${siz.alloc_usdt ? '$'+siz.alloc_usdt : '—'}</td>
-      <td style="color:#555;font-size:10px">${inst.confirms ?? '—'}/3</td>
+      <td style="color:#555">${inst.confirms??'—'}/3</td>
     </tr>`;
   }).join('');
 }
 
-// ── Whale Render ──────────────────────────────────────────────────────────────
-function renderWhale(whales) {
+// ── Whale ─────────────────────────────────────────────────────────────────────
+function renderWhale(whales, whale24) {
   const tbody = document.getElementById('whale-body');
   const cSum  = document.getElementById('c-summary');
-  cSum.textContent = whales.length ? `${whales.length} whale signals detected` : '';
+  const w24El = document.getElementById('whale24-summary');
+  cSum.textContent = whales.length ? `${whales.length} active` : '';
 
-  // Sound on new critical whale
-  const critCount = whales.filter(w => (w.whale_power||0) >= 85).length;
-  if (critCount > _prevWhaleAlerts) soundCriticalWhale();
-  _prevWhaleAlerts = critCount;
-
-  if (!whales.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">No whale walls detected — scanning…</td></tr>`;
-    return;
+  if (whale24 && whale24.length) {
+    const top3 = whale24.slice(0, 3).map(w => `${w.symbol.replace('USDT','')}(${w.whale_power}%)`).join(' │ ');
+    w24El.textContent = `24h Top: ${top3}`;
   }
 
-  tbody.innerHTML = whales.slice(0, 60).map(w => {
+  const critCount = whales.filter(w => (w.whale_power||0) >= 85).length;
+  if (critCount > _prevWhaleCrit) soundCriticalWhale();
+  _prevWhaleCrit = critCount;
+
+  if (!whales.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">No whale walls detected…</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = whales.slice(0, 50).map(w => {
     const lbl    = w.label || 'WALL';
-    const lblCls = lbl === 'WHALE TRAP' ? 'tag-WHALE-TRAP'
-                 : lbl === 'BLINK→PUSH' ? 'tag-BLINK'
-                 : 'tag-WALL';
-    const b2p    = w.blink_to_push ? '<span class="tag-BLINK">⚡ YES</span>' : '<span class="neu">—</span>';
+    const lblCls = lbl === 'WHALE TRAP' ? 'tag-WHALE-TRAP' : lbl === 'BLINK→PUSH' ? 'tag-BLINK' : 'tag-WALL';
+    const b2p    = w.blink_to_push ? '<span class="tag-BLINK">⚡YES</span>' : '<span class="neu">—</span>';
     const spf    = (w.spoofing||{}).details !== 'Clean'
                  ? `<span class="tag-WHALE-TRAP">${(w.spoofing||{}).details}</span>`
                  : '<span class="neu">Clean</span>';
     const closest = (w.walls||[]).length
-      ? `${w.walls[0].side} @ ${fmtPrice(w.walls[0].price_level)} (${w.walls[0].dist_pct}%)`
-      : '—';
-    const obiR  = w.obi || {};
-    const obiVal = obiR.obi ?? 0;
-    const obiCls = obiR.spike ? 'obi-spike' : obiVal > 0 ? 'obi-pos' : obiVal < 0 ? 'obi-neg' : 'neu';
-    const obiSpk = obiR.spike ? `<span class="obi-spike">⚡ VEL:${obiR.velocity}</span>` : '—';
+      ? `${w.walls[0].side}@${fmtP(w.walls[0].price_level)}(${w.walls[0].dist_pct}%)` : '—';
+    const obi    = w.obi || {};
+    const obiCls = obi.spike ? 'obi-spike' : obi.obi > 0 ? 'obi-pos' : obi.obi < 0 ? 'obi-neg' : 'neu';
+    const obiSpk = obi.spike ? `<span class="obi-spike">⚡${obi.velocity}</span>` : '—';
     const wp     = w.whale_power || 0;
-    const isCrit = wp >= 85;
-    return `<tr>
-      <td class="col-sym ${isCrit ? 'tag-GOLDEN' : 'tag-FAV'}">${(w.symbol||'').replace('USDT','')}</td>
-      <td>${fmtPrice(w.price)}</td>
-      <td><div class="battery-wrap">${batteryBar(wp)}<span style="font-size:9px;color:${isCrit?'#FFD700':'#555'}">${wp}%${isCrit?' 🚨':''}</span></div></td>
+    return `<tr onclick="openSniper('${w.symbol}')">
+      <td class="col-sym ${wp>=85?'tag-GOLDEN':'tag-FAV'}">${(w.symbol||'').replace('USDT','')}</td>
+      <td>${fmtP(w.price)}</td>
+      <td><div class="bat-wrap">${batBar(wp)}<span style="font-size:9px;color:${wp>=85?'#FFD700':'#555'}">${wp}%${wp>=85?' 🚨':''}</span></div></td>
       <td class="${lblCls}">${lbl}</td>
       <td>${w.wall_count||0}</td>
       <td>${w.min_dist_pct ? w.min_dist_pct.toFixed(3)+'%' : '—'}</td>
       <td>${b2p}</td>
-      <td class="${obiCls}">${obiVal.toFixed ? obiVal.toFixed(3) : '—'}</td>
+      <td class="${obiCls}">${obi.obi !== undefined ? obi.obi.toFixed(3) : '—'}</td>
       <td>${obiSpk}</td>
       <td>${spf}</td>
       <td class="neu" style="font-size:10px">${closest}</td>
@@ -562,108 +578,276 @@ function renderWhale(whales) {
   }).join('');
 }
 
+// ── Backtesting ───────────────────────────────────────────────────────────────
+function renderBacktest(bt, wins, losses, rate) {
+  const tbody = document.getElementById('bt-body');
+  const dSum  = document.getElementById('d-summary');
+  const dWr   = document.getElementById('d-winrate');
+  const open  = bt.filter(b => b.status === 'OPEN').length;
+  dSum.textContent = `${bt.length} tracked | ${open} OPEN`;
+  if (wins + losses > 0) {
+    dWr.textContent = `WIN ${wins}W / ${losses}L — ${rate}% win rate`;
+    dWr.style.color = rate >= 60 ? '#3fb950' : rate >= 40 ? '#FFD700' : '#FF4500';
+  } else {
+    dWr.textContent = 'Awaiting 1h signal resolution…';
+    dWr.style.color = '#555';
+  }
+  if (!bt.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="13">Signals tracked after VIP/GOLDEN alerts fire. Results resolved at 1h/4h.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = bt.slice(0, 50).map(b => {
+    const resCls = b.result === 'WIN'  ? 'bt-win'
+                 : b.result === 'LOSS' ? 'bt-loss'
+                 : b.result === 'TIMEOUT' ? 'bt-timeout' : 'bt-open';
+    const resIcon = b.result === 'WIN' ? '✅' : b.result === 'LOSS' ? '❌' : b.result === 'TIMEOUT' ? '⏰' : '⏳';
+    const tp1Cls  = b.tp1_hit ? 'bt-tp1' : 'neu';
+    const tp2Cls  = b.tp2_hit ? 'bt-tp2' : 'neu';
+    const tp3Cls  = b.tp3_hit ? 'bt-tp3' : 'neu';
+    const stCls   = b.status === 'OPEN' ? 'bt-open' : 'neu';
+    return `<tr onclick="openSniper('${b.symbol}')">
+      <td class="hist-time">${b.entry_time}</td>
+      <td class="col-sym tag-VIP">${(b.symbol||'').replace('USDT','')}</td>
+      <td><span class="tag-${b.folder||'VIP'}">${b.folder||'VIP'}</span></td>
+      <td>${fmtP(b.entry_price)}</td>
+      <td>${b.confidence}%${confBar(b.confidence)}</td>
+      <td class="${tp1Cls}">${b.tp1_hit ? '✅' : fmtP(b.tp1)}</td>
+      <td class="${tp2Cls}">${b.tp2_hit ? '✅' : fmtP(b.tp2)}</td>
+      <td class="${tp3Cls}">${b.tp3_hit ? '✅' : fmtP(b.tp3)}</td>
+      <td class="sl-b">${b.sl_hit ? '❌HIT' : fmtP(b.stop_loss)}</td>
+      <td>${b.exit_price ? fmtP(b.exit_price) : '—'}</td>
+      <td>${b.pnl_pct !== null ? fmtPnl(b.pnl_pct) : '—'}</td>
+      <td class="${resCls}">${resIcon} ${b.result || 'OPEN'}</td>
+      <td class="${stCls}">${b.status}</td>
+    </tr>`;
+  }).join('');
+}
+
 // ── Alert History ─────────────────────────────────────────────────────────────
 function renderHistory(alerts) {
   const tbody = document.getElementById('history-body');
-  const dSum  = document.getElementById('d-summary');
+  const eSub  = document.getElementById('e-summary');
   if (!alerts.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No alerts fired yet — VIP and Whale Trap alerts appear here.</td></tr>`;
-    dSum.textContent = '';
-    return;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="8">No alerts fired yet — VIP and Whale alerts appear here.</td></tr>`;
+    eSub.textContent = ''; return;
   }
-  dSum.textContent = `${alerts.length} / 50 alerts logged`;
+  eSub.textContent = `${alerts.length} / 50`;
   const isNew = alerts.length > _prevHistLen;
-  if (isNew) soundVIP();
+  if (isNew && _prevHistLen > 0) soundVIP();
   _prevHistLen = alerts.length;
 
   tbody.innerHTML = alerts.map((a, i) => {
-    const typeCls = a.type === 'VIP'   ? 'hist-VIP'
-                  : a.type === 'WHALE' ? 'hist-WHALE' : 'hist-GOLDEN';
-    const icon    = a.type === 'VIP'   ? '⭐'
-                  : a.type === 'WHALE' ? '🐋' : '✨';
-    const tl      = a.traffic || '';
-    const tlHtml  = tl === 'GREEN'  ? '<span class="tl-cell-green">●</span>'
-                  : tl === 'YELLOW' ? '<span class="tl-cell-yellow">●</span>'
-                  : tl === 'RED'    ? '<span class="tl-cell-red">●</span>' : '—';
-    const newCls  = (i === 0 && isNew) ? 'hist-new' : '';
-    return `<tr class="${newCls}">
+    const tc = a.type === 'VIP' ? 'hist-VIP' : a.type === 'WHALE' ? 'hist-WHALE' : 'hist-GOLDEN';
+    const ic = a.type === 'VIP' ? '⭐' : a.type === 'WHALE' ? '🐋' : '✨';
+    const tl = a.traffic || '';
+    const tlH = tl === 'GREEN'  ? '<span class="tl-g">●</span>'
+              : tl === 'YELLOW' ? '<span class="tl-y">●</span>'
+              : tl === 'RED'    ? '<span class="tl-r">●</span>' : '—';
+    const conf = a.confidence || 0;
+    return `<tr class="${i===0&&isNew?'hist-new':''}" onclick="openSniper('${a.symbol}')">
       <td class="hist-time">${a.time}</td>
-      <td class="${typeCls}">${icon} ${a.type}</td>
-      <td class="col-sym ${typeCls}">${(a.symbol||'').replace('USDT','')}</td>
-      <td class="${typeCls}">${a.label}</td>
-      <td>${fmtPrice(Number(a.price))}</td>
-      <td>${tlHtml}</td>
+      <td class="${tc}">${ic} ${a.type}</td>
+      <td class="col-sym ${tc}">${(a.symbol||'').replace('USDT','')}</td>
+      <td class="${tc}">${a.label}</td>
+      <td>${fmtP(Number(a.price))}</td>
+      <td>${conf}%${confBar(conf)}</td>
+      <td>${tlH}</td>
       <td class="hist-detail">${a.detail}</td>
     </tr>`;
   }).join('');
 }
 
-// ── BTC Sentiment Bar ─────────────────────────────────────────────────────────
-function renderBTC(btc, pause) {
+// ── BTC Bar ───────────────────────────────────────────────────────────────────
+function renderBTC(btc, pause, regime) {
   if (!btc || !btc.price) return;
-  document.getElementById('btc-price').textContent  = fmtPrice(btc.price);
-  const chgEl = document.getElementById('btc-change');
-  chgEl.textContent = fmtPct(btc.change_pct);
-  chgEl.className   = btc.change_pct >= 0 ? 'btc-bull' : 'btc-bear';
-  const sentEl = document.getElementById('btc-sentiment');
-  sentEl.textContent = btc.sentiment || '—';
-  sentEl.className   = btc.sentiment === 'BULLISH' ? 'btc-bull'
-                     : btc.sentiment === 'BEARISH' ? 'btc-bear' : 'btc-neut';
-  document.getElementById('btc-vol-pct').textContent = `Vol: ${btc.volatility_pct ?? '—'}%`;
-  const pauseTag = document.getElementById('btc-pause-tag');
-  pauseTag.style.display = pause ? 'inline-block' : 'none';
-  const entriesEl = document.getElementById('sb-entries');
-  entriesEl.textContent = pause ? 'PAUSED' : 'ACTIVE';
-  entriesEl.style.color  = pause ? '#FF4500' : '#3fb950';
+  document.getElementById('btc-price').textContent = fmtP(btc.price);
+  const cEl = document.getElementById('btc-chg');
+  cEl.textContent = fmtPct(btc.change_pct);
+  cEl.className   = btc.change_pct >= 0 ? 'btc-bull' : 'btc-bear';
+  const sEl = document.getElementById('btc-sent');
+  sEl.textContent = btc.sentiment || '—';
+  sEl.className   = btc.sentiment === 'BULLISH' ? 'btc-bull' : btc.sentiment === 'BEARISH' ? 'btc-bear' : 'btc-neut';
+  const rEl = document.getElementById('btc-regime');
+  rEl.textContent = regime || 'RANGING';
+  rEl.className   = regime === 'VOLATILE' ? 'regime-volatile' : regime === 'TRENDING' ? 'regime-trending' : 'regime-ranging';
+  document.getElementById('btc-pause').style.display = pause ? 'inline-block' : 'none';
+  const eEl = document.getElementById('sb-entries');
+  eEl.textContent = pause ? 'PAUSED' : 'ACTIVE';
+  eEl.style.color  = pause ? '#FF4500' : '#3fb950';
 }
 
 // ── Status Bar ────────────────────────────────────────────────────────────────
 function renderStatus(d) {
   const sEl = document.getElementById('sb-status');
-  sEl.textContent = d.status;
-  sEl.className   = d.status === 'live' ? 'live' : 'error';
-  document.getElementById('sb-update').textContent   = d.last_update  || '—';
-  document.getElementById('sb-cycles').textContent   = d.cycle_count  || '0';
-  document.getElementById('sb-heart').textContent    = d.heartbeat    || '—';
+  sEl.textContent = d.status; sEl.className = d.status === 'live' ? 'live' : 'error';
+  document.getElementById('sb-update').textContent   = d.last_update || '—';
+  document.getElementById('sb-cycles').textContent   = d.cycle_count || '0';
   document.getElementById('sb-exchange').textContent = d.active_exchange || 'BINANCE';
-
-  // Heartbeat dot pulse
-  const dot = document.getElementById('sb-hb-dot');
+  document.getElementById('sb-winrate').textContent  = (d.win_rate || 0) + '%';
+  const ws = d.win_streak || 0;
+  const wsEl = document.getElementById('sb-streak');
+  wsEl.style.display = ws >= 2 ? 'inline-block' : 'none';
+  wsEl.textContent   = `🔥 ${ws} STREAK`;
+  const hcEl = document.getElementById('hot-cnt');
+  hcEl.textContent = (d.hot_coins || []).length;
+  document.getElementById('wl-ratio').textContent = `${d.total_wins||0}W/${d.total_losses||0}L`;
+  const dot = document.getElementById('sb-hb');
   dot.style.color = '#00FF00';
-  setTimeout(() => { dot.style.color = '#1a3a1a'; }, 300);
-  setTimeout(() => { dot.style.color = '#00FF00'; }, 600);
+  setTimeout(() => { dot.style.color = '#1a3a1a'; }, 250);
+  setTimeout(() => { dot.style.color = '#00FF00'; }, 500);
+  // Sound for new hot coins
+  if ((d.hot_coins||[]).length > _prevHotCnt && _prevHotCnt >= 0) soundHotCoin();
+  _prevHotCnt = (d.hot_coins||[]).length;
 }
 
-// ── Fetch cycle ───────────────────────────────────────────────────────────────
+// ── Sniper ────────────────────────────────────────────────────────────────────
+async function openSniper(symbol) {
+  if (!symbol) return;
+  const overlay = document.getElementById('sniper-overlay');
+  const title   = document.getElementById('sniper-title');
+  const body    = document.getElementById('sniper-body');
+  overlay.classList.add('active');
+  title.textContent = `⚡ SNIPER — ${symbol.replace('USDT','')} / USDT`;
+  body.innerHTML    = '<p style="color:#555;text-align:center;padding:30px">Loading…</p>';
+
+  try {
+    const res = await fetch(`/sniper_data?symbol=${symbol}`);
+    const sd  = await res.json();
+    const coin = sd.coin || {};
+    const inst = sd.inst || {};
+    const inst_i = inst.inst || {};
+    const tp   = inst.tp_zones || {};
+    const wh   = sd.whale || {};
+    const hot  = sd.hot ? '🔥 HOT COIN' : '';
+    const folders = (sd.folders || []).join(', ') || '—';
+
+    body.innerHTML = `
+      <div class="sniper-grid">
+        <div class="s-card">
+          <h4>📊 PRICE & SIGNAL ${hot}</h4>
+          <div class="s-big">${fmtP(coin.price)}</div>
+          <div class="s-row"><span class="s-label">Change 24h</span><span class="s-val ${(coin.change_pct||0)>=0?'pos':'neg'}">${fmtPct(coin.change_pct)}</span></div>
+          <div class="s-row"><span class="s-label">RSI</span><span class="s-val">${coin.rsi||'—'}</span></div>
+          <div class="s-row"><span class="s-label">VMC Score</span><span class="s-val">${coin.score||'—'}</span></div>
+          <div class="s-row"><span class="s-label">Folders</span><span class="s-val">${folders}</span></div>
+          <div class="s-row"><span class="s-label">Volume</span><span class="s-val">${fmtVol(coin.volume_usdt||0)}</span></div>
+          <div class="s-row"><span class="s-label">VWAP</span><span class="s-val">${fmtP(sd.vwap)}</span></div>
+          <div class="s-row"><span class="s-label">Signals 1hr</span><span class="s-val" style="color:#FF6B35">${sd.signal_count_1h||0}x</span></div>
+        </div>
+        <div class="s-card">
+          <h4>★ INSTITUTIONAL</h4>
+          <div class="s-row"><span class="s-label">Traffic Light</span><span class="s-val">${inst_i.traffic||'—'}</span></div>
+          <div class="s-row"><span class="s-label">Inst Score</span><span class="s-val">${inst_i.inst_score||'—'}</span></div>
+          <div class="s-row"><span class="s-label">Confidence</span><span class="s-val">${inst.confidence||'—'}%</span></div>
+          <div class="s-row"><span class="s-label">Whale Power</span><span class="s-val">${inst_i.whale_power||0}%</span></div>
+          <div class="s-row"><span class="s-label">OFI Score</span><span class="s-val">${inst_i.ofi_score||'—'}</span></div>
+          <div class="s-row"><span class="s-label">Confirms</span><span class="s-val">${inst_i.confirms||0}/3</span></div>
+          <div class="s-row"><span class="s-label">Spike</span><span class="s-val" style="color:${inst_i.spike?'#FF4500':'#555'}">${inst_i.spike?'⚡ YES':'No'}</span></div>
+          <div class="s-row"><span class="s-label">Position Size</span><span class="s-val pos">${inst.sizing?.alloc_usdt ? '$'+inst.sizing.alloc_usdt : '—'}</span></div>
+        </div>
+        <div class="s-card">
+          <h4>🎯 ATR ZONES</h4>
+          <div class="s-row"><span class="s-label">ATR</span><span class="s-val">${fmtP(tp.atr)}</span></div>
+          <div class="s-row"><span class="s-label">Entry Low</span><span class="s-val">${fmtP(tp.entry_low)}</span></div>
+          <div class="s-row"><span class="s-label">Entry High</span><span class="s-val">${fmtP(tp.entry_high)}</span></div>
+          <div class="s-row"><span class="s-label">Stop Loss</span><span class="s-val" style="color:#FF4500">▼ ${fmtP(tp.stop_loss)}</span></div>
+          <div class="s-row"><span class="s-label">TP1 (1.5×ATR)</span><span class="s-val bt-tp1">▲ ${fmtP(tp.tp1)}</span></div>
+          <div class="s-row"><span class="s-label">TP2 (3.0×ATR)</span><span class="s-val bt-tp2">▲▲ ${fmtP(tp.tp2)}</span></div>
+          <div class="s-row"><span class="s-label">TP3 (5.0×ATR)</span><span class="s-val bt-tp3">▲▲▲ ${fmtP(tp.tp3)}</span></div>
+          <div class="s-row"><span class="s-label">Risk%</span><span class="s-val neg">${tp.risk_pct||'—'}%</span></div>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <span style="color:#555;font-size:11px;margin-right:16px">🐋 WHALE: ${wh.label||'No walls'} | Power: ${wh.whale_power||0}% | Walls: ${wh.wall_count||0} | MinDist: ${wh.min_dist_pct||'—'}%</span>
+        ${wh.blink_to_push ? '<span class="tag-BLINK">⚡ BLINK→PUSH ACTIVE</span>' : ''}
+      </div>
+      <h4 style="color:#58a6ff;margin-bottom:8px;font-size:11px">🔔 RECENT ALERTS FOR THIS COIN</h4>
+      <table class="sniper-table">
+        <thead><tr><th>Time</th><th>Type</th><th>Conf%</th><th>Price</th><th>Detail</th></tr></thead>
+        <tbody>${(sd.alerts||[]).slice(0,6).map(a =>
+          `<tr><td class="hist-time">${a.time}</td>
+           <td class="${a.type==='VIP'?'hist-VIP':'hist-WHALE'}">${a.type}</td>
+           <td>${a.confidence||0}%</td>
+           <td>${fmtP(Number(a.price))}</td>
+           <td class="hist-detail">${a.detail}</td></tr>`).join('') ||
+          '<tr class="empty-row"><td colspan="5">No alerts for this coin yet</td></tr>'}
+        </tbody>
+      </table>
+      ${(sd.backtest||[]).length ? `
+      <h4 style="color:#f0883e;margin:12px 0 8px;font-size:11px">⚡ BACKTEST HISTORY</h4>
+      <table class="sniper-table">
+        <thead><tr><th>Entry Time</th><th>Entry Price</th><th>Conf%</th><th>PnL%</th><th>Result</th></tr></thead>
+        <tbody>${(sd.backtest||[]).slice(0,4).map(b =>
+          `<tr><td class="hist-time">${b.entry_time}</td>
+           <td>${fmtP(b.entry_price)}</td>
+           <td>${b.confidence}%</td>
+           <td>${b.pnl_pct !== null ? fmtPnl(b.pnl_pct) : '—'}</td>
+           <td class="${b.result==='WIN'?'bt-win':b.result==='LOSS'?'bt-loss':'bt-open'}">${b.result||'OPEN'}</td></tr>`).join('')}
+        </tbody>
+      </table>` : ''}
+    `;
+  } catch(e) {
+    body.innerHTML = `<p style="color:#FF4500;padding:20px">Error loading sniper data: ${e}</p>`;
+  }
+}
+function closeSniper() {
+  document.getElementById('sniper-overlay').classList.remove('active');
+}
+document.getElementById('sniper-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSniper();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSniper(); });
+
+// ── URL-based auto-open sniper ─────────────────────────────────────────────
+const _urlSniper = new URLSearchParams(window.location.search).get('sniper');
+if (_urlSniper) setTimeout(() => openSniper(_urlSniper), 2000);
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 async function fetchData() {
   try {
     const res = await fetch('/dashboard_data');
-    if (!res.ok) { console.warn('Dashboard fetch failed:', res.status); return; }
+    if (!res.ok) return;
     data = await res.json();
     renderStatus(data);
-    renderBTC(data.btc || {}, data.btc_pause || false);
-    renderVMC(data.vmc         || {});
+    renderBTC(data.btc || {}, data.btc_pause || false, data.market_regime || 'RANGING');
+    renderVMC(data.vmc || {});
     renderInst(data.inst_signals || []);
-    renderWhale(data.whale     || []);
+    renderWhale(data.whale || [], data.whale_24h || []);
+    renderBacktest(data.backtest || [], data.total_wins || 0, data.total_losses || 0, data.win_rate || 0);
     renderHistory(data.alert_history || []);
   } catch(e) {
-    console.error('Fetch error:', e);
     document.getElementById('sb-status').textContent = 'fetch error';
     document.getElementById('sb-status').className   = 'error';
   }
 }
 
-// ── Countdown & auto-refresh ──────────────────────────────────────────────────
+// ── Countdown (30s) ───────────────────────────────────────────────────────────
 function tick() {
   countdown--;
   const el = document.getElementById('countdown');
   el.textContent = countdown + 's';
-  el.style.color = countdown <= 3 ? '#FFD700' : '#888';
-  if (countdown <= 0) {
-    countdown = 10;
-    fetchData();
-  }
+  el.style.color  = countdown <= 5 ? '#FFD700' : '#888';
+  if (countdown <= 0) { countdown = 30; fetchData(); }
 }
+
+// ── Lazy loading via IntersectionObserver ─────────────────────────────────────
+const panelIds = ['panel-b', 'panel-c', 'panel-d', 'panel-e'];
+const loaded   = new Set(['panel-a']);
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting && !loaded.has(entry.target.id)) {
+      loaded.add(entry.target.id);
+      if (data) {
+        if (entry.target.id === 'panel-b') renderInst(data.inst_signals || []);
+        if (entry.target.id === 'panel-c') renderWhale(data.whale || [], data.whale_24h || []);
+        if (entry.target.id === 'panel-d') renderBacktest(data.backtest || [], data.total_wins || 0, data.total_losses || 0, data.win_rate || 0);
+        if (entry.target.id === 'panel-e') renderHistory(data.alert_history || []);
+      }
+    }
+  });
+}, { threshold: 0.1 });
+panelIds.forEach(id => { const el = document.getElementById(id); if (el) obs.observe(el); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 fetchData();
