@@ -1,0 +1,19 @@
+​"V6 Master Pro, initiate 'System-Wide Upgrade' to full autonomy. Adhere to the following integrated protocols immediately:
+​1. HEALTH & AUDIT LAYER:
+​Heartbeat Monitor: Implement a 5-second WebSocket ping. If latency > 2s or connection drops, switch Header status to [RED] and broadcast 'SYSTEM DISCONNECT' to Telegram.
+​Audit Logging: Write all activities (Entry, Exit, Slippage, Rebalance Triggers, Connectivity) to system_audit.log with precise timestamps.
+​2. INTELLIGENT ALERTING:
+​Critical Priority: Evaluate all signals via 'Whale Power'. If > 85%, tag as [CRITICAL_WHALE_ALERT] with high-urgency notification formatting.
+​Watch Integration: Embed an inline [WATCH] button in every Telegram alert. Link must trigger direct chart navigation to the asset on the dashboard.
+​3. ADAPTIVE REBALANCING MATRIX (Autonomous Decision-Making):
+​Zero Fixed Intervals: Discard all time-based schedules.
+​Dynamic Matrix: Use f(Volatility, Momentum, Whale\_Flow) as the sole trigger for rebalancing.
+​Execution: Autonomously shift capital from underperforming assets to high-momentum ones when your internal analysis detects a statistically significant shift in risk/reward.
+​Logging: Every rebalance must include a 'Reasoning Code' (e.g., 'REBAL_VOL_SPIKE', 'REBAL_MOMENTUM_SHIFT') in the Daily Report.
+​4. RISK & EXECUTION SUITE:
+​Stop Loss: Fix SL to 1.5 \times ATR for all positions.
+​Slippage Guard: Enforce 0.1% - 0.3% slippage cap. ABORT any trade exceeding this threshold immediately.
+​5. REPORTING:
+​Midnight Sync: At 00:00 (UTC/PKT), compile: Total PnL, Top Trade, Market Sentiment, and all Rebalancing Actions. Post summary to 'Daily Reports' tab and Telegram.
+​INITIALIZATION: Execute all modules. Confirm 'Heartbeat Monitor' is live and displaying status in the Header before proceeding to live trading operations."
+​Instruction for Bot: "Follow these protocols immediately. Integrate these modules into the existing V6 Master Pro architecture. Confirm initialization once the Heartbeat Monitor is live."

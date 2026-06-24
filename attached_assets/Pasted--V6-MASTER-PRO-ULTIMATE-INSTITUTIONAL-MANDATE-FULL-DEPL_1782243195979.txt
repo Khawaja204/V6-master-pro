@@ -1,0 +1,126 @@
+'''
+V6 MASTER PRO: ULTIMATE INSTITUTIONAL MANDATE (FULL DEPLOYMENT)
+1. SAFE UPGRADE PROTOCOL (Strictly Protect Data):
+Keep Core Intact: Do NOT wipe the root directory. Keep logic.py, config.json, and all Replit Secrets (Bot Token, Chat ID, Google Credentials) untouched.
+Migration: Delete only old UI files. Build a high-performance, modular 39-point (29+10) Institutional Dashboard.
+Deployment: Set python3 main.py as the entry point. Maintain heartbeat monitor (5min ping) and error.log.
+2. Core Mandate:
+Execute the full 29-point Institutional Checklist and 10-point Master Execution Protocol (Modular Refactoring & Code Purge).
+3. Interactive Search, Navigation & Logic Engine:
+Navigation: Single-click = 'Full-Detail View'; Double-click = 'Full-Screen Chart'.
+V6 Institutional Score: Sort by (Whale Power 40% + VMC Score 30% + Order Flow 30%).
+Wall Proximity Bonus: Add 10% weight if 'Whale Wall' is within 0.5% of price.
+Institutional Filters: Exclude 'Price Jitter'; prioritize 'Independent Momentum'.
+Whale Pattern Recognition Engine: System must automatically track 'Whale Movements' from the last 48 hours. If the current price action matches previous successful 'Buy' patterns, mark it as a 'High Probability Pattern' to leverage historical data for entry confirmation.
+Whale Pattern Settings:
+- Track history: last 48 hours
+- Pattern match minimum: 75% 
+  similarity required for 
+  High Probability tag
+- Minimum whale transaction 
+  size: $500,000 USDT only
+- Pattern found = Telegram 
+  alert bhejo with 
+  [WHALE PATTERN MATCH] tag
+"Whale Wallet Clustering": "System must track and cluster multiple whale addresses into a single 'Whale Entity' to see if they are moving funds across different wallets before a pump/dump."
+"Order Book Imbalance (OBI) Velocity": "Integrate OBI velocity tracker to detect sudden 'Micro-Spikes' in order flow imbalance before the price moves, specifically targeting hidden liquidity."
+4. 90%+ Probability Sniper, Traffic Light & Alert Protocol:
+Instant Decision System (Traffic Lights): Add a dominant visual indicator:
+[GREEN LIGHT]: All criteria met (Entry Ready).
+[YELLOW LIGHT]: Whale Power > 50% (Observe/Wait).
+[RED LIGHT]: BTC drop > 2% OR 'Fake Spike' detected (No Trade).
+Spike Validation Logic: A 'Whale Spike' (Whale Power > 85%) is ONLY triggered if confirmed by 2/3 signals: (1) VMC Bullish Divergence, (2) Order Flow Momentum, (3) Whale Wall Proximity (< 0.5%).
+Dynamic Entry/Exit: Display Optimal Entry Zone, TP levels, and Tight SL (1.5x ATR).
+Market Sentiment Filter: If BTC shows extreme volatility or a bearish drop (> 2%), pause all new entries.
+Adaptive Protection: 30-min Cool-down after 2 consecutive losses.
+Telegram & Dashboard Alerting: Instant notification with deep-link + Blinking [SUDDEN SPIKE] tag on dashboard (forced to #1 slot).
+5. News, Risk & Institutional Growth Integration:
+Urdu News & Events: Add a 'Market News' section in Urdu. Fetch coin-specific events (burning, upgrades) and display them next to the Traffic Light indicators.
+News-Linked Traffic Lights: If 'High Risk' news (hacks, negative events) is detected, force Traffic Light to [RED LIGHT].
+Auto-Risk Calculator: Display suggested position sizing based on account balance and signal strength (Higher exposure for [GREEN], minimal for [YELLOW]).
+6. Finalize:
+Perform a system audit. Ensure the build is lean, fast, and production-ready. Provide a concise 'Master Finalization Report' confirming each of the 39 points as [ONLINE] or [FAIL]. Proceed only if all points are [ONLINE].
+Agent, execute this unified V6 Master Pro mandate now. I expect a comprehensive 'Master Finalization Report' confirming each point upon completion.
+"V6 Master Pro, initiate 'Full-Scale Institutional Upgrade'. Execute the following 29-point checklist and provide a Detailed Initialization Report:
+[ ] Whale Dashboard (Embedded View): Initialize 3-column modular section (Search, Ticker, Inflow/Outflow, Power, Gas). Whale Tracker: 'Whale Bag Size', 'Accumulation Trends', and VMC-based 'BUY/SELL' labels integrated directly into the main UI.
+[ ] Telegram [WATCH] Integration: Enable inline buttons for direct chart deep-linking to dashboard.
+[ ] Visual Suite: Activate Smart Heatmap, Battery Bar Momentum Charts, and Blinking Indicators.
+[ ] Scalping Chart: Initialize 'Full-Screen Scalping Dashboard'. Integrate TradingView API with a 5-indicator layout: Main Chart: Overlay VWAP and Liquidation Heatmap levels. Pane 1: OFI and CVD (Order Flow & Cumulative Delta). Pane 2: Non-Cumulative Delta Volume. Apply VMC-based 'BUY/SELL' labels on top of price action. Ensure sub-500ms latency and synchronized visual reporting.
+[ ] Whale Scanner: Initialize deep-analysis scanner with 'Fake Bid/Ask Detection' logic.
+[ ] Signal Engine: Integrate real-time RSI and Scoring logic as the primary decision-making layer.
+[ ] Auto-Backtesting: Real-time dashboard section displaying Win Rate/Performance analytics for generated signals.
+[ ] Admin & Client Segregated Access:
+Admin Portal: Dedicated secure web-link accessible ONLY to Admin, controlled via Replit Secrets (Master Password).
+Client Portal: Dedicated client web-link, controlled 100% via Google Sheets (Client access, limits, and status).
+IMPORTANT — Google Sheets Admin Access:
+Sheet ID: 17mdb-9JuinpDAezkk5qCYgcP5GZYTU8KUBfLha_44mo
+Admin Email: adeelkhawaja075@gmail.com
+- Give this email Editor/Owner access
+- Admin row in USERS tab:
+  A2=Adeel, B2=786, C2=786,
+  D2=ACTIVE, E2=Admin, F2=Unlimited
+- Admin will NEVER be INACTIVE
+- Admin will NEVER be View Only
+- Admin can edit sheet directly
+GOOGLE SHEETS — DYNAMIC COLUMN PROTOCOL:
+If any new column is added to ANY sheet
+by Admin in future, system must auto-detect
+and start writing relevant data automatically.
+No code change or restart required.
+
+GOOGLE SHEETS TAB NAMES (existing):
+- LIVE_DASHBOARD
+- WATCH
+- ARCHIVE_LOG
+- USERS
+GOOGLE SHEETS — USERS TAB STRUCTURE:
+Column A = User Name
+Column B = ID
+Column C = Password  
+Column D = Status (ACTIVE/INACTIVE)
+Column E = Expiry Date
+Column F = Signal Limit
+
+System har 5 minute mein USERS 
+tab check kare:
+- INACTIVE = access band
+- Expiry date guzar jaye = 
+  auto INACTIVE
+- Signal limit exceed = 
+  access rok lo
+Security: Purge functionality and API management strictly restricted to Admin Portal.
+[ ] Multi-Exchange API Switcher: Module to toggle between Binance, KuCoin, BitMart, and MEXC.
+[ ] Strategy Suite: Activate autonomous Spot and Spot Grid execution. Implement Dual-Execution Hybrid/Auto-Pilot toggle + "/panic" Emergency Shutdown Command for instant position closure.
+[ ] ATR-based SL: Enforce fixed 1.5 x ATR stop loss logic.
+[ ] Slippage Guard: Enforce 0.1%–0.3% cap; abort trades exceeding this.
+[ ] Dual-Execution: Enable Hybrid vs. Full Auto-Pilot toggle.
+[ ] Heartbeat Monitor: 5s WebSocket ping + Header [GREEN/RED] status + 'SYSTEM DISCONNECT' alert.
+[ ] Audit Logging: Activate system_audit.log for all activities.**including precise 'Execution Latency'
+(ms). If latency > 500ms, flag 'Latency_Warning' in the Daily Report.**
+[ ] Critical Alerting: [CRITICAL_WHALE_ALERT] tag for Whale Power > 85%.
+[ ] Custom Alert Sounds: Integrate unique audio triggers for [CRITICAL_WHALE_ALERT] events.
+[ ] Adaptive Market Analysis: Use f(Volatility, Momentum, Whale_Flow) to trigger dynamic position adjustments.
+[ ] Reasoning Codes: Mandatory logging (e.g., 'STRAT_VOL_SPIKE') for every autonomous action.
+[ ] Reporting & Data Sync: Automate midnight (UTC/PKT) reports. Sync data across all 4 sheets as follows:
+LIVE_DASHBOARD: (Columns: Timestamp, Asset, Status, Signal, VMC, Price, Buy/Sale, Heatmap, Slack, Chg%, RSI, Flux, Sentiment, Log)
+USERS: (Admin/Client access and permissions)
+WATCH: (Telegram integration and watchlist data)
+ARCHIVE_LOG: (Historic data storage)
+[ ] Whale-Driven Agent Autonomy: Authorized to trigger [INSTANT_ENTRY/EXIT] based on Whale flow. Integrate 'Liquidity Depth Analysis'. Log all [AGENT_DECISION] and [SYSTEM_EVOLUTION] events.
+[ ] Performance Optimization (Rolling Window): 
+[ ] Log Filter: Add 'Date-Range Filter' (Today/Custom) in Admin Portal for system_audit.log export.
+[ ] Implement a Python-based script to automatically move data older than 1,000 rows from 'LIVE_DASHBOARD' to 'ARCHIVE_LOG' to prevent sheet latency.
+EXECUTION: Perform audit. Generate report verifying each of the 29 points as [ONLINE] or [FAIL]. Proceed to live operations ONLY if all 29 are [ONLINE]."
+"V6 Master Pro, initiate 'Master Execution Protocol'. Execute the following 10-point sequence as a unified, non-stop process:
+[ ] Global Benchmarking: Audit current architecture against top-tier institutional crypto-bots (Replit/GitHub standards).
+[ ] Gap Analysis: Pinpoint missing high-performance blocks (Risk Management, Whale Heuristics, API Latency Handling).
+[ ] Intelligent Integration: Immediately port all identified missing professional logic into V6, ensuring full compatibility with existing 29-point requirements.
+[ ] Modular Refactoring: Transition the entire codebase to a clean, modular structure (core/, strategies/, utils/, network/) using Async/Await processing.
+[ ] Robust Exception Handling: Implement 'Circuit Breakers' and 'Exponential Backoff' for all API/WebSocket operations.
+[ ] Dead Code Elimination: Scan and purge all legacy variables, unused functions, and redundant logic blocks.
+[ ] Performance Strip-down: Remove any UI bloat (animations/unnecessary scripts) that hinders execution speed.
+[ ] Consistency Audit: Run a final validation check to ensure the purge and integration have not disrupted the 29-point institutional core requirements.
+[ ] Final Optimization: Consolidate overlapping modules to ensure minimal memory footprint and maximum processing efficiency.
+[ ] Final Report & Status: Provide a concise 'Master Finalization Report' confirming: 'System fully optimized, redundant code purged, institutional-grade architecture live. V6 Master Pro is now lean, fast, and ready for Paper Mode operations.'"
+"Agent, consider the following two protocols as your unified mandate. Execute the 29-point Institutional Checklist first, followed immediately by the 10-point Master Execution Protocol for optimization. I expect a comprehensive 'Master Finalization Report' at the end."
+'''

@@ -1,0 +1,490 @@
+=================================================================
+V6 MASTER PRO: ULTIMATE INSTITUTIONAL MANDATE (FULL DEPLOYMENT)
+=================================================================
+
+=================================================================
+SECTION 1: SAFE UPGRADE PROTOCOL (STRICTLY PROTECT DATA)
+=================================================================
+RULE 1: Do NOT wipe the root directory under any circumstances.
+RULE 2: Keep these files 100% untouched:
+        - logic.py
+        - config.json
+        - All Replit Secrets (Bot Token, Chat ID, Google Credentials)
+RULE 3: Delete ONLY old UI files. Nothing else.
+RULE 4: Build a high-performance, modular 39-point (29+10) Institutional Dashboard.
+RULE 5: Set python3 main.py as the ONLY entry point.
+RULE 6: Maintain heartbeat monitor (5-minute ping) at all times.
+RULE 7: Maintain error.log at all times.
+
+=================================================================
+SECTION 2: CORE MANDATE
+=================================================================
+Execute the full 29-point Institutional Checklist AND the
+10-point Master Execution Protocol (Modular Refactoring + Code Purge)
+as one unified non-stop process.
+
+=================================================================
+SECTION 3: INTERACTIVE SEARCH, NAVIGATION & LOGIC ENGINE
+=================================================================
+NAVIGATION:
+- Single-click = Full-Detail View
+- Double-click = Full-Screen Chart
+
+V6 INSTITUTIONAL SCORE FORMULA:
+- Whale Power:  40% weight
+- VMC Score:    30% weight
+- Order Flow:   30% weight
+- Wall Proximity Bonus: Add extra 10% weight if Whale Wall
+  is within 0.5% of current price
+
+INSTITUTIONAL FILTERS:
+- Exclude: Price Jitter signals
+- Prioritize: Independent Momentum only
+
+-----------------------------------------------------------------
+WHALE PATTERN RECOGNITION ENGINE:
+-----------------------------------------------------------------
+- Automatically track all Whale Movements from last 48 hours
+- If current price action matches previous successful Buy patterns,
+  mark signal as [HIGH PROBABILITY PATTERN]
+- Use historical data for entry confirmation
+
+Whale Pattern Settings:
+  - Track history:          Last 48 hours
+  - Pattern match minimum:  75% similarity required
+  - Minimum transaction:    $500,000 USDT only
+  - On pattern found:       Send Telegram alert with tag [WHALE PATTERN MATCH]
+
+-----------------------------------------------------------------
+WHALE WALLET CLUSTERING:
+-----------------------------------------------------------------
+- Track and cluster multiple whale addresses into one Whale Entity
+- Monitor if same entity is moving funds across different wallets
+- Goal: Detect coordinated pump/dump before it happens
+- Display cluster activity in dashboard with entity label
+
+-----------------------------------------------------------------
+ORDER BOOK IMBALANCE (OBI) VELOCITY TRACKER:
+-----------------------------------------------------------------
+- Integrate OBI velocity tracker into core engine
+- Detect sudden Micro-Spikes in order flow imbalance
+- Trigger BEFORE price moves (predictive, not reactive)
+- Target hidden liquidity specifically
+- Log all OBI spikes in system_audit.log with timestamp
+
+=================================================================
+SECTION 4: 90%+ PROBABILITY SNIPER, TRAFFIC LIGHT & ALERT PROTOCOL
+=================================================================
+TRAFFIC LIGHT SYSTEM (Dominant Visual Indicator):
+- [GREEN LIGHT]:  All criteria met = Entry Ready
+- [YELLOW LIGHT]: Whale Power > 50% = Observe and Wait
+- [RED LIGHT]:    BTC drop > 2% OR Fake Spike detected = No Trade
+
+SPIKE VALIDATION LOGIC:
+- A Whale Spike (Whale Power > 85%) is ONLY confirmed if
+  2 out of 3 signals are active simultaneously:
+  (1) VMC Bullish Divergence
+  (2) Order Flow Momentum
+  (3) Whale Wall Proximity less than 0.5%
+- If only 1 of 3 confirmed = set [YELLOW LIGHT], do not enter
+
+DYNAMIC ENTRY AND EXIT DISPLAY:
+- Show Optimal Entry Zone on dashboard
+- Show TP1, TP2, TP3 levels
+- Show Tight Stop Loss = 1.5x ATR (fixed, non-negotiable)
+
+MARKET SENTIMENT FILTER:
+- Monitor BTC in real-time
+- If BTC shows extreme volatility OR bearish drop greater than 2%:
+  Pause ALL new entries immediately across all coins
+
+ADAPTIVE PROTECTION:
+- After 2 consecutive losses: Activate 30-minute Cool-down
+- During Cool-down: No new entries allowed, only monitoring
+
+TELEGRAM AND DASHBOARD ALERTING:
+- On valid signal: Send instant Telegram notification with deep-link
+- Force signal to #1 slot on dashboard
+- Activate blinking [SUDDEN SPIKE] tag on dashboard
+
+=================================================================
+SECTION 5: NEWS, RISK & INSTITUTIONAL GROWTH INTEGRATION
+=================================================================
+URDU NEWS AND EVENTS SECTION:
+- Add a dedicated Market News section displayed in Urdu language
+- Fetch coin-specific events automatically:
+  * Token burning announcements
+  * Protocol upgrades
+  * Partnership news
+  * Exchange listing events
+- Display fetched events directly next to Traffic Light indicators
+- Update news feed every 15 minutes minimum
+- Source: Use CoinGecko, CryptoPanic, or similar public API
+
+NEWS-LINKED TRAFFIC LIGHTS:
+- If High Risk news is detected for a coin (hacks, exploits,
+  regulatory bans, negative events, rug pull signals):
+  Force that coin's Traffic Light to [RED LIGHT] immediately
+- Log the news trigger reason in system_audit.log
+
+AUTO-RISK CALCULATOR:
+- Display suggested position sizing on dashboard for every signal
+- Formula based on:
+  * Current account balance (entered by Admin)
+  * Signal strength (GREEN / YELLOW)
+- GREEN signal:  Allow higher exposure (up to Admin-set max %)
+- YELLOW signal: Minimal exposure only (25% of GREEN allocation)
+- RED signal:    Zero exposure, no trade
+
+=================================================================
+SECTION 6: GOOGLE SHEETS FULL CONFIGURATION
+=================================================================
+Sheet ID:    17mdb-9JuinpDAezkk5qCYgcP5GZYTU8KUBfLha_44mo
+Admin Email: adeelkhawaja075@gmail.com
+Access Level: Editor and Owner (full access)
+
+ADMIN ROW IN USERS TAB (hardcoded, never change):
+- Column A = Adeel
+- Column B = 786
+- Column C = 786
+- Column D = ACTIVE
+- Column E = Admin
+- Column F = Unlimited
+- Admin status: NEVER set to INACTIVE under any condition
+- Admin access: NEVER downgraded to View Only
+- Admin can edit sheet directly at all times
+
+EXISTING TAB NAMES (do not rename):
+- LIVE_DASHBOARD
+- WATCH
+- ARCHIVE_LOG
+- USERS
+
+USERS TAB COLUMN STRUCTURE:
+- Column A = User Name
+- Column B = User ID
+- Column C = Password
+- Column D = Status (ACTIVE or INACTIVE)
+- Column E = Expiry Date
+- Column F = Signal Limit
+
+USER ACCESS ENFORCEMENT (check every 5 minutes automatically):
+- If Status = INACTIVE:             Block access immediately
+- If Expiry Date has passed:        Auto-set Status to INACTIVE
+- If Signal Limit is exceeded:      Block further signal access
+- All enforcement is automatic, no manual action required
+
+GOOGLE SHEETS DYNAMIC COLUMN PROTOCOL:
+- If Admin adds any new column to ANY sheet in the future:
+  System must auto-detect the new column header
+  System must start writing relevant data to that column automatically
+  NO code change required
+  NO system restart required
+  This must work for all 4 tabs (LIVE_DASHBOARD, WATCH, ARCHIVE_LOG, USERS)
+
+LIVE_DASHBOARD TAB COLUMNS (fixed structure):
+Timestamp | Asset | Status | Signal | VMC | Price | Buy/Sale |
+Heatmap | Slack | Chg% | RSI | Flux | Sentiment | Log
+
+DATA SYNC SCHEDULE:
+- Midnight report: Auto-generate and sync every day (both UTC and PKT)
+- LIVE_DASHBOARD: Real-time signal and price data
+- USERS: Admin and client access permissions
+- WATCH: Telegram watchlist and integration data
+- ARCHIVE_LOG: Historic signal and event storage
+
+ARCHIVE AUTOMATION:
+- When LIVE_DASHBOARD exceeds 1,000 rows:
+  Auto-move older rows to ARCHIVE_LOG
+  Maintain LIVE_DASHBOARD performance
+  Python-based script, runs automatically
+
+=================================================================
+SECTION 7: SECURITY HARDENING (STRICT)
+=================================================================
+- All API keys stored ONLY in Replit Secrets, never in code files
+- Admin Portal: Accessible only via secret web-link + Master Password
+- Master Password stored in Replit Secrets only
+- Client Portal: Separate web-link, controlled via Google Sheets only
+- Purge functionality: Restricted to Admin Portal exclusively
+- API management: Restricted to Admin Portal exclusively
+- Failed login attempts greater than 3: Auto-lock for 30 minutes
+- Session timeout: Auto-logout after 15 minutes of idle
+- All security events logged in system_audit.log immediately
+
+=================================================================
+SECTION 8: 29-POINT INSTITUTIONAL CHECKLIST
+=================================================================
+
+[POINT 01] WHALE DASHBOARD (EMBEDDED VIEW)
+- Initialize 3-column modular section in main UI
+- Columns: Search | Ticker | Inflow/Outflow | Power | Gas
+- Include: Whale Bag Size tracker
+- Include: Accumulation Trends display
+- Include: VMC-based BUY/SELL labels integrated into main UI
+
+[POINT 02] TELEGRAM WATCH INTEGRATION
+- Enable inline Telegram buttons
+- Direct chart deep-linking from Telegram to dashboard
+- [WATCH] tag support for watchlist alerts
+
+[POINT 03] VISUAL SUITE
+- Activate Smart Heatmap
+- Activate Battery Bar Momentum Charts
+- Activate Blinking Indicators for active signals
+
+[POINT 04] FULL-SCREEN SCALPING DASHBOARD
+- TradingView API integration with 5-indicator layout:
+  * Main Chart: VWAP overlay + Liquidation Heatmap levels
+  * Pane 1: OFI (Order Flow Imbalance) + CVD (Cumulative Delta Volume)
+  * Pane 2: Non-Cumulative Delta Volume
+  * VMC-based BUY/SELL labels overlaid on price action
+- Sub-500ms latency enforced
+- Synchronized visual reporting across all panes
+
+[POINT 05] WHALE SCANNER
+- Deep-analysis scanner active at all times
+- Fake Bid/Ask Detection logic integrated
+- Flag all spoofed walls automatically
+
+[POINT 06] SIGNAL ENGINE
+- Real-time RSI integration
+- Scoring logic as primary decision-making layer
+- VMC signal integration as core trigger
+
+[POINT 07] AUTO-BACKTESTING SECTION
+- Real-time dashboard section always visible
+- Display Win Rate for generated signals
+- Display Performance Analytics
+- Update after every closed signal
+
+[POINT 08] ADMIN AND CLIENT SEGREGATED ACCESS
+Admin Portal:
+- Dedicated secure web-link
+- Accessible ONLY to Admin
+- Controlled via Replit Secrets (Master Password)
+- Full system control from this portal
+
+Client Portal:
+- Dedicated separate web-link
+- Controlled 100% via Google Sheets
+- Client access, limits, and status managed via USERS tab
+- Security: Purge and API management NOT available in Client Portal
+
+[POINT 09] MULTI-EXCHANGE API SWITCHER
+- Toggle module between:
+  * Binance
+  * KuCoin
+  * BitMart
+  * MEXC
+- Switch without restart
+- Active exchange shown in header
+
+[POINT 10] STRATEGY SUITE
+- Autonomous Spot execution active
+- Autonomous Spot Grid execution active
+- /panic command: Emergency Shutdown
+  * Instantly close ALL open positions
+  * Send Telegram alert on activation
+  * Log event in system_audit.log
+
+[POINT 11] ATR-BASED STOP LOSS
+- Fixed Stop Loss = 1.5 x ATR
+- Non-negotiable, enforced on every trade
+- Cannot be overridden by client
+
+[POINT 12] SLIPPAGE GUARD
+- Enforce slippage cap: 0.1% minimum to 0.3% maximum
+- If slippage exceeds 0.3%: Abort trade immediately
+- Log aborted trade with reason in system_audit.log
+
+[POINT 13] DUAL-EXECUTION TOGGLE
+- Hybrid Mode: Agent suggests, Admin confirms
+- Full Auto-Pilot Mode: Agent executes autonomously
+- Toggle available in Admin Portal only
+
+[POINT 14] HEARTBEAT MONITOR
+- WebSocket ping every 5 seconds
+- Header indicator: GREEN (connected) or RED (disconnected)
+- On disconnect: Send SYSTEM DISCONNECT alert via Telegram immediately
+
+[POINT 15] AUDIT LOGGING
+- system_audit.log active for ALL system activities
+- Every log entry includes: Timestamp + User ID + Action + Result
+- Log Execution Latency in milliseconds for every trade
+- If latency exceeds 500ms: Flag as Latency_Warning in Daily Report
+- Log is append-only, tamper-proof
+- Retention: Minimum 90 days before archive
+
+[POINT 16] CRITICAL WHALE ALERT
+- Tag: [CRITICAL_WHALE_ALERT]
+- Trigger condition: Whale Power greater than 85%
+- Send Telegram alert instantly
+- Force signal to #1 on dashboard
+
+[POINT 17] CUSTOM ALERT SOUNDS
+- Unique audio sound for [CRITICAL_WHALE_ALERT] event
+- Different sound for [SUDDEN SPIKE] event
+- Different sound for /panic activation
+- Sounds play in browser dashboard automatically
+
+[POINT 18] ADAPTIVE MARKET ANALYSIS
+- Formula: f(Volatility, Momentum, Whale_Flow)
+- Use output to trigger dynamic position size adjustments
+- Re-calculate every 60 seconds
+
+[POINT 19] REASONING CODES
+- Every autonomous agent action must log a Reasoning Code
+- Example codes: STRAT_VOL_SPIKE, WHALE_FLOW_ENTRY, OBI_MICRO_SPIKE
+- Format: [AGENT_DECISION] + Code + Confidence % + Timestamp
+- All SYSTEM_EVOLUTION events also logged with version tag
+
+[POINT 20] REPORTING AND DATA SYNC
+- Midnight auto-report: Both UTC and PKT timezone
+- Sync all 4 sheets automatically:
+  * LIVE_DASHBOARD: Real-time signal data
+  * USERS: Access and permission data
+  * WATCH: Watchlist and Telegram data
+  * ARCHIVE_LOG: Historic data
+
+[POINT 21] WHALE-DRIVEN AGENT AUTONOMY
+- Agent authorized to trigger [INSTANT_ENTRY] based on Whale flow
+- Agent authorized to trigger [INSTANT_EXIT] based on Whale flow
+- Liquidity Depth Analysis integrated into decision engine
+- All AGENT_DECISION events logged
+- All SYSTEM_EVOLUTION events logged
+
+[POINT 22] PERFORMANCE OPTIMIZATION (ROLLING WINDOW)
+- Monitor LIVE_DASHBOARD row count continuously
+- When row count exceeds 1,000:
+  Auto-move oldest rows to ARCHIVE_LOG
+  Maintain LIVE_DASHBOARD below 1,000 rows
+  No manual intervention required
+
+[POINT 23] LOG FILTER IN ADMIN PORTAL
+- Date-Range Filter available in Admin Portal
+- Options: Today / Custom Date Range
+- Export system_audit.log filtered by selected range
+- Export format: CSV or plain text
+
+[POINT 24] WHALE PATTERN RECOGNITION ENGINE
+(Full specification in Section 3 above)
+- 48-hour history tracking
+- 75% minimum similarity match
+- $500,000 USDT minimum transaction
+- [WHALE PATTERN MATCH] Telegram alert on trigger
+
+[POINT 25] WHALE WALLET CLUSTERING
+(Full specification in Section 3 above)
+- Multi-wallet entity grouping
+- Cross-wallet fund movement detection
+- Pump/dump early warning
+
+[POINT 26] OBI VELOCITY TRACKER
+(Full specification in Section 3 above)
+- Micro-Spike detection
+- Hidden liquidity targeting
+- Predictive trigger before price move
+
+[POINT 27] TRAFFIC LIGHT SYSTEM
+(Full specification in Section 4 above)
+- GREEN / YELLOW / RED visual indicators
+- News-linked override to RED on High Risk events
+
+[POINT 28] SPIKE VALIDATION LOGIC
+(Full specification in Section 4 above)
+- 2 of 3 confirmation required
+- Whale Power 85% threshold
+
+[POINT 29] AUTO-RISK CALCULATOR
+(Full specification in Section 5 above)
+- Dynamic position sizing
+- GREEN / YELLOW / RED allocation tiers
+
+EXECUTION RULE FOR 29 POINTS:
+Audit and verify every point above.
+Generate report: Each point listed as [ONLINE] or [FAIL].
+Proceed to live operations ONLY if ALL 29 are [ONLINE].
+If any point is [FAIL]: Stop, fix, re-audit before proceeding.
+
+=================================================================
+SECTION 9: 10-POINT MASTER EXECUTION PROTOCOL
+=================================================================
+Execute immediately after 29-point checklist. Non-stop sequence.
+
+[STEP 01] GLOBAL BENCHMARKING
+- Audit current V6 architecture against top-tier institutional
+  crypto bots (Replit and GitHub standards)
+- Document findings before proceeding
+
+[STEP 02] GAP ANALYSIS
+- Identify all missing high-performance blocks:
+  * Risk Management gaps
+  * Whale Heuristics gaps
+  * API Latency Handling gaps
+- List every gap found
+
+[STEP 03] INTELLIGENT INTEGRATION
+- Port all identified missing professional logic into V6
+- Ensure 100% compatibility with 29-point requirements
+- No existing feature must break during integration
+
+[STEP 04] MODULAR REFACTORING
+- Transition full codebase to clean modular structure:
+  * core/       (main engine and logic)
+  * strategies/ (trading strategy modules)
+  * utils/      (helper functions)
+  * network/    (API and WebSocket handlers)
+- Use Async/Await processing throughout entire codebase
+
+[STEP 05] ROBUST EXCEPTION HANDLING
+- Implement Circuit Breakers for all API calls
+- Implement Exponential Backoff for all WebSocket reconnections
+- No unhandled exception allowed to crash the system
+- All exceptions logged in system_audit.log with full traceback
+
+[STEP 06] DEAD CODE ELIMINATION
+- Scan entire codebase systematically
+- Purge: All legacy variables no longer in use
+- Purge: All unused functions
+- Purge: All redundant logic blocks
+- Document what was removed in Master Finalization Report
+
+[STEP 07] PERFORMANCE STRIP-DOWN
+- Remove all UI animations that slow rendering
+- Remove all unnecessary JavaScript or CSS
+- Remove any script not directly serving a core function
+- Target: Dashboard load time under 2 seconds
+
+[STEP 08] CONSISTENCY AUDIT
+- Run full validation after Steps 4 to 7
+- Confirm all 29-point institutional requirements still intact
+- If any point broken by refactoring: Fix immediately before Step 9
+
+[STEP 09] FINAL OPTIMIZATION
+- Consolidate all overlapping modules into single efficient units
+- Minimize total memory footprint
+- Maximize processing efficiency
+- Target: All operations completing under 500ms
+
+[STEP 10] FINAL REPORT AND STATUS
+Generate Master Finalization Report confirming:
+"System fully optimized. Redundant code purged.
+ Institutional-grade architecture live.
+ V6 Master Pro is now lean, fast, and ready for Paper Mode operations."
+
+Report must list every single point from both checklists
+(29-point + 10-point = 39 total) as [ONLINE] or [FAIL].
+
+=================================================================
+FINAL INSTRUCTION TO AGENT
+=================================================================
+Execute the 29-point Institutional Checklist FIRST.
+Then immediately execute the 10-point Master Execution Protocol.
+These are ONE unified mandate. Do not stop between them.
+
+Generate a comprehensive Master Finalization Report at the end.
+Every one of the 39 points must be listed as [ONLINE] or [FAIL].
+Proceed to Paper Mode ONLY if ALL 39 points are [ONLINE].
+If ANY point shows [FAIL]: Stop all operations, fix, re-audit.
+=================================================================
