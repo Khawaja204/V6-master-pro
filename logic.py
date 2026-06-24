@@ -532,6 +532,141 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list, credentials_json: st
         log.error(f"Google Sheets push failed: {e}"); return False
 
 
+def match_whale_pattern(obi: float, whale_power: float, trend: str,
+                        blink_to_push: bool, walls: list) -> dict:
+    """
+    Score current whale signature against 4 institutional patterns.
+    Returns best match with similarity % and optional [WHALE PATTERN MATCH] tag.
+    """
+    has_bid = any(w["side"] == "BID" for w in walls)
+    has_ask = any(w["side"] == "ASK" for w in walls)
+    patterns = {
+        "ACCUMULATION_ZONE": [
+            (obi > 0.05,           35),
+            (whale_power >= 40,    30),
+            (trend == "ACCUMULATION", 25),
+            (has_bid,              10),
+        ],
+        "DISTRIBUTION_ZONE": [
+            (obi < -0.05,          35),
+            (whale_power >= 40,    30),
+            (trend == "DISTRIBUTION", 25),
+            (has_ask,              10),
+        ],
+        "PUMP_PREPARATION": [
+            (blink_to_push,        40),
+            (obi > 0.1,            35),
+            (whale_power >= 50,    25),
+        ],
+        "DUMP_PREPARATION": [
+            (obi < -0.1,           40),
+            (has_ask,              35),
+            (not blink_to_push,    15),
+            (trend == "DISTRIBUTION", 10),
+        ],
+    }
+    best_name, best_score = "UNCLEAR", 0
+    for name, criteria in patterns.items():
+        max_pts = sum(pts for _, pts in criteria)
+        got_pts = sum(pts for cond, pts in criteria if cond)
+        pct     = round(got_pts / max_pts * 100) if max_pts else 0
+        if pct > best_score:
+            best_score = pct; best_name = name
+    return {
+        "name":           best_name,
+        "similarity_pct": best_score,
+        "tag":            "[WHALE PATTERN MATCH]" if best_score >= 75 else "",
+    }
+
+
+def compute_whale_detail(symbol: str, price: float, ticker_24h: dict, config: dict) -> dict:
+    """
+    Full institutional whale analysis for a single coin (called on-demand).
+    Computes: bag size, avg buy/sell price, inflow/outflow, OBI velocity,
+    micro-spike, clustering, pattern match — all from live order book.
+    """
+    try:
+        book  = fetch_order_book(symbol, depth=20)
+        bids  = book.get("bids", [])
+        asks  = book.get("asks", [])
+
+        bid_vol = sum(float(b[0]) * float(b[1]) for b in bids) if bids else 0.0
+        ask_vol = sum(float(a[0]) * float(a[1]) for a in asks) if asks else 0.0
+        bag_sz  = round(bid_vol, 0)
+
+        def _vwap_side(levels):
+            tot_q = sum(float(l[1]) for l in levels)
+            if not tot_q: return price
+            return sum(float(l[0]) * float(l[1]) for l in levels) / tot_q
+
+        avg_buy  = round(_vwap_side(bids), 8)
+        avg_sell = round(_vwap_side(asks), 8)
+
+        total_v  = bid_vol + ask_vol
+        obi      = round((bid_vol - ask_vol) / total_v, 4) if total_v else 0.0
+        buy_sell = round(bid_vol / ask_vol, 2) if ask_vol else 0.0
+        q_vol    = float(ticker_24h.get("quoteVolume", 0))
+        buy_r    = bid_vol / total_v if total_v else 0.5
+        inflow   = round(q_vol * buy_r, 0)
+        outflow  = round(q_vol * (1 - buy_r), 0)
+        trend    = "ACCUMULATION" if obi > 0.05 else "DISTRIBUTION" if obi < -0.05 else "NEUTRAL"
+
+        obi_hist = _obi_history.get(symbol, [])
+        if len(obi_hist) >= 2:
+            vals      = [v for _, v in obi_hist]
+            avg_obi   = sum(vals[:-1]) / len(vals[:-1])
+            std_obi   = (sum((v - avg_obi) ** 2 for v in vals[:-1]) / len(vals[:-1])) ** 0.5
+            velocity  = round(abs(obi - avg_obi) / std_obi, 3) if std_obi else 0.0
+            micro_spk = velocity >= config["institutional"]["obi_spike_threshold"]
+        else:
+            velocity  = 0.0
+            micro_spk = False
+
+        walls_all = calculate_wall_proximity(price, book, config)
+        spoof     = detect_spoofing(bids, asks, config)
+        bid_walls = [w for w in walls_all if w["side"] == "BID"]
+        ask_walls = [w for w in walls_all if w["side"] == "ASK"]
+
+        def _best(wlist, spoof_flag):
+            if not wlist: return {}
+            w = wlist[0]
+            return {"price": w["price_level"], "size_usdt": w["size_usdt"],
+                    "dist_pct": w["dist_pct"], "real": not spoof_flag}
+
+        bid_wall = _best(bid_walls, spoof.get("bid_spoof"))
+        ask_wall = _best(ask_walls, spoof.get("ask_spoof"))
+        b2push   = blink_to_push_check(symbol, walls_all, {}, config)
+        wp       = compute_whale_power(walls_all, spoof, b2push, price, config)
+
+        import time as _t
+        now = _t.time()
+        spike_cnt = sum(
+            1 for s, h in _obi_history.items()
+            if s != symbol and len(h) >= 2 and now - h[-1][0] < 300
+            and len(h) >= 2 and abs(h[-1][1] - sum(v for _, v in h[:-1]) / len(h[:-1])) > 0.1
+        )
+        clustering = "COORDINATED" if spike_cnt >= 3 else "ACTIVE" if spike_cnt >= 1 else "NORMAL"
+        pattern    = match_whale_pattern(obi, wp, trend, b2push, walls_all)
+        critical   = wp >= config["whale"]["critical_whale_power_pct"]
+
+        return {
+            "symbol": symbol, "price": price, "whale_power": wp,
+            "bag_size_usdt": bag_sz, "avg_buy_price": avg_buy, "avg_sell_price": avg_sell,
+            "inflow_24h_usdt": inflow, "outflow_24h_usdt": outflow,
+            "trend": trend, "buy_sell_ratio": buy_sell,
+            "bid_wall": bid_wall, "ask_wall": ask_wall,
+            "obi": obi, "obi_velocity": velocity,
+            "micro_spike": micro_spk, "clustering": clustering,
+            "pattern": pattern, "top_moves_24h": [],
+            "critical": critical, "walls": walls_all, "blink_to_push": b2push,
+        }
+    except Exception as e:
+        log.warning(f"compute_whale_detail failed {symbol}: {e}")
+        return {"symbol": symbol, "price": price, "whale_power": 0, "error": str(e),
+                "bid_wall": {}, "ask_wall": {}, "pattern": {}, "top_moves_24h": [],
+                "trend": "NEUTRAL", "clustering": "NORMAL", "micro_spike": False}
+
+
 def push_midnight_report(vmc_data: dict, whale_data: list, backtest: list,
                          credentials_json: str, sheet_id: str) -> bool:
     try:

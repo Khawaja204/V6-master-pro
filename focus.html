@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Focus Mode — V6 Master Pro</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0f; color: #c9d1d9; font-family: 'Courier New', monospace; font-size: 12px; min-height: 100vh; }
+
+/* ── Header ── */
+#focus-header {
+  background: #111827; border-bottom: 2px solid #1f6feb;
+  padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 50; flex-wrap: wrap;
+}
+.hdr-back { color: #58a6ff; cursor: pointer; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.hdr-back:hover { color: #FFD700; }
+.hdr-title { color: #FFD700; font-weight: bold; font-size: 15px; flex: 1; text-align: center; letter-spacing: 1px; }
+.hdr-right { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #555; }
+.live-dot { color: #00FF00; animation: blink 2s infinite; font-size: 14px; }
+@keyframes blink { 50% { opacity: 0.3; } }
+.regime-volatile { color: #FF4500; } .regime-trending { color: #3fb950; } .regime-ranging { color: #8b949e; }
+
+/* ── Focus List ── */
+#focus-list { padding: 12px 16px; }
+.list-sub { color: #555; font-size: 11px; margin-bottom: 12px; }
+.sort-bar  { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.sort-btn  { padding: 3px 10px; border: 1px solid #30363d; background: #161b22; color: #8b949e; cursor: pointer; border-radius: 4px; font-size: 10px; font-family: monospace; }
+.sort-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+
+#coin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.coin-card {
+  background: #111827; border: 1px solid #21262d; border-radius: 8px;
+  padding: 12px; cursor: pointer; transition: border-color 0.2s;
+  position: relative; overflow: hidden;
+}
+.coin-card:hover { border-color: #388bfd; background: #161b22; }
+.coin-card.critical { border-color: #FF4500; animation: critBlink 1s infinite; }
+@keyframes critBlink { 50% { border-color: #4a1515; } }
+
+.card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.card-sym  { color: #FFD700; font-weight: bold; font-size: 15px; flex: 1; }
+.card-folder { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+.folder-VIP    { background: #2d1b4e; color: #da70d6; }
+.folder-GOLDEN { background: #2d2700; color: #FFD700; }
+.folder-BOOM   { background: #2d1500; color: #FF6B35; }
+.folder-ENTRY  { background: #0d2d1a; color: #3fb950; }
+.folder-OTHER  { background: #1a1a2e; color: #555; }
+.hot-tag { font-size: 9px; color: #FF6B35; background: #2d1500; border: 1px solid #FF6B35; border-radius: 3px; padding: 1px 4px; animation: blink 1s infinite; }
+.crit-tag { font-size: 9px; color: #FF4500; background: #2d0000; border: 1px solid #FF4500; border-radius: 3px; padding: 1px 4px; }
+
+.combined-score { font-size: 22px; font-weight: bold; text-align: center; margin: 6px 0; }
+.combined-high  { color: #3fb950; } .combined-mid { color: #FFD700; } .combined-low { color: #FF4500; }
+
+.bar-row { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+.bar-lbl  { width: 72px; color: #555; font-size: 10px; flex-shrink: 0; }
+.bat-outer { flex: 1; height: 6px; border: 1px solid #30363d; background: #0d1117; border-radius: 3px; }
+.bat-fill  { height: 100%; border-radius: 2px; }
+.bat-h { background: #3fb950; } .bat-m { background: #FFD700; } .bat-l { background: #FF4500; }
+.bar-val  { width: 30px; text-align: right; font-size: 10px; color: #8b949e; flex-shrink: 0; }
+
+.card-footer { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 10px; border-top: 1px solid #21262d; padding-top: 6px; }
+.tl-g { color: #00FF00; font-weight: bold; } .tl-y { color: #FFD700; font-weight: bold; } .tl-r { color: #FF4500; font-weight: bold; }
+.cf-price { color: #58a6ff; }
+
+/* ── Detail View ── */
+#coin-detail { display: none; flex-direction: column; }
+.detail-hdr {
+  background: #111827; border-bottom: 1px solid #21262d;
+  padding: 8px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.detail-sym  { color: #FFD700; font-size: 18px; font-weight: bold; }
+.detail-price{ color: #c9d1d9; font-size: 15px; }
+.detail-badge{ font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid; }
+
+/* Chart */
+#chart-wrap   { position: relative; padding: 0 16px; background: #0d1117; border-bottom: 2px solid #21262d; }
+#chart-legend { position: absolute; top: 8px; left: 24px; z-index: 10; font-size: 10px; color: #8b949e; pointer-events: none; background: rgba(13,17,23,0.75); padding: 4px 8px; border-radius: 4px; }
+#chart-interval { display: flex; gap: 4px; padding: 8px 16px 4px; background: #0d1117; }
+.iv-btn { padding: 2px 8px; border: 1px solid #30363d; background: #161b22; color: #8b949e; cursor: pointer; border-radius: 3px; font-size: 10px; font-family: monospace; }
+.iv-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+
+/* Data grid */
+#detail-data {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+  border-top: 1px solid #21262d;
+}
+.data-panel { padding: 12px 14px; border-right: 1px solid #21262d; border-bottom: 1px solid #21262d; overflow: hidden; }
+.data-panel:nth-child(2n) { border-right: none; }
+.data-panel h3 { font-size: 11px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #21262d; }
+.wh-h { color: #3fb950; } .sig-h { color: #bc8cff; } .lev-h { color: #f0883e; } .hist-h { color: #da70d6; }
+
+.dr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 11px; }
+.dl { color: #555; flex-shrink: 0; margin-right: 8px; font-size: 10px; }
+.dv { color: #c9d1d9; text-align: right; }
+.dv-pos { color: #3fb950; font-weight: bold; }
+.dv-neg { color: #FF4500; font-weight: bold; }
+.dv-warn{ color: #FFD700; font-weight: bold; }
+.dv-dim { color: #555; }
+
+.tag-box { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin: 2px; }
+.tag-crit  { background: #2d0000; color: #FF4500; border: 1px solid #FF4500; animation: blink 0.8s infinite; }
+.tag-pat   { background: #1a2d1a; color: #3fb950; border: 1px solid #3fb950; }
+.tag-hot   { background: #2d1500; color: #FF6B35; border: 1px solid #FF6B35; }
+.tag-acc   { background: #0d2d1a; color: #3fb950; border: 1px solid #3fb950; }
+.tag-dist  { background: #2d0000; color: #FF4500; border: 1px solid #FF4500; }
+.tag-neut  { background: #1a1a2e; color: #8b949e; border: 1px solid #333; }
+
+.spike-tag { background: #4a0000; color: #FF4500; border: 1px solid #FF4500; border-radius: 3px; padding: 1px 5px; font-size: 10px; font-weight: bold; animation: blink 0.5s infinite; }
+
+.hist-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 6px; font-size: 10px; border-bottom: 1px solid #111; padding-bottom: 5px; }
+.hist-time { color: #444; white-space: nowrap; }
+.hist-type-VIP   { color: #da70d6; font-weight: bold; }
+.hist-type-WHALE { color: #FF4500; font-weight: bold; }
+.hist-det  { color: #6e7681; flex: 1; }
+
+.bt-row   { margin-bottom: 5px; font-size: 10px; }
+.bt-win   { color: #3fb950; font-weight: bold; }
+.bt-loss  { color: #FF4500; font-weight: bold; }
+.bt-open  { color: #58a6ff; }
+.bt-timeout { color: #555; }
+
+/* Wall badges */
+.wall-real { color: #3fb950; font-size: 9px; }
+.wall-fake { color: #FF4500; font-size: 9px; animation: blink 0.8s infinite; }
+
+/* Spinner */
+.spinner { text-align: center; padding: 40px; color: #555; font-size: 13px; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  #detail-data { grid-template-columns: 1fr; }
+  .data-panel { border-right: none; }
+  #coin-grid  { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+@media (max-width: 480px) {
+  #coin-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="focus-header">
+  <a class="hdr-back" href="/" onclick="event.preventDefault(); window.history.back();">← MAIN DASHBOARD</a>
+  <span class="hdr-title" id="hdr-title">🎯 FOCUS MODE — Institutional Ranking</span>
+  <div class="hdr-right">
+    <span>BTC: <span id="hdr-btc" style="color:#58a6ff">—</span></span>
+    <span>REGIME: <span id="hdr-regime" class="regime-ranging">—</span></span>
+    <span>W/L: <span id="hdr-wl" style="color:#3fb950">—</span></span>
+    <span>NEXT: <span id="hdr-cd" style="color:#888">30s</span></span>
+    <span class="live-dot">●</span>
+  </div>
+</div>
+
+<!-- Focus List -->
+<div id="focus-list">
+  <div style="padding: 8px 16px; background: #0d1117; border-bottom: 1px solid #21262d; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <span class="list-sub" id="list-sub">Sorted by (Whale Power + Confidence) ÷ 2 | Click coin for full detail | Auto-refresh 30s</span>
+    <div class="sort-bar" style="margin-bottom:0">
+      <span style="color:#555;font-size:10px">Sort:</span>
+      <button class="sort-btn active" onclick="setSort('combined')">Combined Score</button>
+      <button class="sort-btn" onclick="setSort('whale')">Whale Power</button>
+      <button class="sort-btn" onclick="setSort('confidence')">Confidence</button>
+      <button class="sort-btn" onclick="setSort('inst')">Inst Score</button>
+    </div>
+  </div>
+  <div id="coin-grid" style="padding:12px 16px;"></div>
+</div>
+
+<!-- Coin Detail -->
+<div id="coin-detail">
+  <div class="detail-hdr">
+    <button class="sort-btn" onclick="backToList()" style="color:#58a6ff;border-color:#58a6ff">← FOCUS LIST</button>
+    <span class="detail-sym" id="d-sym">—</span>
+    <span class="detail-price" id="d-price">—</span>
+    <div id="d-badges" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+    <div style="margin-left:auto;font-size:10px;color:#555" id="d-updated">—</div>
+  </div>
+  <div id="chart-interval">
+    <span style="color:#555;font-size:10px">Interval:</span>
+    <button class="iv-btn" onclick="setInterval_('15m')">15m</button>
+    <button class="iv-btn active" onclick="setInterval_('1h')">1h</button>
+    <button class="iv-btn" onclick="setInterval_('4h')">4h</button>
+    <button class="iv-btn" onclick="setInterval_('1d')">1d</button>
+    <span style="margin-left:auto;font-size:10px;color:#555">
+      <span style="color:#FFD700">─ VWAP</span>&nbsp;
+      <span style="color:#3fb950">— TP levels</span>&nbsp;
+      <span style="color:#FF4500">— SL</span>&nbsp;
+      <span style="color:#f0883e">— Whale Zones</span>
+    </span>
+  </div>
+  <div id="chart-wrap">
+    <div id="chart-legend">Loading chart…</div>
+    <div id="chart-container" style="height:340px"></div>
+  </div>
+  <div id="detail-data">
+    <div class="data-panel" id="whale-panel"><div class="spinner">Loading whale data…</div></div>
+    <div class="data-panel" id="signal-panel"><div class="spinner">Loading signal data…</div></div>
+    <div class="data-panel" id="levels-panel"><div class="spinner">Loading levels…</div></div>
+    <div class="data-panel" id="history-panel"><div class="spinner">Loading history…</div></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let focusData = null;
+let currentSym = null;
+let currentInterval = '1h';
+let sortMode = 'combined';
+let chart = null;
+let candleSeries = null;
+let countdown = 30;
+let _cdTick = null;
+
+// ── Formatters ────────────────────────────────────────────────────────────────
+const fmtP = v => {
+  if (!v && v !== 0) return '—';
+  v = Number(v);
+  if (v >= 10000) return v.toFixed(2);
+  if (v >= 100)   return v.toFixed(3);
+  if (v >= 1)     return v.toFixed(4);
+  if (v >= 0.001) return v.toFixed(6);
+  return v.toFixed(8);
+};
+const fmtPct = v => {
+  if (v === null || v === undefined) return '—';
+  const n = Number(v);
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+};
+const fmtU = v => {
+  if (!v) return '—';
+  if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return '$' + (v/1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return '$' + (v/1e3).toFixed(1) + 'K';
+  return '$' + v.toFixed(0);
+};
+const batBar = (pct, w = 80) => {
+  const p = Math.max(0, Math.min(100, pct));
+  const c = p >= 70 ? 'bat-h' : p >= 40 ? 'bat-m' : 'bat-l';
+  return `<div class="bat-outer" style="width:${w}px"><div class="bat-fill ${c}" style="width:${p}%"></div></div>`;
+};
+const tlBadge = tl => {
+  if (tl === 'GREEN')  return '<span class="tl-g">● GREEN</span>';
+  if (tl === 'YELLOW') return '<span class="tl-y">● YELLOW</span>';
+  return '<span class="tl-r">● RED</span>';
+};
+const combinedCls = v => v >= 70 ? 'combined-high' : v >= 40 ? 'combined-mid' : 'combined-low';
+const folderCls = f => {
+  const m = { VIP:'folder-VIP', GOLDEN:'folder-GOLDEN', BOOM:'folder-BOOM', ENTRY:'folder-ENTRY' };
+  return m[f] || 'folder-OTHER';
+};
+const dr = (label, val, cls='') => `<div class="dr"><span class="dl">${label}</span><span class="dv ${cls}">${val}</span></div>`;
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+function setSort(mode) {
+  sortMode = mode;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(mode) || (mode==='combined'&&b.textContent.includes('Combined'))));
+  if (focusData) renderList(focusData);
+}
+
+function sortCoins(coins) {
+  const sorted = [...coins];
+  if (sortMode === 'whale')      sorted.sort((a,b) => (b.inst?.whale_power||0) - (a.inst?.whale_power||0));
+  else if (sortMode === 'confidence') sorted.sort((a,b) => (b.confidence||0) - (a.confidence||0));
+  else if (sortMode === 'inst')  sorted.sort((a,b) => (b.inst?.inst_score||0) - (a.inst?.inst_score||0));
+  else sorted.sort((a,b) => (b.combined_score||0) - (a.combined_score||0));
+  return sorted;
+}
+
+// ── List Render ───────────────────────────────────────────────────────────────
+function renderList(data) {
+  const coins = sortCoins(data.coins || []);
+  document.getElementById('list-sub').textContent =
+    `${coins.length} coins | Sorted by ${sortMode} | BTC: ${data.btc?.sentiment||'?'} | Auto-refresh 30s`;
+  const grid = document.getElementById('coin-grid');
+  if (!coins.length) {
+    grid.innerHTML = '<div class="spinner">No signals yet — waiting for scan cycle…</div>';
+    return;
+  }
+  grid.innerHTML = coins.map(c => {
+    const inst  = c.inst || {};
+    const wp    = inst.whale_power || 0;
+    const conf  = c.confidence || 0;
+    const comb  = c.combined_score || 0;
+    const tl    = inst.traffic || 'RED';
+    const crit  = wp >= 85;
+    const price = fmtP(c.price);
+    return `
+    <div class="coin-card${crit?' critical':''}" onclick="openCoin('${c.symbol}')">
+      <div class="card-top">
+        <span class="card-sym">${(c.symbol||'').replace('USDT','')}</span>
+        <span class="card-folder ${folderCls(c.folder)}">${c.folder||'—'}</span>
+        ${c.is_hot ? '<span class="hot-tag">🔥HOT</span>' : ''}
+        ${crit ? '<span class="crit-tag">🚨</span>' : ''}
+      </div>
+      <div class="combined-score ${combinedCls(comb)}">${comb}%</div>
+      <div class="bar-row"><span class="bar-lbl">Whale Power</span>${batBar(wp)}<span class="bar-val">${wp}%</span></div>
+      <div class="bar-row"><span class="bar-lbl">Confidence</span>${batBar(conf)}<span class="bar-val">${conf}%</span></div>
+      <div class="bar-row"><span class="bar-lbl">Inst Score</span>${batBar(inst.inst_score||0)}<span class="bar-val">${inst.inst_score||0}</span></div>
+      <div class="card-footer">
+        ${tlBadge(tl)}
+        <span class="cf-price">${price}</span>
+        <span style="color:#555">RSI:${c.rsi||'—'}</span>
+        <span style="color:#555">C/3:${inst.confirms||0}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Detail Open ───────────────────────────────────────────────────────────────
+async function openCoin(symbol) {
+  currentSym = symbol;
+  document.getElementById('focus-list').style.display = 'none';
+  const det = document.getElementById('coin-detail');
+  det.style.display = 'flex';
+  det.style.flexDirection = 'column';
+  document.getElementById('hdr-title').textContent = `⚡ SNIPER — ${symbol.replace('USDT','')} / USDT`;
+
+  // Reset panels
+  ['whale-panel','signal-panel','levels-panel','history-panel'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="spinner">Loading…</div>';
+  });
+  document.getElementById('d-sym').textContent   = symbol.replace('USDT', '') + ' / USDT';
+  document.getElementById('d-price').textContent = '…';
+  document.getElementById('d-badges').innerHTML  = '';
+
+  // Fetch all data in parallel
+  try {
+    const [sniperRes, chartRes, whaleRes] = await Promise.all([
+      fetch(`/sniper_data?symbol=${symbol}`),
+      fetch(`/chart_data?symbol=${symbol}&interval=${currentInterval}&limit=60`),
+      fetch(`/whale_detail?symbol=${symbol}`),
+    ]);
+    const [sd, cd, wd] = await Promise.all([sniperRes.json(), chartRes.json(), whaleRes.json()]);
+    renderDetail(sd, cd, wd);
+  } catch(e) {
+    document.getElementById('whale-panel').innerHTML = `<div style="color:#FF4500;padding:20px">Error: ${e}</div>`;
+  }
+}
+
+async function reloadDetailData() {
+  if (!currentSym) return;
+  try {
+    const [sniperRes, chartRes, whaleRes] = await Promise.all([
+      fetch(`/sniper_data?symbol=${currentSym}`),
+      fetch(`/chart_data?symbol=${currentSym}&interval=${currentInterval}&limit=60`),
+      fetch(`/whale_detail?symbol=${currentSym}`),
+    ]);
+    const [sd, cd, wd] = await Promise.all([sniperRes.json(), chartRes.json(), whaleRes.json()]);
+    renderDetail(sd, cd, wd);
+  } catch(e) {}
+}
+
+async function setInterval_(iv) {
+  currentInterval = iv;
+  document.querySelectorAll('.iv-btn').forEach(b => b.classList.toggle('active', b.textContent === iv));
+  if (currentSym) {
+    try {
+      const res = await fetch(`/chart_data?symbol=${currentSym}&interval=${iv}&limit=60`);
+      const cd  = await res.json();
+      renderChart(cd);
+    } catch(e){}
+  }
+}
+
+function backToList() {
+  currentSym = null;
+  document.getElementById('coin-detail').style.display = 'none';
+  document.getElementById('focus-list').style.display  = 'block';
+  document.getElementById('hdr-title').textContent = '🎯 FOCUS MODE — Institutional Ranking';
+  if (chart) { chart.remove(); chart = null; candleSeries = null; }
+}
+
+// ── Chart Render ──────────────────────────────────────────────────────────────
+function renderChart(cd) {
+  const container = document.getElementById('chart-container');
+  if (chart) { chart.remove(); chart = null; candleSeries = null; }
+
+  chart = LightweightCharts.createChart(container, {
+    width:  container.clientWidth,
+    height: 340,
+    layout: { background: { type: 'solid', color: '#0d1117' }, textColor: '#8b949e' },
+    grid:   { vertLines: { color: '#1a1a2e' }, horzLines: { color: '#1a1a2e' } },
+    crosshair:     { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale:     { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+  });
+
+  // Candlestick
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#3fb950', downColor: '#FF4500',
+    borderUpColor: '#3fb950', borderDownColor: '#FF4500',
+    wickUpColor: '#3fb950', wickDownColor: '#FF4500',
+  });
+  const candles = (cd.candles || []).filter(c => c.open && c.high && c.low && c.close);
+  if (candles.length) candleSeries.setData(candles);
+
+  // VWAP line
+  if ((cd.vwap_line||[]).length) {
+    const vwapSeries = chart.addLineSeries({
+      color: '#FFD700', lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      lastValueVisible: true, priceLineVisible: false,
+      title: 'VWAP',
+    });
+    vwapSeries.setData(cd.vwap_line);
+  }
+
+  // TP/SL price lines
+  const plines = [
+    { price: cd.tp3, color: '#da70d6', title: 'TP3 (5×ATR)', style: 2 },
+    { price: cd.tp2, color: '#FFD700', title: 'TP2 (3×ATR)', style: 2 },
+    { price: cd.tp1, color: '#3fb950', title: 'TP1 (1.5×ATR)', style: 2 },
+    { price: cd.stop_loss, color: '#FF4500', title: 'SL (1.5×ATR)', style: 2 },
+    { price: cd.entry_low,  color: '#1f6feb', title: 'Entry Low',  style: 3 },
+    { price: cd.entry_high, color: '#1f6feb', title: 'Entry High', style: 3 },
+  ];
+  plines.forEach(pl => {
+    if (pl.price && candleSeries) {
+      candleSeries.createPriceLine({
+        price: pl.price, color: pl.color, lineWidth: 1,
+        lineStyle: pl.style, axisLabelVisible: true, title: pl.title,
+      });
+    }
+  });
+
+  // Whale wall lines
+  (cd.whale_walls || []).forEach(w => {
+    if (w.price && candleSeries) {
+      candleSeries.createPriceLine({
+        price: w.price, color: '#f0883e', lineWidth: 1,
+        lineStyle: 1, axisLabelVisible: true,
+        title: `🐋 ${w.side} Wall ${fmtU(w.size_usdt)}`,
+      });
+    }
+  });
+
+  // VMC markers
+  if ((cd.markers||[]).length && candleSeries) {
+    const sorted = [...cd.markers].sort((a,b) => a.time - b.time);
+    candleSeries.setMarkers(sorted);
+  }
+
+  // Legend
+  const sym = cd.symbol ? cd.symbol.replace('USDT','') : '';
+  document.getElementById('chart-legend').innerHTML =
+    `<b style="color:#FFD700">${sym}/USDT</b> &nbsp; ${currentInterval} &nbsp; ` +
+    `TP1:<span style="color:#3fb950">${fmtP(cd.tp1)}</span> &nbsp; ` +
+    `SL:<span style="color:#FF4500">${fmtP(cd.stop_loss)}</span> &nbsp; ` +
+    `VWAP:<span style="color:#FFD700">${fmtP((cd.vwap_line||[]).slice(-1)[0]?.value)}</span>`;
+
+  // Responsive resize
+  const ro = new ResizeObserver(() => {
+    if (chart) chart.applyOptions({ width: container.clientWidth });
+  });
+  ro.observe(container);
+}
+
+// ── Detail Panels Render ──────────────────────────────────────────────────────
+function renderDetail(sd, cd, wd) {
+  const coin = sd.coin   || {};
+  const inst = sd.inst   || {};
+  const inst_i = inst.inst || {};
+  const tp   = inst.tp_zones || {};
+  const siz  = inst.sizing   || {};
+  const hot  = sd.hot;
+  const folders = (sd.folders||[]).join(', ') || '—';
+
+  // Header
+  document.getElementById('d-sym').textContent   = (coin.symbol||'').replace('USDT','') + ' / USDT';
+  document.getElementById('d-price').textContent = fmtP(coin.price) + ' USDT';
+  document.getElementById('d-updated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+
+  const badges = [];
+  if (hot) badges.push('<span class="tag-box tag-hot">🔥 HOT COIN</span>');
+  if (wd.critical) badges.push('<span class="tag-box tag-crit">🚨 CRITICAL WHALE</span>');
+  if ((wd.pattern||{}).tag) badges.push(`<span class="tag-box tag-pat">${wd.pattern.tag}</span>`);
+  if (inst_i.spike) badges.push('<span class="tag-box tag-crit">⚡ SPIKE VALIDATED</span>');
+  document.getElementById('d-badges').innerHTML = badges.join('');
+
+  renderChart(cd);
+  renderWhalePanelContent(wd, coin);
+  renderSignalPanel(sd, inst_i, inst, coin, hot);
+  renderLevelsPanel(tp, siz, cd);
+  renderHistoryPanel(sd);
+}
+
+function renderWhalePanelContent(wd, coin) {
+  const p = document.getElementById('whale-panel');
+  const trend = wd.trend || 'NEUTRAL';
+  const trendCls = trend === 'ACCUMULATION' ? 'tag-acc' : trend === 'DISTRIBUTION' ? 'tag-dist' : 'tag-neut';
+  const pat = wd.pattern || {};
+  const bwall = wd.bid_wall || {};
+  const awall = wd.ask_wall || {};
+  p.innerHTML = `
+    <h3 class="wh-h">🐋 WHALE DATA</h3>
+    <div class="bar-row" style="margin-bottom:8px">
+      <span class="bar-lbl">Whale Power</span>
+      ${batBar(wd.whale_power||0, 100)}
+      <span class="bar-val" style="color:${(wd.whale_power||0)>=85?'#FF4500':'#3fb950'}">${wd.whale_power||0}%${(wd.whale_power||0)>=85?' 🚨':''}</span>
+    </div>
+    ${dr('Whale Bag Size', fmtU(wd.bag_size_usdt))}
+    ${dr('Buy Price Est.', fmtP(wd.avg_buy_price), 'dv-pos')}
+    ${dr('Sell Price Est.', fmtP(wd.avg_sell_price), 'dv-neg')}
+    ${dr('Inflow 24h', fmtU(wd.inflow_24h_usdt), 'dv-pos')}
+    ${dr('Outflow 24h', fmtU(wd.outflow_24h_usdt), 'dv-neg')}
+    <div class="dr"><span class="dl">Trend</span>
+      <span class="tag-box ${trendCls}">${trend}</span></div>
+    ${dr('Buy/Sell Pressure', wd.buy_sell_ratio ? wd.buy_sell_ratio.toFixed(2)+'x' : '—', wd.buy_sell_ratio >= 1 ? 'dv-pos' : 'dv-neg')}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    <div style="font-size:10px;color:#555;margin-bottom:4px">NEAREST BID WALL</div>
+    ${dr('Price', fmtP(bwall.price))}
+    ${dr('Size', fmtU(bwall.size_usdt))}
+    ${dr('Dist%', bwall.dist_pct ? bwall.dist_pct.toFixed(3)+'%' : '—')}
+    <div class="dr"><span class="dl">Real/Fake</span>
+      <span class="${bwall.real===false?'wall-fake':'wall-real'}">${bwall.real===false?'⚠️ FAKE WALL':'✅ Real'}</span></div>
+    <div style="font-size:10px;color:#555;margin:4px 0">NEAREST ASK WALL</div>
+    ${dr('Price', fmtP(awall.price))}
+    ${dr('Size', fmtU(awall.size_usdt))}
+    ${dr('Dist%', awall.dist_pct ? awall.dist_pct.toFixed(3)+'%' : '—')}
+    <div class="dr"><span class="dl">Real/Fake</span>
+      <span class="${awall.real===false?'wall-fake':'wall-real'}">${awall.real===false?'⚠️ FAKE WALL':'✅ Real'}</span></div>
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    ${dr('OBI Score', wd.obi !== undefined ? wd.obi.toFixed(4) : '—', wd.obi > 0 ? 'dv-pos' : 'dv-neg')}
+    ${dr('OBI Velocity', wd.obi_velocity !== undefined ? wd.obi_velocity.toFixed(3) : '—')}
+    <div class="dr"><span class="dl">Micro-Spike</span>
+      <span class="${wd.micro_spike?'spike-tag dv-warn':'dv-dim'}">${wd.micro_spike?'⚡ YES':'No'}</span></div>
+    ${dr('Clustering', wd.clustering || 'NORMAL')}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    <div class="dr"><span class="dl">Pattern Match</span>
+      <span>${pat.name||'—'} ${pat.similarity_pct ? '<span style="color:#58a6ff">('+pat.similarity_pct+'%)</span>' : ''}</span></div>
+    ${pat.tag ? `<div style="margin-top:4px"><span class="tag-box tag-pat">${pat.tag}</span></div>` : ''}
+    <div style="font-size:10px;color:#555;margin-top:8px;margin-bottom:4px">TOP 3 WHALE MOVES 24H</div>
+    ${(wd.top_moves_24h||[]).slice(0,3).map(m => `
+      <div class="dr"><span class="dl">${m.time||'—'}</span><span class="dv" style="color:${(m.whale_power||0)>=70?'#FF4500':'#FFD700'}">${m.label||'—'} ${m.whale_power||0}%</span></div>
+    `).join('') || dr('—','No whale moves in 24h','dv-dim')}
+  `;
+}
+
+function renderSignalPanel(sd, inst_i, inst, coin, hot) {
+  const p = document.getElementById('signal-panel');
+  const conf = inst.confidence || 0;
+  const confColor = conf >= 70 ? '#3fb950' : conf >= 40 ? '#FFD700' : '#FF4500';
+  const spike2of3 = (inst_i.confirms || 0) >= 2;
+  p.innerHTML = `
+    <h3 class="sig-h">★ SIGNAL DATA</h3>
+    <div class="bar-row" style="margin-bottom:8px">
+      <span class="bar-lbl">Confidence</span>
+      ${batBar(conf,100)}
+      <span class="bar-val" style="color:${confColor}">${conf}%</span>
+    </div>
+    <div class="dr"><span class="dl">Traffic Light</span>${tlBadge(inst_i.traffic||'RED')}</div>
+    ${dr('Inst Score', inst_i.inst_score || '—')}
+    ${dr('Whale 40%', inst_i.whale_power ? inst_i.whale_power+'%' : '—', inst_i.whale_power >= 60 ? 'dv-pos' : '')}
+    ${dr('VMC 30%', inst_i.vmc_score || coin.score || '—')}
+    ${dr('OFI 30%', inst_i.ofi_score !== undefined ? inst_i.ofi_score.toFixed(1) : '—')}
+    ${dr('RSI', coin.rsi || '—', coin.rsi < 35 ? 'dv-pos' : coin.rsi > 65 ? 'dv-neg' : '')}
+    ${dr('VMC Folder', (sd.folders||[]).join(', ') || '—')}
+    ${hot ? '<div><span class="tag-box tag-hot">🔥 HOT COIN — 3+ signals/hr</span></div>' : ''}
+    ${dr('Signals (1hr)', sd.signal_count_1h || 0)}
+    ${dr('Spike Confirms', (inst_i.confirms||0) + ' / 3', spike2of3 ? 'dv-pos' : '')}
+    <div class="dr"><span class="dl">Spike Valid 2/3</span>
+      <span class="${spike2of3?'dv-pos':'dv-dim'}">${spike2of3?'✅ CONFIRMED':'❌ Unconfirmed'}</span></div>
+    <div class="dr"><span class="dl">Inst Spike</span>
+      <span class="${inst_i.spike?'spike-tag':'dv-dim'}">${inst_i.spike?'⚡ YES':'No'}</span></div>
+    ${dr('Reason', inst_i.reason ? '<span style="font-size:9px;color:#555">'+inst_i.reason+'</span>' : '—')}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    ${dr('VWAP', sd.vwap ? fmtP(sd.vwap) : '—')}
+    ${dr('Price vs VWAP', sd.vwap && coin.price ? (coin.price >= sd.vwap ? '<span class="dv-pos">Above VWAP ▲</span>' : '<span class="dv-neg">Below VWAP ▼</span>') : '—')}
+    ${dr('Change 24h', fmtPct(coin.change_pct), (coin.change_pct||0) >= 0 ? 'dv-pos' : 'dv-neg')}
+    ${dr('Volume', coin.volume_usdt ? (coin.volume_usdt>=1e6?(coin.volume_usdt/1e6).toFixed(1)+'M':(coin.volume_usdt/1e3).toFixed(0)+'K') : '—')}
+  `;
+}
+
+function renderLevelsPanel(tp, siz, cd) {
+  const p = document.getElementById('levels-panel');
+  p.innerHTML = `
+    <h3 class="lev-h">🎯 TRADE LEVELS</h3>
+    ${dr('ATR', fmtP(tp.atr))}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    ${dr('Entry Low',  '<span style="color:#1f6feb">▼ ' + fmtP(tp.entry_low) + '</span>')}
+    ${dr('Entry High', '<span style="color:#1f6feb">▲ ' + fmtP(tp.entry_high) + '</span>')}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    ${dr('Stop Loss (1.5×ATR)', '<span class="dv-neg">▼ ' + fmtP(tp.stop_loss) + '</span>')}
+    ${dr('Risk %', tp.risk_pct ? tp.risk_pct.toFixed(3)+'%' : '—', 'dv-neg')}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    ${dr('TP1 (1.5×ATR)', '<span style="color:#3fb950">▲ ' + fmtP(tp.tp1) + '</span>')}
+    ${dr('TP2 (3.0×ATR)', '<span style="color:#FFD700">▲▲ ' + fmtP(tp.tp2) + '</span>')}
+    ${dr('TP3 (5.0×ATR)', '<span style="color:#da70d6">▲▲▲ ' + fmtP(tp.tp3) + '</span>')}
+    <hr style="border-color:#21262d;margin:6px 0"/>
+    <div style="font-size:10px;color:#555;margin-bottom:4px">POSITION SIZING</div>
+    ${dr('Allocation', siz.alloc_usdt ? '<span class="dv-pos">$' + siz.alloc_usdt + '</span>' : '—')}
+    ${dr('% of Balance', siz.alloc_pct ? siz.alloc_pct + '%' : '—')}
+    ${dr('Balance', siz.balance ? '$' + siz.balance : '—')}
+    ${dr('Decision', '<span style="color:' + (siz.light==='GREEN'?'#3fb950':siz.light==='YELLOW'?'#FFD700':'#FF4500') + '">' + (siz.note||'—') + '</span>')}
+  `;
+}
+
+function renderHistoryPanel(sd) {
+  const p = document.getElementById('history-panel');
+  const alerts = sd.alerts || [];
+  const bt     = sd.backtest || [];
+  p.innerHTML = `
+    <h3 class="hist-h">◆ HISTORY</h3>
+    <div style="font-size:10px;color:#555;margin-bottom:6px">LAST ${Math.min(5,alerts.length)} ALERTS</div>
+    ${alerts.slice(0,5).map(a => `
+      <div class="hist-row">
+        <span class="hist-time">${(a.time||'').substring(11,19)}</span>
+        <span class="hist-type-${a.type||'VIP'}">${a.type==='WHALE'?'🐋':'⭐'} ${a.type}</span>
+        <span class="hist-det">${a.detail||'—'}</span>
+      </div>`).join('') || '<div style="color:#444;font-size:11px">No alerts for this coin yet</div>'}
+    <hr style="border-color:#21262d;margin:8px 0"/>
+    <div style="font-size:10px;color:#555;margin-bottom:6px">BACKTEST RESULTS (${bt.length})</div>
+    ${bt.slice(0,5).map(b => {
+      const rc = b.result==='WIN'?'bt-win':b.result==='LOSS'?'bt-loss':b.result==='TIMEOUT'?'bt-timeout':'bt-open';
+      const ri = b.result==='WIN'?'✅':b.result==='LOSS'?'❌':b.result==='TIMEOUT'?'⏰':'⏳';
+      return `<div class="bt-row">
+        <span style="color:#444">${(b.entry_time||'').substring(11,19)}</span>&nbsp;
+        Entry:${fmtP(b.entry_price)}&nbsp;
+        Conf:${b.confidence}%&nbsp;
+        PnL:${b.pnl_pct!==null&&b.pnl_pct!==undefined?'<span class="'+(b.pnl_pct>=0?'bt-win':'bt-loss')+'">'+b.pnl_pct.toFixed(3)+'%</span>':'—'}&nbsp;
+        <span class="${rc}">${ri} ${b.result||'OPEN'}</span>
+        ${b.tp1_hit?'<span style="color:#3fb950">TP1✅</span>':''}
+        ${b.tp2_hit?'<span style="color:#FFD700">TP2✅</span>':''}
+        ${b.tp3_hit?'<span style="color:#da70d6">TP3✅</span>':''}
+      </div>`;
+    }).join('') || '<div style="color:#444;font-size:11px">No backtest records yet</div>'}
+  `;
+}
+
+// ── Fetch Focus List ──────────────────────────────────────────────────────────
+async function fetchFocusData() {
+  try {
+    const res = await fetch('/focus_data');
+    focusData = await res.json();
+
+    const btc = focusData.btc || {};
+    const el  = document.getElementById('hdr-btc');
+    el.textContent = btc.price ? '$' + Number(btc.price).toFixed(0) + ' ' + (btc.sentiment||'') : '—';
+    el.style.color = btc.sentiment==='BULLISH'?'#3fb950':btc.sentiment==='BEARISH'?'#FF4500':'#58a6ff';
+
+    const rEl = document.getElementById('hdr-regime');
+    rEl.textContent = focusData.market_regime || '—';
+    rEl.className   = 'regime-' + (focusData.market_regime||'ranging').toLowerCase();
+
+    document.getElementById('hdr-wl').textContent =
+      `${focusData.total_wins||0}W/${focusData.total_losses||0}L ${focusData.win_rate||0}%`;
+
+    if (!currentSym) renderList(focusData);
+    else await reloadDetailData();
+  } catch(e) {
+    document.getElementById('coin-grid').innerHTML = `<div class="spinner" style="color:#FF4500">Error: ${e}</div>`;
+  }
+}
+
+// ── Countdown & auto-refresh ──────────────────────────────────────────────────
+function tick() {
+  countdown--;
+  const el = document.getElementById('hdr-cd');
+  if (el) { el.textContent = countdown+'s'; el.style.color = countdown<=5?'#FFD700':'#888'; }
+  if (countdown <= 0) { countdown = 30; fetchFocusData(); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+fetchFocusData();
+setInterval(tick, 1000);
+window.addEventListener('resize', () => {
+  if (chart) chart.applyOptions({ width: document.getElementById('chart-container').clientWidth });
+});
+</script>
+</body>
+</html>

@@ -915,17 +915,267 @@ def client_logout():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# FOCUS MODE + CHART + WHALE DETAIL ROUTES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/focus")
+def focus_mode():
+    with open("focus.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.route("/focus_data")
+def focus_data():
+    inst_signals = GLOBAL_DATA.get("inst_signals", [])
+    vmc_data     = GLOBAL_DATA.get("vmc", {})
+    whale_data   = GLOBAL_DATA.get("whale", [])
+    hot_syms     = [h["symbol"] for h in GLOBAL_DATA.get("hot_coins", [])]
+    seen = set(); coins = []
+    for sig in inst_signals:
+        sym = sig["symbol"]
+        if sym in seen: continue
+        seen.add(sym)
+        inst_i = sig.get("inst", {})
+        wp     = inst_i.get("whale_power", 0)
+        conf   = sig.get("confidence", 0)
+        coins.append({**sig, "combined_score": round((wp + conf) / 2, 1), "is_hot": sym in hot_syms})
+    for folder in ["VIP", "GOLDEN", "BOOM", "ENTRY"]:
+        for coin in vmc_data.get(folder, []):
+            sym = coin["symbol"]
+            if sym in seen: continue
+            seen.add(sym)
+            wh  = next((w for w in whale_data if w["symbol"] == sym), None)
+            wp  = wh.get("whale_power", 0) if wh else 0
+            coins.append({**coin, "folder": folder,
+                "combined_score": round(wp / 2, 1), "is_hot": sym in hot_syms,
+                "inst": {"traffic":"RED","inst_score":0,"whale_power":wp,"confirms":0,"spike":False},
+                "tp_zones": {}, "sizing": {}, "confidence": 0})
+    coins.sort(key=lambda x: x["combined_score"], reverse=True)
+    return jsonify({
+        "coins": coins[:60], "total": len(coins),
+        "last_update": GLOBAL_DATA.get("last_update"),
+        "win_rate": GLOBAL_DATA.get("win_rate"), "total_wins": _total_wins,
+        "total_losses": _total_losses,
+        "market_regime": GLOBAL_DATA.get("market_regime", "RANGING"),
+        "btc": GLOBAL_DATA.get("btc", {}),
+    })
+
+
+@app.route("/chart_data")
+def chart_data():
+    from logic import fetch_klines as _fk
+    symbol   = request.args.get("symbol", "").upper()
+    interval = request.args.get("interval", "1h")
+    limit    = min(int(request.args.get("limit", "60")), 200)
+    if not symbol:
+        return jsonify({"error": "No symbol"})
+    klines = _fk(symbol, interval, limit)
+    if not klines:
+        return jsonify({"candles": [], "vwap_line": [], "symbol": symbol, "interval": interval})
+    candles = []; vwap_line = []; cum_pv = 0; cum_v = 0
+    for k in klines:
+        ts  = int(k[0]) // 1000
+        o,h,l,c = float(k[1]), float(k[2]), float(k[3]), float(k[4])
+        v   = float(k[5]); tp = (h + l + c) / 3
+        cum_pv += tp * v; cum_v += v
+        vwap   = round(cum_pv / cum_v, 8) if cum_v else 0
+        candles.append({"time": ts, "open": o, "high": h, "low": l, "close": c})
+        vwap_line.append({"time": ts, "value": vwap})
+    inst_s = next((s for s in GLOBAL_DATA["inst_signals"] if s["symbol"] == symbol), None)
+    tp_z   = inst_s.get("tp_zones", {}) if inst_s else {}
+    markers = []
+    for folder, pos, col, shp in [
+        ("ENTRY","belowBar","#3fb950","arrowUp"),("GOLDEN","belowBar","#FFD700","arrowUp"),
+        ("VIP","belowBar","#da70d6","arrowUp"),("EXIT","aboveBar","#FF4500","arrowDown"),
+    ]:
+        if any(c["symbol"] == symbol for c in GLOBAL_DATA["vmc"].get(folder, [])) and candles:
+            markers.append({"time": candles[-1]["time"], "position": pos, "color": col, "shape": shp, "text": f"VMC {folder}"})
+    wh = next((w for w in GLOBAL_DATA["whale"] if w["symbol"] == symbol), None)
+    whale_walls = [{"price": w["price_level"], "side": w["side"], "size_usdt": w["size_usdt"]}
+                   for w in (wh.get("walls", []) if wh else [])]
+    return jsonify({
+        "symbol": symbol, "interval": interval, "candles": candles, "vwap_line": vwap_line,
+        "tp1": tp_z.get("tp1",0), "tp2": tp_z.get("tp2",0), "tp3": tp_z.get("tp3",0),
+        "stop_loss": tp_z.get("stop_loss",0), "entry_low": tp_z.get("entry_low",0),
+        "entry_high": tp_z.get("entry_high",0), "markers": markers, "whale_walls": whale_walls,
+    })
+
+
+@app.route("/whale_detail")
+def whale_detail_route():
+    from logic import compute_whale_detail
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol:
+        return jsonify({"error": "No symbol"})
+    coin   = next((c for c in GLOBAL_DATA["vmc"].get("ALL",[]) if c["symbol"] == symbol), None)
+    price  = coin["price"] if coin else fetch_ticker_price(symbol)
+    tkr    = {"quoteVolume": coin.get("volume_usdt",0) if coin else 0,
+              "priceChangePercent": coin.get("change_pct",0) if coin else 0}
+    wd = compute_whale_detail(symbol, price, tkr, CONFIG)
+    wd["top_moves_24h"] = [w for w in GLOBAL_DATA.get("whale_24h",[]) if w["symbol"]==symbol][:3]
+    if not wd["top_moves_24h"]:
+        wd["top_moves_24h"] = GLOBAL_DATA.get("whale_24h",[])[:3]
+    return jsonify(wd)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TELEGRAM BOT COMMAND HANDLERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _fmtP(v):
+    """Format price for Telegram messages."""
+    if not v and v != 0: return "—"
+    v = float(v)
+    if v >= 10000: return f"{v:.2f}"
+    if v >= 100:   return f"{v:.3f}"
+    if v >= 1:     return f"{v:.4f}"
+    if v >= 0.001: return f"{v:.6f}"
+    return f"{v:.8f}"
+
+
+def _bot_reply(chat_id: str, text: str, button: dict = None):
+    if not BOT_TOKEN: return
+    try:
+        import requests as _r
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        if button:
+            payload["reply_markup"] = {"inline_keyboard": [[{"text": button["text"], "url": button["url"]}]]}
+        _r.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=10)
+    except Exception as e:
+        log.debug(f"Bot reply failed: {e}")
+
+
+def _handle_sniper_cmd(chat_id: str, symbol: str):
+    if not symbol.endswith("USDT"): symbol += "USDT"
+    symbol  = symbol.upper()
+    all_c   = GLOBAL_DATA["vmc"].get("ALL", [])
+    coin    = next((c for c in all_c if c["symbol"] == symbol), None)
+    inst    = next((s for s in GLOBAL_DATA["inst_signals"] if s["symbol"] == symbol), None)
+    whale   = next((w for w in GLOBAL_DATA["whale"] if w["symbol"] == symbol), None)
+    bt      = [b for b in BACKTEST_SIGNALS if b["symbol"] == symbol]
+    if not coin and not inst:
+        _bot_reply(chat_id, f"❌ <b>{symbol}</b> not in current scan.\nUsage: /sniper BTCUSDT"); return
+    price   = coin["price"] if coin else 0
+    folders = [f for f, cs in GLOBAL_DATA["vmc"].items() if any(c["symbol"]==symbol for c in cs)]
+    inst_i  = inst.get("inst",{}) if inst else {}
+    tp      = inst.get("tp_zones",{}) if inst else {}
+    siz     = inst.get("sizing",{}) if inst else {}
+    conf    = inst.get("confidence",0) if inst else 0
+    wp      = whale.get("whale_power",0) if whale else 0
+    wins    = sum(1 for b in bt if b.get("result")=="WIN")
+    losses  = sum(1 for b in bt if b.get("result")=="LOSS")
+    hot_tag = "\n🔥 <b>[HOT COIN]</b>" if any(h["symbol"]==symbol for h in GLOBAL_DATA["hot_coins"]) else ""
+    crit_tag= "\n🚨 <b>[CRITICAL_WHALE_ALERT]</b>" if wp >= CONFIG["whale"]["critical_whale_power_pct"] else ""
+    _bot_reply(chat_id,
+        f"⚡ <b>SNIPER: {symbol}</b>{hot_tag}{crit_tag}\n"
+        f"────────────────\n"
+        f"💰 Price: {_fmtP(price)} | Chg: {coin.get('change_pct','—') if coin else '—'}%\n"
+        f"📊 Score: {coin.get('score','—') if coin else '—'} | RSI: {coin.get('rsi','—') if coin else '—'}\n"
+        f"📁 Folders: {', '.join(folders) or '—'}\n"
+        f"🚦 Light: {inst_i.get('traffic','—')} | Conf: {conf}%\n"
+        f"⭐ Inst: {inst_i.get('inst_score','—')} | Whale: {wp}%\n"
+        f"────────────────\n"
+        f"🎯 TP1: {_fmtP(tp.get('tp1',0))} | TP2: {_fmtP(tp.get('tp2',0))} | TP3: {_fmtP(tp.get('tp3',0))}\n"
+        f"🛡 SL: {_fmtP(tp.get('stop_loss',0))}\n"
+        f"💼 {siz.get('note','—')}\n"
+        f"────────────────\n"
+        f"📈 Backtest: {wins}W / {losses}L",
+        button={"text": f"⚡ Focus Mode: {symbol.replace('USDT','')}", "url": _dashboard_url(symbol)}
+    )
+    audit(chat_id, "BOT_SNIPER", "SENT", f"sym={symbol}")
+
+
+def _handle_winrate_cmd(chat_id: str):
+    open_bt = sum(1 for b in BACKTEST_SIGNALS if b["status"] == "OPEN")
+    _bot_reply(chat_id,
+        f"📊 <b>WIN RATE REPORT</b>\n"
+        f"────────────────\n"
+        f"Win Rate: <b>{GLOBAL_DATA['win_rate']}%</b>\n"
+        f"Wins: {_total_wins} | Losses: {_total_losses} | Total: {_total_wins+_total_losses}\n"
+        f"Win Streak: 🔥 {_win_streak} consecutive\n"
+        f"Open Signals: {open_bt} being tracked\n"
+        f"────────────────\n"
+        f"Cycle #{GLOBAL_DATA['cycle_count']} | {GLOBAL_DATA['status']}",
+        button={"text": "📊 Open Focus Mode", "url": _dashboard_url() + "focus"}
+    )
+
+
+def _handle_status_cmd(chat_id: str):
+    secs = int(time.time() - GLOBAL_DATA["uptime_start"])
+    h, r = divmod(secs, 3600); m, _ = divmod(r, 60)
+    _bot_reply(chat_id,
+        f"🚀 <b>V6 MASTER PRO STATUS</b>\n"
+        f"────────────────\n"
+        f"Status: {GLOBAL_DATA['status']} | Cycle #{GLOBAL_DATA['cycle_count']}\n"
+        f"Uptime: {h}h {m}m | Ex: {GLOBAL_DATA['active_exchange']}\n"
+        f"────────────────\n"
+        f"📊 VIP:{len(GLOBAL_DATA['vmc'].get('VIP',[]))} GOLDEN:{len(GLOBAL_DATA['vmc'].get('GOLDEN',[]))} ALL:{len(GLOBAL_DATA['vmc'].get('ALL',[]))}\n"
+        f"🐋 Whale: {len(GLOBAL_DATA['whale'])} | Hot: {len(GLOBAL_DATA['hot_coins'])}\n"
+        f"📈 Win Rate: {GLOBAL_DATA['win_rate']}% | Streak: {_win_streak}\n"
+        f"────────────────\n"
+        f"₿ BTC: {GLOBAL_DATA['btc'].get('sentiment','?')} | Regime: {GLOBAL_DATA.get('market_regime','?')}\n"
+        f"Entries: {'⛔ PAUSED' if GLOBAL_DATA.get('btc_pause') else '✅ ACTIVE'}",
+        button={"text": "🎯 Open Focus Mode", "url": _dashboard_url() + "/focus"}
+    )
+
+
+def telegram_bot_loop():
+    """Long-poll Telegram getUpdates: handles /sniper /winrate /status /help."""
+    if not BOT_TOKEN:
+        log.info("[BOT] BOT_TOKEN not set — command bot disabled.")
+        return
+    offset = None
+    log.info("[BOT] Telegram command bot polling — /sniper /winrate /status /help")
+    audit("SYSTEM", "BOT_STARTED", "OK", "polling")
+    while True:
+        try:
+            import requests as _r
+            params = {"timeout": 20, "allowed_updates": ["message"]}
+            if offset: params["offset"] = offset
+            resp = _r.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates",
+                          params=params, timeout=25)
+            if resp.status_code != 200:
+                time.sleep(5); continue
+            for upd in resp.json().get("result", []):
+                offset  = upd["update_id"] + 1
+                msg     = upd.get("message", {})
+                text    = msg.get("text", "").strip()
+                chat_id = str(msg.get("chat", {}).get("id", ""))
+                if not text or not chat_id: continue
+                parts = text.split()
+                cmd   = parts[0].lower().split("@")[0]
+                args  = parts[1:]
+                log.info(f"[BOT] cmd={cmd} from={chat_id}")
+                audit(chat_id, "BOT_CMD", cmd, f"args={args}")
+                if cmd == "/sniper":
+                    _handle_sniper_cmd(chat_id, args[0].upper() if args else "") if args else \
+                        _bot_reply(chat_id, "Usage: /sniper BTCUSDT")
+                elif cmd == "/winrate":  _handle_winrate_cmd(chat_id)
+                elif cmd == "/status":   _handle_status_cmd(chat_id)
+                elif cmd in ("/help", "/start"):
+                    _bot_reply(chat_id,
+                        "🤖 <b>V6 Master Pro Bot</b>\n"
+                        "/sniper BTCUSDT — Full coin analysis + TP/SL/Backtest\n"
+                        "/winrate — Win rate, streak, open signals\n"
+                        "/status — System status + BTC regime\n"
+                        "/help — This help message")
+        except Exception as e:
+            log.debug(f"[BOT] Poll error: {e}")
+            time.sleep(5)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
     send_telegram(
-        f"🚀 <b>V6 MASTER PRO v7 ONLINE</b>\n"
+        f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
         f"PORT:{PORT} | Exchange:BINANCE\n"
-        f"Systems: Backtest✅ HotCoin✅ Sniper✅ OBI✅ ATR✅\n"
-        f"Traffic Light✅ Confidence Score✅ WinStreak✅\n"
-        f"Admin:/admin | Client:/client"
+        f"🎯 FocusMode✅ CandlestickChart✅ WhalePanels✅\n"
+        f"🤖 Bot:/sniper /winrate /status ✅\n"
+        f"Admin:/admin | Client:/client | Focus:/focus"
     )
     audit("SYSTEM", "STARTUP", "OK", f"port={PORT}")
     threading.Thread(target=data_refresh_loop,   daemon=True).start()
@@ -934,4 +1184,5 @@ if __name__ == "__main__":
     threading.Thread(target=midnight_report_loop, daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
+    threading.Thread(target=telegram_bot_loop,    daemon=True).start()
     app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
