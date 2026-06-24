@@ -22,18 +22,60 @@
     "blink_push_proximity_pct": 1.5,
     "alert_cooldown_seconds": 300,
     "order_book_depth": 20,
-    "top_coins_for_whale": 50
+    "top_coins_for_whale": 50,
+    "critical_whale_power_pct": 85,
+    "min_transaction_usdt": 500000
   },
   "scanner": {
     "coins_limit": 500,
     "cache_clear_interval_seconds": 60,
     "heartbeat_interval_seconds": 300,
     "quote_asset": "USDT",
-    "min_quote_volume_24h": 500000
+    "min_quote_volume_24h": 500000,
+    "btc_monitor_interval_seconds": 30,
+    "midnight_report_hour_utc": 0
   },
   "telegram": {
     "vip_alert_min_score": 85,
     "vip_alert_cooldown_seconds": 600,
-    "whale_alert_min_proximity": 1.0
+    "whale_alert_min_proximity": 1.0,
+    "alert_cooldown_seconds": 300,
+    "critical_whale_cooldown_seconds": 120
+  },
+  "institutional": {
+    "whale_power_weight": 0.40,
+    "vmc_score_weight": 0.30,
+    "ofi_weight": 0.30,
+    "wall_proximity_bonus_pct": 0.10,
+    "wall_proximity_bonus_threshold": 0.5,
+    "spike_confirm_threshold": 2,
+    "yellow_light_whale_power": 50,
+    "btc_bearish_drop_pct": 2.0,
+    "atr_stop_loss_multiplier": 1.5,
+    "tp1_atr_multiplier": 1.5,
+    "tp2_atr_multiplier": 3.0,
+    "tp3_atr_multiplier": 5.0,
+    "slippage_min_pct": 0.1,
+    "slippage_max_pct": 0.3,
+    "consecutive_loss_cooldown_minutes": 30,
+    "obi_spike_threshold": 2.5,
+    "obi_history_size": 20
+  },
+  "risk": {
+    "account_balance_usdt": 1000,
+    "green_signal_max_pct": 5.0,
+    "yellow_signal_max_pct": 1.25,
+    "red_signal_max_pct": 0.0
+  },
+  "security": {
+    "max_login_attempts": 3,
+    "lockout_minutes": 30,
+    "session_timeout_minutes": 15
+  },
+  "audit": {
+    "log_file": "system_audit.log",
+    "max_bytes": 10485760,
+    "backup_count": 5,
+    "retention_days": 90
   }
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>V6 Master Pro — Elite Terminal</title>
+<title>V6 Master Pro — Institutional Terminal</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -11,7 +11,7 @@
     background: #0a0a0f;
     color: #c9d1d9;
     font-family: 'Courier New', monospace;
-    font-size: 13px;
+    font-size: 12px;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -22,24 +22,43 @@
   #status-bar {
     background: #111827;
     border-bottom: 1px solid #21262d;
-    padding: 6px 16px;
+    padding: 5px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
     font-size: 11px;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
   }
   #status-bar .title  { color: #FFD700; font-weight: bold; font-size: 13px; letter-spacing: 1px; }
   #status-bar .item   { color: #8b949e; }
   #status-bar .item span { color: #58a6ff; }
-  #status-bar .live   { color: #00FF00; animation: blink 2s infinite; }
-  #status-bar .error  { color: #FF4500; }
-  #refresh-count      { color: #888; font-size: 10px; }
+  .live   { color: #00FF00; animation: blink 2s infinite; }
+  .error  { color: #FF4500; }
   @keyframes blink { 50% { opacity: 0.4; } }
 
-  /* ── Main layout: three horizontal stacked sections ── */
+  /* ── BTC Sentiment Bar ── */
+  #btc-bar {
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+    padding: 3px 14px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+  .btc-bull  { color: #3fb950; font-weight: bold; }
+  .btc-bear  { color: #FF4500; font-weight: bold; }
+  .btc-neut  { color: #58a6ff; font-weight: bold; }
+  .btc-pause { background: #4a1515; color: #FF4500; padding: 2px 8px; border-radius: 3px;
+               font-weight: bold; animation: blink 1s infinite; }
+  .tl-green  { color: #00FF00; font-size: 15px; text-shadow: 0 0 8px #00FF00; }
+  .tl-yellow { color: #FFD700; font-size: 15px; text-shadow: 0 0 8px #FFD700; }
+  .tl-red    { color: #FF4500; font-size: 15px; text-shadow: 0 0 8px #FF4500; }
+
+  /* ── Main layout ── */
   #main {
     display: flex;
     flex-direction: column;
@@ -47,153 +66,206 @@
     overflow: hidden;
   }
 
-  /* ── Each section ── */
   .panel          { display: flex; flex-direction: column; overflow: hidden; }
-  #panel-a        { flex: 1.4; border-bottom: 2px solid #333; }
-  #panel-b        { flex: 1.2; border-bottom: 2px solid #333; }
-  #panel-c        { flex: 0.8; }
+  #panel-a        { flex: 1.5; border-bottom: 2px solid #1a1a2e; }
+  #panel-b        { flex: 1.1; border-bottom: 2px solid #1a1a2e; }
+  #panel-c        { flex: 0.75; border-bottom: 2px solid #1a1a2e; }
+  #panel-d        { flex: 0.75; }
 
   .panel-header {
     background: #161b22;
     border-bottom: 1px solid #21262d;
-    padding: 5px 12px;
+    padding: 4px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
   }
-  .panel-label   { font-weight: bold; font-size: 12px; letter-spacing: 0.5px; color: #e6edf3; }
+  .panel-label   { font-weight: bold; font-size: 11px; letter-spacing: 0.5px; }
   .panel-a-label { color: #58a6ff; }
   .panel-b-label { color: #bc8cff; }
   .panel-c-label { color: #3fb950; }
+  .panel-d-label { color: #f0883e; }
 
-  /* ── Alert History ── */
-  .hist-VIP   { color: #da70d6; font-weight: bold; }
-  .hist-WHALE { color: #FF4500; font-weight: bold; }
-  .hist-GOLDEN{ color: #FFD700; font-weight: bold; }
-  .hist-time  { color: #444; font-size: 10px; white-space: nowrap; }
-  .hist-detail{ color: #6e7681; font-size: 11px; }
-  .hist-new   { animation: flashNew 1s ease-out; }
-  @keyframes flashNew { from { background: #1a2a1a; } to { background: transparent; } }
+  .table-wrap { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
+  table { width: 100%; border-collapse: collapse; }
+  th    { position: sticky; top: 0; background: #0d1117; color: #58a6ff; padding: 4px 8px;
+          text-align: left; font-size: 10px; border-bottom: 1px solid #21262d; z-index: 1; }
+  td    { padding: 3px 8px; border-bottom: 1px solid #111; font-size: 11px; }
+  tr:hover td { background: #161b22; }
+  .empty-row td { color: #444; text-align: center; padding: 12px; font-size: 11px; }
 
   /* ── Folder Tabs ── */
   #tabs {
-    display: flex;
-    gap: 4px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding: 6px 12px;
-    background: #0d1117;
-    border-bottom: 1px solid #21262d;
-    flex-shrink: 0;
-    scrollbar-width: thin;
+    display: flex; gap: 3px; flex-wrap: nowrap; overflow-x: auto;
+    padding: 4px 12px; background: #0d1117;
+    border-bottom: 1px solid #21262d; flex-shrink: 0; scrollbar-width: thin;
   }
   .tab {
-    padding: 3px 10px;
-    border-radius: 4px;
-    border: 1px solid #30363d;
-    background: #161b22;
-    color: #8b949e;
-    cursor: pointer;
-    font-size: 11px;
-    white-space: nowrap;
-    transition: all 0.15s;
+    padding: 3px 8px; border-radius: 4px; border: 1px solid #30363d;
+    background: #161b22; color: #8b949e; cursor: pointer;
+    font-size: 10px; white-space: nowrap; transition: all 0.15s; font-family: monospace;
   }
   .tab:hover         { border-color: #58a6ff; color: #e6edf3; }
   .tab.active        { background: #1f6feb; border-color: #388bfd; color: #fff; }
-  .tab .cnt          { font-size: 9px; opacity: 0.8; margin-left: 3px; }
+  .tab .cnt          { font-size: 9px; opacity: 0.8; margin-left: 2px; }
 
   /* ── Signal Colors ── */
-  .tag-GOLDEN        { color: #FFD700; font-weight: bold; }
-  .tag-VIP           { color: #da70d6; font-weight: bold; }
-  .tag-ENTRY         { color: #00FF00; font-weight: bold; }
-  .tag-PUMP          { color: #FF69B4; font-weight: bold; }
-  .tag-BOOM          { color: #FFA500; font-weight: bold; }
-  .tag-EXIT          { color: #FF6B6B; }
-  .tag-STUCK         { color: #666; font-style: italic; }
-  .tag-FAV           { color: #58a6ff; }
-  .tag-ALL           { color: #c9d1d9; }
-  .tag-WHALE-TRAP    { color: #FF4500; font-weight: bold; }
-  .tag-BLINK         { color: #00BFFF; font-weight: bold; }
-  .tag-WALL          { color: #9b9b9b; }
+  .pos { color: #3fb950; } .neg { color: #FF4500; } .neu { color: #8b949e; }
+  .col-sym  { font-weight: bold; font-size: 11px; }
+  .col-score{ position: relative; }
+  .score-bar{ display: inline-block; height: 3px; background: #1f6feb;
+              border-radius: 2px; vertical-align: middle; margin-left: 4px; }
 
-  /* ── Tables ── */
-  .table-wrap {
-    flex: 1;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #30363d #0a0a0f;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  thead th {
-    position: sticky;
-    top: 0;
-    background: #161b22;
-    color: #8b949e;
-    text-align: left;
-    padding: 5px 8px;
-    font-size: 10px;
-    font-weight: normal;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid #21262d;
-    z-index: 1;
-  }
-  tbody tr { border-bottom: 1px solid #161b22; transition: background 0.1s; }
-  tbody tr:hover { background: #161b22; }
-  td { padding: 4px 8px; font-size: 12px; white-space: nowrap; }
-  .col-sym   { font-weight: bold; min-width: 110px; }
-  .col-score { color: #58a6ff; }
-  .col-rsi   { }
-  .pos  { color: #3fb950; }
-  .neg  { color: #f85149; }
-  .neu  { color: #8b949e; }
-  .empty-row td { color: #444; text-align: center; padding: 20px; font-size: 12px; }
+  .tag-ALL    { color: #8b949e; }
+  .tag-FAV    { color: #FFD700; }
+  .tag-STUCK  { color: #555; }
+  .tag-GOLDEN { color: #FFD700; text-shadow: 0 0 6px #FFD700; }
+  .tag-BOOM   { color: #FF6B35; }
+  .tag-ENTRY  { color: #3fb950; }
+  .tag-EXIT   { color: #FF4500; }
+  .tag-PUMP   { color: #bc8cff; }
+  .tag-VIP    { color: #da70d6; font-weight: bold; text-shadow: 0 0 6px #da70d6; }
+  .tag-WHALE-TRAP { color: #FF4500; font-weight: bold; }
+  .tag-BLINK  { color: #FFD700; font-weight: bold; }
+  .tag-WALL   { color: #58a6ff; }
 
-  /* ── Score bar ── */
-  .score-bar {
-    display: inline-block;
-    height: 8px;
-    border-radius: 3px;
-    background: #1f6feb;
-    vertical-align: middle;
-    margin-left: 4px;
+  /* ── Traffic Lights ── */
+  .tl-cell-green  { color: #00FF00; font-weight: bold; text-shadow: 0 0 6px #00FF00; }
+  .tl-cell-yellow { color: #FFD700; font-weight: bold; text-shadow: 0 0 6px #FFD700; }
+  .tl-cell-red    { color: #FF4500; font-weight: bold; text-shadow: 0 0 6px #FF4500; }
+
+  /* ── Spike Tag ── */
+  .spike-tag {
+    display: inline-block; background: #4a0000; color: #FF4500;
+    border: 1px solid #FF4500; border-radius: 3px;
+    padding: 1px 5px; font-size: 9px; font-weight: bold;
+    animation: spike-blink 0.6s infinite;
   }
+  @keyframes spike-blink { 50% { background: #FF4500; color: #fff; } }
+
+  /* ── Battery Bar ── */
+  .battery-wrap { display: inline-flex; align-items: center; gap: 3px; }
+  .battery-outer { width: 40px; height: 9px; border: 1px solid #444; border-radius: 2px;
+                   background: #0d1117; position: relative; display: inline-block; }
+  .battery-fill  { height: 100%; border-radius: 1px; transition: width 0.3s; }
+  .bat-high  { background: #3fb950; }
+  .bat-mid   { background: #FFD700; }
+  .bat-low   { background: #FF4500; }
+
+  /* ── Heatmap Cell ── */
+  .heat-hot  { color: #FF6B35; font-weight: bold; }
+  .heat-warm { color: #FFD700; }
+  .heat-cold { color: #8b949e; }
+
+  /* ── TP Zone Badge ── */
+  .tp-badge { font-size: 9px; color: #3fb950; }
+  .sl-badge { font-size: 9px; color: #FF4500; }
+
+  /* ── Alert History ── */
+  .hist-VIP    { color: #da70d6; font-weight: bold; }
+  .hist-WHALE  { color: #FF4500; font-weight: bold; }
+  .hist-GOLDEN { color: #FFD700; font-weight: bold; }
+  .hist-time   { color: #444; font-size: 10px; white-space: nowrap; }
+  .hist-detail { color: #6e7681; font-size: 10px; }
+  .hist-new    { animation: flashNew 1.5s ease-out; }
+  @keyframes flashNew { from { background: #1a2a1a; } to { background: transparent; } }
+
+  /* ── OBI indicator ── */
+  .obi-pos { color: #3fb950; } .obi-neg { color: #FF4500; } .obi-spike { color: #FFD700; font-weight:bold; }
+
+  /* ── Sizing badge ── */
+  .siz-green { color: #3fb950; } .siz-yellow { color: #FFD700; } .siz-red { color: #FF4500; }
 </style>
+
+<!-- Alert Sounds -->
+<script>
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let _ctx = null;
+function _ctx_() { if (!_ctx) { try { _ctx = new AudioCtx(); } catch(e){} } return _ctx; }
+
+function playTone(freq, dur, type='sine', vol=0.15) {
+  try {
+    const ctx = _ctx_(); if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e){}
+}
+
+function soundCriticalWhale() {
+  // Urgent descending sweep
+  [880, 660, 440, 880, 660].forEach((f, i) => setTimeout(() => playTone(f, 0.2, 'sawtooth', 0.25), i * 150));
+}
+function soundSuddenSpike() {
+  // Rising chirp
+  [440, 660, 880, 1100].forEach((f, i) => setTimeout(() => playTone(f, 0.15, 'square', 0.2), i * 80));
+}
+function soundVIP() {
+  // Pleasant chime
+  [523, 659, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.3, 'sine', 0.15), i * 120));
+}
+// Unlock AudioContext on first user gesture
+document.addEventListener('click', () => _ctx_(), { once: true });
+</script>
 </head>
 <body>
 
 <!-- Status Bar -->
 <div id="status-bar">
-  <span class="title">⚡ V6 MASTER PRO</span>
-  <span class="item">Status: <span id="sb-status">—</span></span>
-  <span class="item">Updated: <span id="sb-update">—</span></span>
-  <span class="item">Cycles: <span id="sb-cycles">—</span></span>
-  <span class="item">Heartbeat: <span id="sb-heart">—</span></span>
-  <span id="refresh-count">Refreshing in <span id="countdown">10</span>s</span>
+  <span class="title">V6 MASTER PRO ⚡ INSTITUTIONAL</span>
+  <span class="item">STATUS: <span id="sb-status" class="live">init</span></span>
+  <span class="item">UPDATED: <span id="sb-update">—</span></span>
+  <span class="item">CYCLE: <span id="sb-cycles">0</span></span>
+  <span class="item">HEART: <span id="sb-heart">—</span></span>
+  <span class="item">EXCHANGE: <span id="sb-exchange">BINANCE</span></span>
+  <span class="item">ENTRIES: <span id="sb-entries">ACTIVE</span></span>
+  <span id="sb-hb-dot" style="font-size:14px;color:#00FF00;" title="Heartbeat">●</span>
+  <span id="countdown" style="color:#888;font-size:10px;">10s</span>
+  <a href="/admin" style="color:#FFD700;font-size:10px;text-decoration:none;" target="_blank">🔐 ADMIN</a>
 </div>
 
-<!-- Main: Side A top, Side B bottom -->
+<!-- BTC Sentiment Bar -->
+<div id="btc-bar">
+  <span style="color:#555;">BTC:</span>
+  <span id="btc-price" style="color:#58a6ff;">—</span>
+  <span id="btc-change" class="btc-neut">—%</span>
+  <span id="btc-sentiment" class="btc-neut">—</span>
+  <span id="btc-vol-pct" style="color:#555;">Vol: —%</span>
+  <span id="btc-pause-tag" class="btc-pause" style="display:none;">⛔ ENTRIES PAUSED — BTC BEARISH</span>
+  <span style="color:#555;margin-left:auto;">TRAFFIC LIGHT:</span>
+  <span id="global-tl" class="tl-green">● GREEN</span>
+  <span style="color:#555;">INST SCORE:</span>
+  <span id="global-inst-score" style="color:#58a6ff;">—</span>
+</div>
+
+<!-- Main Dashboard -->
 <div id="main">
 
-  <!-- SIDE A: VMC Signals -->
+  <!-- SIDE A: VMC Signal Engine -->
   <div class="panel" id="panel-a">
     <div class="panel-header">
       <span class="panel-label panel-a-label">▲ SIDE A — VMC Signal Engine</span>
       <span id="a-summary" style="font-size:10px;color:#555;"></span>
+      <div id="tabs"></div>
     </div>
-    <div id="tabs"></div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>Symbol</th>
             <th>Price</th>
-            <th>Change%</th>
+            <th>Chg%</th>
             <th>Score</th>
+            <th>Battery</th>
             <th>RSI</th>
-            <th>Volume(USDT)</th>
-            <th>PricePos%</th>
+            <th>Vol</th>
+            <th>Heatmap</th>
+            <th>Pos%</th>
           </tr>
         </thead>
         <tbody id="vmc-body"></tbody>
@@ -201,11 +273,41 @@
     </div>
   </div>
 
-  <!-- SIDE B: Whale Walls -->
+  <!-- SIDE B: Institutional Signals + TP Zones + Traffic Lights -->
   <div class="panel" id="panel-b">
     <div class="panel-header">
-      <span class="panel-label panel-b-label">▼ SIDE B — Whale Wall Scanner</span>
+      <span class="panel-label panel-b-label">★ INSTITUTIONAL SIGNALS — Traffic Light + ATR Zones + Position Sizing</span>
       <span id="b-summary" style="font-size:10px;color:#555;"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Signal</th>
+            <th>Symbol</th>
+            <th>Folder</th>
+            <th>Light</th>
+            <th>InstScore</th>
+            <th>WhalePow%</th>
+            <th>OFI</th>
+            <th>Stop Loss</th>
+            <th>TP1</th>
+            <th>TP2</th>
+            <th>TP3</th>
+            <th>Position</th>
+            <th>Confirms</th>
+          </tr>
+        </thead>
+        <tbody id="inst-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SIDE C: Whale Wall Scanner + OBI -->
+  <div class="panel" id="panel-c">
+    <div class="panel-header">
+      <span class="panel-label panel-c-label">▼ WHALE WALL SCANNER — OBI Velocity + Spoofing Detection</span>
+      <span id="c-summary" style="font-size:10px;color:#555;"></span>
     </div>
     <div class="table-wrap">
       <table>
@@ -213,10 +315,13 @@
           <tr>
             <th>Symbol</th>
             <th>Price</th>
+            <th>WhalePow%</th>
             <th>Label</th>
             <th>Walls</th>
-            <th>Min Dist%</th>
+            <th>MinDist%</th>
             <th>Blink→Push</th>
+            <th>OBI</th>
+            <th>OBI Spike</th>
             <th>Spoofing</th>
             <th>Closest Wall</th>
           </tr>
@@ -226,21 +331,22 @@
     </div>
   </div>
 
-  <!-- SIDE C: Signal Alert History -->
-  <div class="panel" id="panel-c">
+  <!-- SIDE D: Alert History -->
+  <div class="panel" id="panel-d">
     <div class="panel-header">
-      <span class="panel-label panel-c-label">◆ ALERT HISTORY — Last 50 Signals</span>
-      <span id="c-summary" style="font-size:10px;color:#555;"></span>
+      <span class="panel-label panel-d-label">◆ ALERT HISTORY — Last 50 Signals</span>
+      <span id="d-summary" style="font-size:10px;color:#555;"></span>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th style="width:130px">Time</th>
-            <th style="width:60px">Type</th>
-            <th style="width:100px">Symbol</th>
-            <th style="width:110px">Label</th>
-            <th style="width:100px">Price</th>
+            <th style="width:120px">Time</th>
+            <th style="width:55px">Type</th>
+            <th style="width:90px">Symbol</th>
+            <th style="width:100px">Label</th>
+            <th style="width:80px">Price</th>
+            <th style="width:60px">Light</th>
             <th>Detail</th>
           </tr>
         </thead>
@@ -249,14 +355,58 @@
     </div>
   </div>
 
-</div>
+</div><!-- #main -->
 
 <script>
-const SK       = new URLSearchParams(window.location.search).get('sk') || '786';
-const FOLDERS  = ['ALL','FAV','STUCK','GOLDEN','BOOM','ENTRY','EXIT','PUMP','VIP'];
-let activeTab  = 'VIP';
-let countdown  = 10;
-let data       = null;
+const FOLDERS = ['ALL','FAV','STUCK','GOLDEN','BOOM','ENTRY','EXIT','PUMP','VIP'];
+let activeTab   = 'VIP';
+let countdown   = 10;
+let data        = null;
+let _prevHistLen = 0;
+let _prevWhaleAlerts = 0;
+let _prevInstSpike   = false;
+
+// ── Formatters ────────────────────────────────────────────────────────────────
+function fmtPrice(p) {
+  if (!p || isNaN(p)) return '—';
+  p = Number(p);
+  if (p >= 1000)  return p.toFixed(2);
+  if (p >= 1)     return p.toFixed(4);
+  if (p >= 0.001) return p.toFixed(6);
+  return p.toFixed(8);
+}
+function fmtVol(v) {
+  if (v >= 1e9)  return (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6)  return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3)  return (v/1e3).toFixed(0) + 'K';
+  return v.toString();
+}
+function fmtPct(p) {
+  if (p === undefined || p === null) return '—';
+  const n = Number(p);
+  return (n > 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+
+// ── Battery Bar ───────────────────────────────────────────────────────────────
+function batteryBar(score) {
+  const pct = Math.max(0, Math.min(100, score));
+  const cls = pct >= 70 ? 'bat-high' : pct >= 40 ? 'bat-mid' : 'bat-low';
+  return `<div class="battery-outer"><div class="battery-fill ${cls}" style="width:${pct}%"></div></div>`;
+}
+
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+function heatmap(vol) {
+  if (vol >= 50_000_000)  return '<span class="heat-hot">🔥 HOT</span>';
+  if (vol >= 10_000_000)  return '<span class="heat-warm">◆ WARM</span>';
+  return '<span class="heat-cold">○ COLD</span>';
+}
+
+// ── Traffic Light ─────────────────────────────────────────────────────────────
+function trafficLight(light) {
+  if (light === 'GREEN')  return '<span class="tl-cell-green">● GREEN</span>';
+  if (light === 'YELLOW') return '<span class="tl-cell-yellow">● YELLOW</span>';
+  return '<span class="tl-cell-red">● RED</span>';
+}
 
 // ── Tab system ────────────────────────────────────────────────────────────────
 function buildTabs(vmc) {
@@ -276,12 +426,12 @@ function buildTabs(vmc) {
 // ── VMC Render ────────────────────────────────────────────────────────────────
 function renderVMC(vmc) {
   buildTabs(vmc);
-  const rows   = vmc[activeTab] || [];
-  const tbody  = document.getElementById('vmc-body');
-  const cls    = 'tag-' + activeTab;
+  const rows  = vmc[activeTab] || [];
+  const tbody = document.getElementById('vmc-body');
+  const cls   = 'tag-' + activeTab;
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No ${activeTab} signals yet — scanning…</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">No ${activeTab} signals yet — scanning…</td></tr>`;
     document.getElementById('a-summary').textContent = '';
     return;
   }
@@ -290,18 +440,74 @@ function renderVMC(vmc) {
     `${rows.length} signals | top score: ${rows[0].score}`;
 
   tbody.innerHTML = rows.slice(0, 100).map(c => {
-    const chgCls  = c.change_pct > 0 ? 'pos' : c.change_pct < 0 ? 'neg' : 'neu';
-    const rsiCls  = c.rsi < 38 ? 'pos' : c.rsi > 62 ? 'neg' : 'neu';
-    const barW    = Math.round(c.score * 0.6);
-    const vol     = fmtVol(c.volume_usdt);
+    const chgCls = c.change_pct > 0 ? 'pos' : c.change_pct < 0 ? 'neg' : 'neu';
+    const rsiCls = c.rsi < 38 ? 'pos' : c.rsi > 62 ? 'neg' : 'neu';
+    const barW   = Math.round(c.score * 0.5);
     return `<tr>
       <td class="col-sym ${cls}">${c.symbol.replace('USDT','')}</td>
       <td>${fmtPrice(c.price)}</td>
-      <td class="${chgCls}">${c.change_pct > 0 ? '+' : ''}${c.change_pct}%</td>
+      <td class="${chgCls}">${fmtPct(c.change_pct)}</td>
       <td class="col-score">${c.score}<span class="score-bar" style="width:${barW}px"></span></td>
+      <td>${batteryBar(c.score)}</td>
       <td class="${rsiCls}">${c.rsi}</td>
-      <td>${vol}</td>
+      <td>${fmtVol(c.volume_usdt)}</td>
+      <td>${heatmap(c.volume_usdt)}</td>
       <td>${c.price_pos_pct}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Institutional Signals ─────────────────────────────────────────────────────
+function renderInst(signals) {
+  const tbody = document.getElementById('inst-body');
+  const bSum  = document.getElementById('b-summary');
+  if (!signals || !signals.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="13">Institutional signals computed after first scan…</td></tr>`;
+    bSum.textContent = '';
+    return;
+  }
+
+  bSum.textContent = `${signals.length} signals | top inst: ${signals[0]?.inst?.inst_score ?? '—'}`;
+
+  // Update global traffic light
+  const top = signals[0];
+  if (top && top.inst) {
+    const tl = top.inst.traffic || 'RED';
+    const el = document.getElementById('global-tl');
+    el.textContent = '● ' + tl;
+    el.className   = tl === 'GREEN' ? 'tl-green' : tl === 'YELLOW' ? 'tl-yellow' : 'tl-red';
+    document.getElementById('global-inst-score').textContent = top.inst.inst_score ?? '—';
+  }
+
+  // Sound alerts
+  const hasSpike = signals.some(s => s.inst && s.inst.spike);
+  if (hasSpike && !_prevInstSpike) soundSuddenSpike();
+  _prevInstSpike = hasSpike;
+
+  tbody.innerHTML = signals.slice(0, 20).map((s, i) => {
+    const inst = s.inst || {};
+    const tp   = s.tp_zones || {};
+    const siz  = s.sizing || {};
+    const tl   = inst.traffic || 'RED';
+    const sizCls = tl === 'GREEN' ? 'siz-green' : tl === 'YELLOW' ? 'siz-yellow' : 'siz-red';
+    const spike  = inst.spike ? '<span class="spike-tag">⚡ SPIKE</span>' : '';
+    const obi    = (inst.ofi_score || 0) >= 55 ? '<span class="obi-pos">▲BID</span>'
+                 : (inst.ofi_score || 0) <= 45 ? '<span class="obi-neg">▼ASK</span>'
+                 : '<span class="neu">—</span>';
+    return `<tr>
+      <td>${spike} ${i === 0 && inst.spike ? '🥇' : '#' + (i+1)}</td>
+      <td class="col-sym tag-VIP">${(s.symbol||'').replace('USDT','')}</td>
+      <td><span class="tag-${s.folder||'ALL'}">${s.folder||'—'}</span></td>
+      <td>${trafficLight(tl)}</td>
+      <td>${inst.inst_score ?? '—'}</td>
+      <td><div class="battery-wrap">${batteryBar(inst.whale_power||0)}<span style="font-size:9px;color:#555">${inst.whale_power||0}%</span></div></td>
+      <td>${obi}</td>
+      <td class="sl-badge">▼ ${fmtPrice(tp.stop_loss)}</td>
+      <td class="tp-badge">▲ ${fmtPrice(tp.tp1)}</td>
+      <td class="tp-badge">▲▲ ${fmtPrice(tp.tp2)}</td>
+      <td class="tp-badge">▲▲▲ ${fmtPrice(tp.tp3)}</td>
+      <td class="${sizCls}">${siz.alloc_usdt ? '$'+siz.alloc_usdt : '—'}</td>
+      <td style="color:#555;font-size:10px">${inst.confirms ?? '—'}/3</td>
     </tr>`;
   }).join('');
 }
@@ -309,72 +515,106 @@ function renderVMC(vmc) {
 // ── Whale Render ──────────────────────────────────────────────────────────────
 function renderWhale(whales) {
   const tbody = document.getElementById('whale-body');
-  document.getElementById('b-summary').textContent =
-    whales.length ? `${whales.length} whale signals detected` : '';
+  const cSum  = document.getElementById('c-summary');
+  cSum.textContent = whales.length ? `${whales.length} whale signals detected` : '';
+
+  // Sound on new critical whale
+  const critCount = whales.filter(w => (w.whale_power||0) >= 85).length;
+  if (critCount > _prevWhaleAlerts) soundCriticalWhale();
+  _prevWhaleAlerts = critCount;
 
   if (!whales.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="8">No whale walls detected — scanning…</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">No whale walls detected — scanning…</td></tr>`;
     return;
   }
 
   tbody.innerHTML = whales.slice(0, 60).map(w => {
-    const lbl = w.label;
+    const lbl    = w.label || 'WALL';
     const lblCls = lbl === 'WHALE TRAP' ? 'tag-WHALE-TRAP'
                  : lbl === 'BLINK→PUSH' ? 'tag-BLINK'
                  : 'tag-WALL';
-    const b2p  = w.blink_to_push ? '<span class="tag-BLINK">⚡ YES</span>' : '<span class="neu">—</span>';
-    const spf  = w.spoofing.details !== 'Clean'
-               ? `<span class="tag-WHALE-TRAP">${w.spoofing.details}</span>`
-               : '<span class="neu">Clean</span>';
-    const closest = w.walls.length
+    const b2p    = w.blink_to_push ? '<span class="tag-BLINK">⚡ YES</span>' : '<span class="neu">—</span>';
+    const spf    = (w.spoofing||{}).details !== 'Clean'
+                 ? `<span class="tag-WHALE-TRAP">${(w.spoofing||{}).details}</span>`
+                 : '<span class="neu">Clean</span>';
+    const closest = (w.walls||[]).length
       ? `${w.walls[0].side} @ ${fmtPrice(w.walls[0].price_level)} (${w.walls[0].dist_pct}%)`
       : '—';
+    const obiR  = w.obi || {};
+    const obiVal = obiR.obi ?? 0;
+    const obiCls = obiR.spike ? 'obi-spike' : obiVal > 0 ? 'obi-pos' : obiVal < 0 ? 'obi-neg' : 'neu';
+    const obiSpk = obiR.spike ? `<span class="obi-spike">⚡ VEL:${obiR.velocity}</span>` : '—';
+    const wp     = w.whale_power || 0;
+    const isCrit = wp >= 85;
     return `<tr>
-      <td class="col-sym tag-FAV">${w.symbol.replace('USDT','')}</td>
+      <td class="col-sym ${isCrit ? 'tag-GOLDEN' : 'tag-FAV'}">${(w.symbol||'').replace('USDT','')}</td>
       <td>${fmtPrice(w.price)}</td>
+      <td><div class="battery-wrap">${batteryBar(wp)}<span style="font-size:9px;color:${isCrit?'#FFD700':'#555'}">${wp}%${isCrit?' 🚨':''}</span></div></td>
       <td class="${lblCls}">${lbl}</td>
-      <td>${w.wall_count}</td>
-      <td>${w.min_dist_pct ? w.min_dist_pct.toFixed(3) + '%' : '—'}</td>
+      <td>${w.wall_count||0}</td>
+      <td>${w.min_dist_pct ? w.min_dist_pct.toFixed(3)+'%' : '—'}</td>
       <td>${b2p}</td>
+      <td class="${obiCls}">${obiVal.toFixed ? obiVal.toFixed(3) : '—'}</td>
+      <td>${obiSpk}</td>
       <td>${spf}</td>
-      <td class="neu" style="font-size:11px">${closest}</td>
+      <td class="neu" style="font-size:10px">${closest}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Alert History Render ──────────────────────────────────────────────────────
-let _prevHistLen = 0;
+// ── Alert History ─────────────────────────────────────────────────────────────
 function renderHistory(alerts) {
   const tbody = document.getElementById('history-body');
-  const cSum  = document.getElementById('c-summary');
-
+  const dSum  = document.getElementById('d-summary');
   if (!alerts.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="6">No alerts fired yet — VIP and Whale Trap alerts will appear here.</td></tr>`;
-    cSum.textContent = '';
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No alerts fired yet — VIP and Whale Trap alerts appear here.</td></tr>`;
+    dSum.textContent = '';
     return;
   }
-
-  cSum.textContent = `${alerts.length} / 50 alerts logged`;
+  dSum.textContent = `${alerts.length} / 50 alerts logged`;
   const isNew = alerts.length > _prevHistLen;
+  if (isNew) soundVIP();
   _prevHistLen = alerts.length;
 
   tbody.innerHTML = alerts.map((a, i) => {
     const typeCls = a.type === 'VIP'   ? 'hist-VIP'
-                  : a.type === 'WHALE' ? 'hist-WHALE'
-                  : 'hist-GOLDEN';
-    const newCls  = (i === 0 && isNew) ? 'hist-new' : '';
+                  : a.type === 'WHALE' ? 'hist-WHALE' : 'hist-GOLDEN';
     const icon    = a.type === 'VIP'   ? '⭐'
-                  : a.type === 'WHALE' ? '🐋'
-                  : '✨';
+                  : a.type === 'WHALE' ? '🐋' : '✨';
+    const tl      = a.traffic || '';
+    const tlHtml  = tl === 'GREEN'  ? '<span class="tl-cell-green">●</span>'
+                  : tl === 'YELLOW' ? '<span class="tl-cell-yellow">●</span>'
+                  : tl === 'RED'    ? '<span class="tl-cell-red">●</span>' : '—';
+    const newCls  = (i === 0 && isNew) ? 'hist-new' : '';
     return `<tr class="${newCls}">
       <td class="hist-time">${a.time}</td>
       <td class="${typeCls}">${icon} ${a.type}</td>
-      <td class="col-sym ${typeCls}">${a.symbol.replace('USDT','')}</td>
+      <td class="col-sym ${typeCls}">${(a.symbol||'').replace('USDT','')}</td>
       <td class="${typeCls}">${a.label}</td>
       <td>${fmtPrice(Number(a.price))}</td>
+      <td>${tlHtml}</td>
       <td class="hist-detail">${a.detail}</td>
     </tr>`;
   }).join('');
+}
+
+// ── BTC Sentiment Bar ─────────────────────────────────────────────────────────
+function renderBTC(btc, pause) {
+  if (!btc || !btc.price) return;
+  document.getElementById('btc-price').textContent  = fmtPrice(btc.price);
+  const chgEl = document.getElementById('btc-change');
+  chgEl.textContent = fmtPct(btc.change_pct);
+  chgEl.className   = btc.change_pct >= 0 ? 'btc-bull' : 'btc-bear';
+  const sentEl = document.getElementById('btc-sentiment');
+  sentEl.textContent = btc.sentiment || '—';
+  sentEl.className   = btc.sentiment === 'BULLISH' ? 'btc-bull'
+                     : btc.sentiment === 'BEARISH' ? 'btc-bear' : 'btc-neut';
+  document.getElementById('btc-vol-pct').textContent = `Vol: ${btc.volatility_pct ?? '—'}%`;
+  const pauseTag = document.getElementById('btc-pause-tag');
+  pauseTag.style.display = pause ? 'inline-block' : 'none';
+  const entriesEl = document.getElementById('sb-entries');
+  entriesEl.textContent = pause ? 'PAUSED' : 'ACTIVE';
+  entriesEl.style.color  = pause ? '#FF4500' : '#3fb950';
 }
 
 // ── Status Bar ────────────────────────────────────────────────────────────────
@@ -382,20 +622,29 @@ function renderStatus(d) {
   const sEl = document.getElementById('sb-status');
   sEl.textContent = d.status;
   sEl.className   = d.status === 'live' ? 'live' : 'error';
-  document.getElementById('sb-update').textContent  = d.last_update || '—';
-  document.getElementById('sb-cycles').textContent  = d.cycle_count || '0';
-  document.getElementById('sb-heart').textContent   = d.heartbeat   || '—';
+  document.getElementById('sb-update').textContent   = d.last_update  || '—';
+  document.getElementById('sb-cycles').textContent   = d.cycle_count  || '0';
+  document.getElementById('sb-heart').textContent    = d.heartbeat    || '—';
+  document.getElementById('sb-exchange').textContent = d.active_exchange || 'BINANCE';
+
+  // Heartbeat dot pulse
+  const dot = document.getElementById('sb-hb-dot');
+  dot.style.color = '#00FF00';
+  setTimeout(() => { dot.style.color = '#1a3a1a'; }, 300);
+  setTimeout(() => { dot.style.color = '#00FF00'; }, 600);
 }
 
 // ── Fetch cycle ───────────────────────────────────────────────────────────────
 async function fetchData() {
   try {
     const res = await fetch('/dashboard_data');
-    if (!res.ok) { console.warn('Dashboard data fetch failed:', res.status); return; }
+    if (!res.ok) { console.warn('Dashboard fetch failed:', res.status); return; }
     data = await res.json();
     renderStatus(data);
-    renderVMC(data.vmc            || {});
-    renderWhale(data.whale        || []);
+    renderBTC(data.btc || {}, data.btc_pause || false);
+    renderVMC(data.vmc         || {});
+    renderInst(data.inst_signals || []);
+    renderWhale(data.whale     || []);
     renderHistory(data.alert_history || []);
   } catch(e) {
     console.error('Fetch error:', e);
@@ -407,25 +656,13 @@ async function fetchData() {
 // ── Countdown & auto-refresh ──────────────────────────────────────────────────
 function tick() {
   countdown--;
-  document.getElementById('countdown').textContent = countdown;
+  const el = document.getElementById('countdown');
+  el.textContent = countdown + 's';
+  el.style.color = countdown <= 3 ? '#FFD700' : '#888';
   if (countdown <= 0) {
     countdown = 10;
     fetchData();
   }
-}
-
-// ── Formatters ────────────────────────────────────────────────────────────────
-function fmtPrice(p) {
-  if (p >= 1000)  return p.toFixed(2);
-  if (p >= 1)     return p.toFixed(4);
-  if (p >= 0.001) return p.toFixed(6);
-  return p.toFixed(8);
-}
-function fmtVol(v) {
-  if (v >= 1e9)  return (v/1e9).toFixed(1) + 'B';
-  if (v >= 1e6)  return (v/1e6).toFixed(1) + 'M';
-  if (v >= 1e3)  return (v/1e3).toFixed(0) + 'K';
-  return v.toString();
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
