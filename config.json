@@ -13,7 +13,16 @@
     "entry_rsi_max": 42,
     "exit_rsi_min": 62,
     "rsi_top_n": 100,
-    "favorite_coins": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT"]
+    "favorite_coins": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "BNBUSDT",
+      "SOLUSDT",
+      "XRPUSDT",
+      "ADAUSDT",
+      "DOGEUSDT",
+      "AVAXUSDT"
+    ]
   },
   "whale": {
     "wall_proximity_pct": 3.0,
@@ -43,10 +52,10 @@
     "critical_whale_cooldown_seconds": 120
   },
   "institutional": {
-    "whale_power_weight": 0.40,
-    "vmc_score_weight": 0.30,
-    "ofi_weight": 0.30,
-    "wall_proximity_bonus_pct": 0.10,
+    "whale_power_weight": 0.4,
+    "vmc_score_weight": 0.3,
+    "ofi_weight": 0.3,
+    "wall_proximity_bonus_pct": 0.1,
     "wall_proximity_bonus_threshold": 0.5,
     "spike_confirm_threshold": 2,
     "yellow_light_whale_power": 50,

@@ -6,10 +6,137 @@ All thresholds in config.json — no hardcoded values.
 """
 import time
 import logging
+import threading
 import requests
+from requests.adapters import HTTPAdapter
+try:
+    from urllib3.util.retry import Retry
+except Exception:  # pragma: no cover - fallback for older urllib3 layouts
+    from requests.packages.urllib3.util.retry import Retry  # type: ignore
 
 log = logging.getLogger(__name__)
-BINANCE_BASE = "https://api.binance.com/api/v3"
+
+# Binance hosts in priority order. If the primary fails (e.g. transient DNS
+# "Failed to resolve api.binance.com"), requests automatically fail over to the
+# next host so the data layer stays resilient to network blips.
+BINANCE_HOSTS = [
+    "https://api.binance.com",
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api-gcp.binance.com",
+    "https://data-api.binance.vision",
+]
+BINANCE_BASE = BINANCE_HOSTS[0] + "/api/v3"   # kept for backward-compat references
+
+
+def _build_session() -> requests.Session:
+    """Shared session with automatic retries for transient connection/DNS/5xx errors."""
+    s = requests.Session()
+    retry = Retry(
+        total=3, connect=3, read=2, backoff_factor=0.6,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET", "POST"]),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=20, pool_maxsize=20)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    s.headers.update({"User-Agent": "V6MasterPro/1.0"})
+    return s
+
+
+_SESSION = _build_session()
+
+# Infrastructure-class statuses that mean "this host is unusable, try another".
+_RETRYABLE_STATUS = {429, 451, 500, 502, 503, 504}
+
+# ── Live connection-health tracking (read by /system_health) ────────────────────
+_health_lock = threading.Lock()
+_monitor_started = False
+_BINANCE_HEALTH = {
+    "reachable":   False,
+    "last_ok":     None,
+    "last_error":  "",
+    "active_host": BINANCE_HOSTS[0],
+}
+
+
+def _mark_health(ok: bool, host: str = "", error: str = "") -> None:
+    with _health_lock:
+        _BINANCE_HEALTH["reachable"] = ok
+        if ok:
+            _BINANCE_HEALTH["last_ok"]     = time.strftime("%Y-%m-%d %H:%M:%S")
+            _BINANCE_HEALTH["active_host"] = host
+            _BINANCE_HEALTH["last_error"]  = ""
+        else:
+            _BINANCE_HEALTH["last_error"]  = error
+
+
+def get_binance_health() -> dict:
+    """Snapshot of the current Binance connectivity state."""
+    with _health_lock:
+        return dict(_BINANCE_HEALTH)
+
+
+def _binance_get(path: str, params: dict = None, timeout: int = 10):
+    """GET a Binance public endpoint with automatic host failover.
+
+    `path` must start with `/api/v3/...`. A host counts as reachable when it
+    returns any non-infrastructure status (2xx or a normal 4xx such as a bad
+    symbol). Infrastructure-class statuses (429/451/5xx) and connection/DNS
+    errors trigger failover to the next host. Returns the Response from a
+    reachable host, or None if every host failed.
+    """
+    last_err = ""
+    for host in BINANCE_HOSTS:
+        try:
+            resp = _SESSION.get(host + path, params=params, timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            last_err = f"{type(e).__name__}: {e}"
+            log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
+            continue
+        if resp.status_code in _RETRYABLE_STATUS:
+            last_err = f"HTTP {resp.status_code} from {host}"
+            log.warning(f"[BINANCE] {host} returned {resp.status_code}; trying next host…")
+            continue
+        # Host responded with a usable status → genuinely reachable.
+        _mark_health(True, host=host)
+        return resp
+    _mark_health(False, error=last_err)
+    log.error(f"[BINANCE] All hosts unreachable. Last error: {last_err}")
+    return None
+
+
+def ping_binance(timeout: int = 6) -> bool:
+    """Active connectivity probe. True only on a real 200 from /ping."""
+    resp = _binance_get("/api/v3/ping", timeout=timeout)
+    return bool(resp is not None and resp.status_code == 200)
+
+
+def start_health_monitor(interval: int = 30) -> None:
+    """Start a single background thread that probes Binance connectivity.
+
+    Keeps the health snapshot fresh without doing network work inside the
+    request path of /system_health (avoids request-latency / DoS amplification).
+    Idempotent — repeated calls are no-ops.
+    """
+    global _monitor_started
+    with _health_lock:
+        if _monitor_started:
+            return
+        _monitor_started = True
+
+    def _loop():
+        while True:
+            try:
+                ping_binance()
+            except Exception as e:  # pragma: no cover - defensive
+                log.debug(f"health monitor ping error: {e}")
+            time.sleep(interval)
+
+    threading.Thread(target=_loop, daemon=True, name="binance-health").start()
+    log.info(f"[HEALTH] Binance connectivity monitor started (every {interval}s)")
+
 
 _obi_history: dict = {}   # symbol → [(ts, obi)]
 
@@ -22,7 +149,10 @@ def fetch_all_tickers(config: dict) -> list:
     quote   = config["scanner"]["quote_asset"]
     min_vol = config["scanner"]["min_quote_volume_24h"]
     limit   = config["scanner"]["coins_limit"]
-    resp = requests.get(f"{BINANCE_BASE}/ticker/24hr", timeout=15)
+    resp = _binance_get("/api/v3/ticker/24hr", timeout=15)
+    if resp is None:
+        log.error("fetch_all_tickers: all Binance hosts unreachable")
+        return []
     resp.raise_for_status()
     filtered = [
         t for t in resp.json()
@@ -36,12 +166,8 @@ def fetch_all_tickers(config: dict) -> list:
 def fetch_ticker_price(symbol: str) -> float:
     """Fetch current price for a single symbol. Used by backtest checker."""
     try:
-        resp = requests.get(
-            f"{BINANCE_BASE}/ticker/price",
-            params={"symbol": symbol},
-            timeout=5
-        )
-        if resp.status_code == 200:
+        resp = _binance_get("/api/v3/ticker/price", params={"symbol": symbol}, timeout=5)
+        if resp is not None and resp.status_code == 200:
             return float(resp.json()["price"])
     except Exception as e:
         log.debug(f"Price fetch failed for {symbol}: {e}")
@@ -63,12 +189,12 @@ def calculate_rsi(closes: list, period: int = 14) -> float:
 
 def fetch_klines(symbol: str, interval: str = "1h", limit: int = 24) -> list:
     try:
-        resp = requests.get(
-            f"{BINANCE_BASE}/klines",
+        resp = _binance_get(
+            "/api/v3/klines",
             params={"symbol": symbol, "interval": interval, "limit": limit},
-            timeout=8
+            timeout=8,
         )
-        return resp.json() if resp.status_code == 200 else []
+        return resp.json() if (resp is not None and resp.status_code == 200) else []
     except Exception as e:
         log.debug(f"Klines failed for {symbol}: {e}")
         return []
@@ -368,7 +494,9 @@ def process_vmc_signals(config: dict) -> dict:
 
 def fetch_order_book(symbol: str, depth: int = 20) -> dict:
     try:
-        resp = requests.get(f"{BINANCE_BASE}/depth", params={"symbol": symbol, "limit": depth}, timeout=8)
+        resp = _binance_get("/api/v3/depth", params={"symbol": symbol, "limit": depth}, timeout=8)
+        if resp is None:
+            return {"bids": [], "asks": []}
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -449,7 +577,9 @@ def process_whale_walls(config: dict, price_map: dict, previous_walls: dict) -> 
 
 def fetch_btc_sentiment() -> dict:
     try:
-        resp = requests.get(f"{BINANCE_BASE}/ticker/24hr", params={"symbol": "BTCUSDT"}, timeout=8)
+        resp = _binance_get("/api/v3/ticker/24hr", params={"symbol": "BTCUSDT"}, timeout=8)
+        if resp is None:
+            raise RuntimeError("all Binance hosts unreachable")
         resp.raise_for_status()
         t  = resp.json()
         change     = float(t["priceChangePercent"]); price = float(t["lastPrice"])
