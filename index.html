@@ -336,6 +336,34 @@ tr:hover td { background: #161b22; cursor: pointer; }
 @media (max-width: 480px) {
   .sniper-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Quick Trade Modal ── */
+#trade-modal {
+  display: none; position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,0.82); align-items: center; justify-content: center;
+}
+#trade-modal.active { display: flex; }
+#trade-modal-box {
+  background: #161b22; border-radius: 8px; padding: 24px; width: 360px; max-width: 95vw;
+  border: 2px solid #30363d; font-family: monospace;
+}
+#trade-modal-box h3 { color: #FFD700; margin-bottom: 16px; font-size: 14px; }
+.tm-label { color: #6e7681; font-size: 10px; margin-bottom: 4px; }
+.tm-row   { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.tm-input { background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+            padding: 8px 10px; border-radius: 4px; font-family: monospace; font-size: 12px; width: 100%; }
+.tm-sel   { background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+            padding: 8px 10px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+.tm-btn-buy  { background: #238636; color: #fff; border: none; border-radius: 4px;
+               padding: 10px 20px; cursor: pointer; font-family: monospace; font-weight: bold; flex: 1; }
+.tm-btn-sell { background: #da3633; color: #fff; border: none; border-radius: 4px;
+               padding: 10px 20px; cursor: pointer; font-family: monospace; font-weight: bold; flex: 1; }
+.tm-btn-cancel { background: #21262d; color: #8b949e; border: 1px solid #30363d;
+                 border-radius: 4px; padding: 8px 16px; cursor: pointer; font-family: monospace; }
+.qb { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 9px;
+      cursor: pointer; font-family: monospace; border: none; margin-left: 3px; vertical-align: middle; }
+.qb-buy  { background: #238636; color: #fff; }
+.qb-sell { background: #b91c1c; color: #fff; }
 </style>
 
 <!-- Alert Sounds -->
@@ -874,7 +902,11 @@ function renderInst(signals, whaleArr) {
       <td class="tp-b">▲▲${fmtP(tp.tp2)}</td>
       <td class="tp-b">▲▲▲${fmtP(tp.tp3)}</td>
       <td class="${sizCls}">${siz.alloc_usdt ? '$'+siz.alloc_usdt : '—'}</td>
-      <td><span class="ab-badge" style="color:${act.color};border-color:${act.color};font-size:8px">${act.icon}${act.action}</span></td>
+      <td>
+        <span class="ab-badge" style="color:${act.color};border-color:${act.color};font-size:8px">${act.icon}${act.action}</span>
+        <button class="qb qb-buy" onclick="event.stopPropagation();openTradeModal('${s.symbol}','BUY')" title="Quick Buy">B</button>
+        <button class="qb qb-sell" onclick="event.stopPropagation();openTradeModal('${s.symbol}','SELL')" title="Quick Sell">S</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -1436,9 +1468,15 @@ function renderSimpleView(d) {
         </div>
         ${strat ? `<span style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid;color:${strat==='SPOT'?'#3fb950':'#58a6ff'};border-color:${strat==='SPOT'?'#3fb950':'#58a6ff'};white-space:nowrap">${strat==='SPOT'?'⚡ SPOT':'⊞ GRID'}</span>` : ''}
       </div>
-      <button class="sv-btn ${act.cls}" onclick="openSniper('${coin.symbol}');if(_svActive)toggleSimpleView()">
-        ${act.label}
-      </button>
+      <div style="display:flex;gap:6px;margin-bottom:4px">
+        <button class="sv-btn ${act.cls}" style="flex:1" onclick="openSniper('${coin.symbol}');if(_svActive)toggleSimpleView()">
+          ${act.label}
+        </button>
+        <button onclick="event.stopPropagation();openTradeModal('${coin.symbol}','BUY')"
+          style="padding:8px 12px;background:#238636;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:monospace;font-size:12px;font-weight:bold">B</button>
+        <button onclick="event.stopPropagation();openTradeModal('${coin.symbol}','SELL')"
+          style="padding:8px 12px;background:#da3633;color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:monospace;font-size:12px;font-weight:bold">S</button>
+      </div>
       <div class="sv-reason" style="font-size:13px;margin:8px 0">${reason}</div>
       ${pr.expPct ? `<div style="font-size:13px;color:#3fb950;font-weight:bold;margin:4px 0">📈 Expected: +${pr.expPct}% → TP1</div>` : ''}
       ${act.label==='SELL NOW' && pr.curPct ? `<div style="font-size:13px;color:#FFD700;font-weight:bold;margin:4px 0">💰 Current P&L: ${pr.curPct}%</div>` : ''}
@@ -1482,9 +1520,112 @@ const obs = new IntersectionObserver(entries => {
 panelIds.forEach(id => { const el = document.getElementById(id); if (el) obs.observe(el); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+// ── Quick Trade Modal ─────────────────────────────────────────────────────────
+let _tradeSymbol = '', _tradeSide = 'BUY';
+function openTradeModal(symbol, defaultSide) {
+  _tradeSymbol = symbol || '';
+  _tradeSide   = (defaultSide || 'BUY').toUpperCase();
+  const sym    = _tradeSymbol.replace('USDT','');
+  // Get current price from data cache
+  const allCoins = (data && data.vmc && data.vmc.ALL) ? data.vmc.ALL : [];
+  const coin     = allCoins.find(c => c.symbol === _tradeSymbol);
+  const price    = coin ? (coin.price >= 1 ? coin.price.toFixed(4) : coin.price.toFixed(6)) : '—';
+  document.getElementById('tm-symbol').textContent   = sym + ' / USDT';
+  document.getElementById('tm-price').textContent    = '$ ' + price;
+  document.getElementById('tm-sym-input').value      = _tradeSymbol;
+  document.getElementById('tm-side-select').value    = _tradeSide;
+  document.getElementById('tm-amount').value         = '';
+  document.getElementById('tm-strategy').value       = 'SPOT';
+  // Update confirm button style
+  _updateTradeBtn();
+  document.getElementById('trade-modal').classList.add('active');
+  document.getElementById('tm-amount').focus();
+}
+function _updateTradeBtn() {
+  const side = document.getElementById('tm-side-select').value;
+  const btn  = document.getElementById('tm-confirm-btn');
+  if (side === 'BUY') {
+    btn.textContent = '🟢 EXECUTE BUY';
+    btn.className   = 'tm-btn-buy';
+  } else {
+    btn.textContent = '🔴 EXECUTE SELL';
+    btn.className   = 'tm-btn-sell';
+  }
+}
+function closeTradeModal() {
+  document.getElementById('trade-modal').classList.remove('active');
+}
+function confirmTrade(e) {
+  const sym  = document.getElementById('tm-sym-input').value;
+  const side = document.getElementById('tm-side-select').value;
+  const amt  = document.getElementById('tm-amount').value;
+  const strat= document.getElementById('tm-strategy').value;
+  if (!amt || parseFloat(amt) <= 0) { alert('Enter a valid amount in USDT'); return; }
+  const paperNote = document.getElementById('tm-paper-note').textContent;
+  const isPaper   = paperNote.includes('PAPER');
+  const confirmMsg = isPaper
+    ? `PAPER TRADE (Simulated)\n\n${side} $${amt} USDT of ${sym.replace('USDT','')}\nStrategy: ${strat}\n\nNo real money. Confirm?`
+    : `⚠️ REAL TRADE ⚠️\n\n${side} $${amt} USDT of ${sym.replace('USDT','')}\nStrategy: ${strat}\n\nThis uses REAL MONEY!\nAre you absolutely sure?`;
+  if (!confirm(confirmMsg)) { e.preventDefault(); return; }
+  // Form submits normally to /admin/manual_trade
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const tm = document.getElementById('trade-modal');
+  if (tm) tm.addEventListener('click', function(e){ if(e.target===this) closeTradeModal(); });
+  document.addEventListener('keydown', e => { if(e.key==='Escape') closeTradeModal(); });
+  // Fetch paper mode state to update modal note
+  fetch('/system_health').then(r=>r.json()).then(d=>{
+    const el = document.getElementById('tm-paper-note');
+    if (el) el.textContent = d.paper_mode ? '📄 PAPER MODE — Simulated' : '⚡ REAL MODE — Live Money';
+    if (el) el.style.color = d.paper_mode ? '#3fb950' : '#FF4500';
+  }).catch(()=>{});
+});
+
 fetchData();
 setInterval(tick, 1000);
 </script>
+
+<!-- QUICK TRADE MODAL -->
+<div id="trade-modal">
+  <div id="trade-modal-box">
+    <h3>🎮 QUICK TRADE</h3>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px">
+      <span id="tm-symbol" style="color:#FFD700;font-size:16px;font-weight:bold">—</span>
+      <span id="tm-price" style="color:#3fb950;font-size:14px">—</span>
+    </div>
+    <div style="background:#0a2a0a;border:1px solid #238636;padding:6px 10px;border-radius:4px;margin-bottom:12px;font-size:11px">
+      <span id="tm-paper-note" style="color:#3fb950">Loading mode…</span>
+    </div>
+    <form method="POST" action="/admin/manual_trade" onsubmit="confirmTrade(event)">
+      <input type="hidden" id="tm-sym-input" name="symbol"/>
+      <div style="margin-bottom:10px">
+        <div class="tm-label">AMOUNT (USDT)</div>
+        <input type="number" id="tm-amount" name="amount_usdt" class="tm-input" placeholder="e.g. 10" min="1" step="0.01" required/>
+      </div>
+      <div class="tm-row">
+        <div style="flex:1">
+          <div class="tm-label">SIDE</div>
+          <select id="tm-side-select" name="side" class="tm-sel" style="width:100%" onchange="_updateTradeBtn()">
+            <option value="BUY">🟢 BUY</option>
+            <option value="SELL">🔴 SELL</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <div class="tm-label">STRATEGY</div>
+          <select id="tm-strategy" name="strategy" class="tm-sel" style="width:100%">
+            <option value="SPOT">⚡ SPOT</option>
+            <option value="SPOT_GRID">⊞ SPOT GRID</option>
+          </select>
+        </div>
+      </div>
+      <div class="tm-row" style="margin-top:8px">
+        <button type="submit" id="tm-confirm-btn" class="tm-btn-buy">🟢 EXECUTE BUY</button>
+        <button type="button" class="tm-btn-cancel" onclick="closeTradeModal()">Cancel</button>
+      </div>
+    </form>
+    <p style="color:#444;font-size:9px;margin-top:8px;text-align:center">Admin auth required. Redirects to login if not logged in as admin.</p>
+  </div>
+</div>
 
 <!-- SIMPLE VIEW OVERLAY -->
 <div id="simple-view" class="active">
