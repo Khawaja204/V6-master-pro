@@ -88,9 +88,11 @@ GLOBAL_DATA = {
     "volume_surge":   [],
     "smart_divergence": [],
     "upgrade_log":    [],
-    "paper_mode":     CONFIG.get("paper_mode", True),
-    "price_alerts":   [],
-    "learning_data":  {},
+    "paper_mode":      CONFIG.get("paper_mode", True),
+    "price_alerts":    [],
+    "learning_data":   {},
+    "fund_limit_usdt": CONFIG.get("bot_fund_limit_usdt", 10.0),
+    "paper_trades":    [],
 }
 
 # ── Price Alerts ──────────────────────────────────────────────────────────────
@@ -132,7 +134,137 @@ def _mask(s: str) -> str:
     if not s or len(s) < 8: return "●" * 8
     return "●" * (len(s) - 4) + s[-4:]
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRADE EXECUTION ENGINE (Paper + Real Binance)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _save_paper_trades():
+    try:
+        with open(_TRADES_FILE, "w") as f:
+            json.dump(PAPER_TRADES[-500:], f, indent=2)
+    except Exception as e:
+        log.debug(f"Paper trades save failed: {e}")
+
+
+def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
+                          strategy: str, manual: bool = False) -> dict:
+    """Simulate a trade — records result, no real money moved."""
+    from logic import fetch_ticker_price as _ftp
+    price = _ftp(symbol)
+    if not price:
+        return {"ok": False, "error": "Cannot fetch current price for simulation"}
+    qty      = round(amount_usdt / price, 6) if price else 0
+    trade_id = f"PT-{int(time.time())}-{symbol[:4]}"
+    rec = {
+        "id":          trade_id,
+        "symbol":      symbol,
+        "side":        side.upper(),
+        "strategy":    strategy,
+        "amount_usdt": amount_usdt,
+        "price":       price,
+        "qty":         qty,
+        "mode":        "PAPER",
+        "manual":      manual,
+        "status":      "FILLED (SIMULATED)",
+        "time":        time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    PAPER_TRADES.insert(0, rec)
+    if len(PAPER_TRADES) > 500:
+        PAPER_TRADES.pop()
+    _save_paper_trades()
+    log.info(f"[PAPER TRADE] {side} {amount_usdt} USDT of {symbol} @ {price} ({strategy})")
+    return {"ok": True, "trade": rec}
+
+
+def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float) -> dict:
+    """Execute a real Binance MARKET order via REST API (HMAC-signed)."""
+    ex = "BINANCE"
+    if ex not in _API_KEYS:
+        return {"ok": False, "error": "No Binance API key configured in Admin Portal → API Key Management"}
+    try:
+        import hmac as _hmac, hashlib as _hl, urllib.parse as _up
+        import requests as _rq
+        key = _API_KEYS[ex]["api_key"]
+        sec = _API_KEYS[ex]["secret_key"]
+        ts  = int(time.time() * 1000)
+        params = {
+            "symbol":        symbol,
+            "side":          side.upper(),
+            "type":          "MARKET",
+            "quoteOrderQty": amount_usdt,
+            "timestamp":     ts,
+        }
+        qs  = _up.urlencode(params)
+        sig = _hmac.new(sec.encode(), qs.encode(), _hl.sha256).hexdigest()
+        r   = _rq.post(
+            f"https://api.binance.com/api/v3/order?{qs}&signature={sig}",
+            headers={"X-MBX-APIKEY": key}, timeout=10
+        )
+        data = r.json()
+        if r.status_code == 200:
+            log.info(f"[REAL TRADE] SPOT {side} {amount_usdt} USDT of {symbol} — orderId={data.get('orderId')}")
+            return {"ok": True, "order_id": data.get("orderId"), "data": data}
+        return {"ok": False, "error": data.get("msg", f"Binance HTTP {r.status_code}")}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _execute_real_binance_spot_grid(symbol: str, amount_usdt: float,
+                                     levels: int = 5, spacing_pct: float = 0.5) -> dict:
+    """Place a grid of LIMIT BUY orders below current price on Binance."""
+    ex = "BINANCE"
+    if ex not in _API_KEYS:
+        return {"ok": False, "error": "No Binance API key configured"}
+    from logic import fetch_ticker_price as _ftp
+    price = _ftp(symbol)
+    if not price:
+        return {"ok": False, "error": "Cannot fetch current price for grid"}
+    try:
+        import hmac as _hmac, hashlib as _hl, urllib.parse as _up
+        import requests as _rq
+        key = _API_KEYS[ex]["api_key"]
+        sec = _API_KEYS[ex]["secret_key"]
+        per_level = amount_usdt / levels
+        results   = []
+        for i in range(1, levels + 1):
+            lvl_price = round(price * (1 - spacing_pct / 100 * i), 8)
+            qty       = round(per_level / lvl_price, 6)
+            ts        = int(time.time() * 1000)
+            params    = {
+                "symbol":      symbol, "side": "BUY", "type": "LIMIT",
+                "timeInForce": "GTC",  "price": lvl_price,
+                "quantity":    qty,    "timestamp": ts,
+            }
+            qs  = _up.urlencode(params)
+            sig = _hmac.new(sec.encode(), qs.encode(), _hl.sha256).hexdigest()
+            r   = _rq.post(
+                f"https://api.binance.com/api/v3/order?{qs}&signature={sig}",
+                headers={"X-MBX-APIKEY": key}, timeout=10
+            )
+            data = r.json()
+            results.append({
+                "level": i, "price": lvl_price, "qty": qty,
+                "ok":    r.status_code == 200,
+                "order_id": data.get("orderId"),
+                "error": data.get("msg", "") if r.status_code != 200 else ""
+            })
+        ok = any(r["ok"] for r in results)
+        log.info(f"[REAL GRID] {symbol} {levels} levels × ${per_level:.2f} — ok={ok}")
+        return {"ok": ok, "grid_orders": results, "levels": levels, "symbol": symbol}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 BACKTEST_SIGNALS   = []           # max 100 tracked signals
+
+# ── Paper / Manual Trades ──────────────────────────────────────────────────────
+_TRADES_FILE = "paper_trades.json"
+PAPER_TRADES: list = []
+try:
+    with open(_TRADES_FILE) as _ptf:
+        PAPER_TRADES = json.load(_ptf)
+except Exception:
+    pass
 _previous_walls    = {}
 _alert_cooldown    = {}
 _login_attempts    = {}
@@ -1046,21 +1178,37 @@ button{width:100%;padding:12px;background:#1f6feb;color:#fff;border:none;border-
 
 ADMIN_PORTAL_HTML = """<!DOCTYPE html><html><head><title>V6 Admin Portal</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0a0a0f;color:#c9d1d9;font-family:monospace;font-size:13px}
-.header{background:#111827;padding:12px 20px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center}
+.header{background:#111827;padding:12px 20px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .title{color:#FFD700;font-size:15px;font-weight:bold}.logout{color:#FF4500;text-decoration:none;font-size:12px}
 .container{padding:20px;max-width:1100px;margin:0 auto}.card{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:16px;margin-bottom:16px}
 .card h3{color:#58a6ff;margin-bottom:12px;font-size:13px}.stat{display:inline-block;background:#0d1117;padding:8px 16px;border-radius:4px;margin:4px;border:1px solid #30363d}
 .stat .val{color:#00FF00;font-size:18px;font-weight:bold;display:block}.stat .lbl{color:#555;font-size:10px}
 table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;color:#58a6ff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #1a1a2e}
 .green{color:#00FF00}.yellow{color:#FFD700}.red{color:#FF4500}.btn{padding:6px 14px;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-family:monospace}
-.btn-blue{background:#1f6feb;color:#fff}.btn-red{background:#da3633;color:#fff}
-.form-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6px 10px;border-radius:4px;font-family:monospace;font-size:12px}
-.log-box{background:#0d1117;border:1px solid #30363d;padding:10px;border-radius:4px;height:200px;overflow-y:auto;font-size:10px;color:#6e7681;white-space:pre-wrap}</style></head>
-<body><div class="header"><span class="title">🔐 V6 MASTER PRO — ADMIN PORTAL</span>
-<span><span style="color:#555;font-size:11px;margin-right:16px">Session: 15 min idle timeout</span><a href="/admin/logout" class="logout">LOGOUT</a></span></div>
+.btn-blue{background:#1f6feb;color:#fff}.btn-red{background:#da3633;color:#fff}.btn-green{background:#238636;color:#fff}.btn-orange{background:#d97706;color:#fff}
+.form-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6px 10px;border-radius:4px;font-family:monospace;font-size:12px}
+.log-box{background:#0d1117;border:1px solid #30363d;padding:10px;border-radius:4px;height:200px;overflow-y:auto;font-size:10px;color:#6e7681;white-space:pre-wrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.dot-green{background:#00FF00;box-shadow:0 0 6px #00FF00}.dot-red{background:#FF4500}.dot-yellow{background:#FFD700}
+.trade-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.trade-grid{grid-template-columns:1fr}}
+</style></head>
+<body><div class="header">
+<span class="title">🔐 V6 MASTER PRO — ADMIN PORTAL</span>
+<span style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span id="mode-badge" style="font-size:12px;padding:4px 12px;border-radius:4px;font-weight:bold;border:2px solid {{ '#FFD700' if paper_mode else '#FF4500' }};color:{{ '#FFD700' if paper_mode else '#FF4500' }}">
+    {{ '📄 PAPER MODE' if paper_mode else '⚡ REAL MODE LIVE' }}
+  </span>
+  <span style="color:#555;font-size:11px">Session: 15 min idle</span>
+  <a href="/admin/logout" class="logout">LOGOUT</a>
+</span></div>
 <div class="container">
+
+<!-- ══ SYSTEM STATUS ══ -->
 <div class="card"><h3>📊 SYSTEM STATUS</h3>
-<div><div class="stat"><span class="val {{ 'green' if status=='live' else 'red' }}">{{ status.upper() }}</span><span class="lbl">Status</span></div>
+<div>
+<div class="stat"><span class="val {{ 'green' if status=='live' else 'red' }}">{{ status.upper() }}</span><span class="lbl">Status</span></div>
 <div class="stat"><span class="val">{{ cycles }}</span><span class="lbl">Cycles</span></div>
 <div class="stat"><span class="val">{{ uptime }}</span><span class="lbl">Uptime</span></div>
 <div class="stat"><span class="val {{ 'red' if btc_pause else 'green' }}">{{ 'PAUSED' if btc_pause else 'ACTIVE' }}</span><span class="lbl">Entries</span></div>
@@ -1068,17 +1216,57 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 <div class="stat"><span class="val">{{ win_streak }}</span><span class="lbl">Win Streak</span></div>
 <div class="stat"><span class="val">{{ total_wins }}W / {{ total_losses }}L</span><span class="lbl">Backtest</span></div>
 <div class="stat"><span class="val">{{ hot_cnt }}</span><span class="lbl">Hot Coins</span></div>
-<div class="stat"><span class="val">{{ hist_cnt }}</span><span class="lbl">Alerts</span></div></div></div>
-<div class="card"><h3>💰 RISK CALCULATOR</h3>
+<div class="stat"><span class="val">{{ hist_cnt }}</span><span class="lbl">Alerts</span></div>
+</div></div>
+
+<!-- ══ CONNECTION STATUS ══ -->
+<div class="card"><h3>🔌 CONNECTION STATUS</h3>
+<div id="conn-status-row" style="display:flex;gap:20px;flex-wrap:wrap">
+  <span><span class="dot dot-yellow" id="dot-tg"></span><span id="lbl-tg" style="font-size:12px">Telegram: checking…</span></span>
+  <span><span class="dot dot-yellow" id="dot-gs"></span><span id="lbl-gs" style="font-size:12px">Google Sheets: checking…</span></span>
+  <span><span class="dot dot-yellow" id="dot-ex"></span><span id="lbl-ex" style="font-size:12px">Exchange API: checking…</span></span>
+  <span><span class="dot dot-yellow" id="dot-pm"></span><span id="lbl-pm" style="font-size:12px">Trade Mode: checking…</span></span>
+</div>
+<script>
+fetch('/system_health').then(r=>r.json()).then(d=>{
+  const set=(id,ok,label)=>{
+    document.getElementById('dot-'+id).className='dot '+(ok?'dot-green':'dot-red');
+    document.getElementById('lbl-'+id).textContent=label;
+  };
+  set('tg',  d.telegram==='CONNECTED',    'Telegram: '+(d.telegram==='CONNECTED'?'✅ Connected':'❌ BOT_TOKEN not set'));
+  set('gs',  d.google_sheets==='CONNECTED','Google Sheets: '+(d.google_sheets==='CONNECTED'?'✅ Connected':'❌ GOOGLE_CREDENTIALS not set'));
+  set('ex',  d.exchange_api!=='NONE',     'Exchange API: '+(d.exchange_api!=='NONE'?'✅ '+d.exchange_api+' Configured':'❌ No keys — set in API Key Management'));
+  set('pm',  d.paper_mode,                'Trade Mode: '+(d.paper_mode?'📄 PAPER (safe)':'⚡ REAL LIVE'));
+}).catch(()=>{});
+</script></div>
+
+<!-- ══ RISK CALCULATOR + FUND LIMIT ══ -->
+<div class="card"><h3>💰 RISK CALCULATOR &amp; FUND LIMIT</h3>
+<div class="trade-grid">
+<div>
+<p style="color:#8b949e;font-size:11px;margin-bottom:8px">Account Balance (for position sizing)</p>
 <form method="POST" action="/admin/set_balance"><div class="form-row">
-<input type="number" name="balance" value="{{ balance }}" placeholder="Balance (USDT)" style="width:200px"/>
-<button type="submit" class="btn btn-blue">Update Balance</button></div>
-<small style="color:#555">GREEN: {{ green_pct }}% | YELLOW: {{ yellow_pct }}% | RED: 0%</small></form></div>
+<input type="number" name="balance" value="{{ balance }}" placeholder="Balance (USDT)" style="width:180px"/>
+<button type="submit" class="btn btn-blue">Update</button></div>
+<small style="color:#555">GREEN: {{ green_pct }}% | YELLOW: {{ yellow_pct }}% | RED: 0%</small></form>
+</div>
+<div>
+<p style="color:#FF6B35;font-size:11px;margin-bottom:8px">🛡️ Bot Safety — Max Fund Per Trade</p>
+<form method="POST" action="/admin/set_fund_limit"><div class="form-row">
+<input type="number" name="fund_limit" value="{{ fund_limit }}" placeholder="e.g. 10" step="0.01" min="1" style="width:130px"/>
+<span style="color:#555;font-size:11px">USDT max / trade</span>
+<button type="submit" class="btn btn-orange">Set Limit</button></div>
+<small style="color:#555">Bot will NEVER place a trade larger than this limit regardless of account size</small></form>
+</div>
+</div></div>
+
+<!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
 <form method="POST" action="/admin/set_exchange"><div class="form-row">
 <select name="exchange">{% for ex in exchanges %}<option value="{{ ex }}" {{ 'selected' if ex == exchange else '' }}>{{ ex }}</option>{% endfor %}</select>
 <button type="submit" class="btn btn-blue">Switch</button></div></form></div>
 
+<!-- ══ PRICE ALERTS ══ -->
 <div class="card"><h3>🎯 PRICE ALERTS ({{ price_alerts|length }} active)</h3>
 <form method="POST" action="/admin/set_price_alert"><div class="form-row">
 <input type="text" name="symbol" placeholder="BTCUSDT" style="width:110px" required/>
@@ -1101,6 +1289,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 {% else %}<p style="color:#444;font-size:11px;margin-top:8px">No active alerts. Set a price target above — Telegram fires when hit.</p>{% endif %}
 </div>
 
+<!-- ══ API KEY MANAGEMENT ══ -->
 <div class="card"><h3>🔑 API KEY MANAGEMENT</h3>
 <p style="background:#1a0000;border:1px solid #FF4500;padding:8px;border-radius:4px;color:#FF4500;font-size:11px;margin-bottom:12px">
 ⚠️ <b>SECURITY:</b> Enable <b>Read + Trade only.</b> NEVER enable Withdraw permission. Keys are masked after saving.
@@ -1123,6 +1312,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 </details>{% endfor %}
 </div>
 
+<!-- ══ PAPER MODE INTELLIGENCE ══ -->
 <div class="card"><h3>🧠 PAPER MODE INTELLIGENCE</h3>
 <div>
 <div class="stat"><span class="val">{{ ld.get('paper_trades',0) }}</span><span class="lbl">Trades</span></div>
@@ -1137,10 +1327,110 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 <p style="color:#555;font-size:10px;margin-top:8px">Bot learns from every paper trade. Thresholds auto-adjust every 10 trades. Telegram alert fires at 65%+ win rate.</p>
 </div>
 
+<!-- ══ MODE SWITCH — PROMINENT ══ -->
+<div class="card" style="border:2px solid {{ '#FFD700' if paper_mode else '#FF4500' }}">
+<h3 style="color:{{ '#FFD700' if paper_mode else '#FF4500' }};font-size:15px">
+  {{ '📄 PAPER MODE — Simulation Active' if paper_mode else '💰 REAL MODE — LIVE EXECUTION ACTIVE ⚠️' }}
+</h3>
+<div style="margin:12px 0;padding:12px;background:#0d1117;border-radius:4px">
+  <span style="color:{{ '#FFD700' if paper_mode else '#FF4500' }};font-size:16px;font-weight:bold;display:block;margin-bottom:6px">
+    {{ '✅ Safe — No real money at risk. All trades simulated.' if paper_mode else '🚨 LIVE — Real money execution enabled. Trade carefully.' }}
+  </span>
+  <p style="color:#555;font-size:11px">{{ 'System is learning from signals in paper mode. Switch to REAL MODE only when paper win rate ≥ 65%.' if paper_mode else 'REAL MODE: Signals trigger actual exchange orders. Bot fund limit applies per trade.' }}</p>
+</div>
+<form method="POST" action="/admin/set_mode">
+  {% if paper_mode %}
+  <button type="submit" class="btn btn-red" style="padding:10px 24px;font-size:13px;font-weight:bold"
+    onclick="return confirm('⚠️ SWITCH TO REAL MODE?\n\nThis will enable LIVE TRADE EXECUTION.\nReal money will be used for every signal.\n\nOnly proceed if:\n• Paper Win Rate ≥ 65%\n• API keys are configured\n• Fund limit is set\n\nAre you ABSOLUTELY sure?')">
+    ⚡ Switch to REAL MODE
+  </button>
+  {% else %}
+  <button type="submit" class="btn btn-blue" style="padding:10px 24px;font-size:13px;font-weight:bold">
+    📄 Switch to PAPER MODE (Safe)
+  </button>
+  {% endif %}
+</form></div>
+
+<!-- ══ MANUAL TRADING PANEL ══ -->
+<div class="card" style="border-color:#f0883e">
+<h3 style="color:#f0883e">🎮 MANUAL TRADING PANEL
+  <span style="font-size:10px;padding:2px 8px;border-radius:3px;margin-left:8px;background:{{ '#1a3a00' if paper_mode else '#3a0000' }};color:{{ '#3fb950' if paper_mode else '#FF4500' }}">
+    {{ 'PAPER MODE — Simulated' if paper_mode else '⚡ REAL MODE — Live Money' }}
+  </span>
+</h3>
+<div style="background:#0d1117;border:1px solid #30363d;padding:12px;border-radius:4px;margin-bottom:12px">
+<form method="POST" action="/admin/manual_trade"
+  onsubmit="return confirm('{% if paper_mode %}PAPER TRADE — This will be SIMULATED. No real money.\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nConfirm paper trade?{% else %}⚠️ REAL TRADE ALERT ⚠️\n\nThis will execute a REAL order with REAL money!\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nAre you ABSOLUTELY SURE?{% endif %}')">
+<div class="form-row" style="margin-bottom:10px">
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">ASSET</label>
+    <input type="text" name="symbol" placeholder="BTCUSDT" style="width:120px;text-transform:uppercase" required/>
+  </div>
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">AMOUNT (USDT)</label>
+    <input type="number" name="amount_usdt" placeholder="10" min="1" step="0.01" style="width:110px" required/>
+  </div>
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">SIDE</label>
+    <select name="side" style="width:90px">
+      <option value="BUY">🟢 BUY</option>
+      <option value="SELL">🔴 SELL</option>
+    </select>
+  </div>
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">STRATEGY</label>
+    <select name="strategy" style="width:120px">
+      <option value="SPOT">⚡ SPOT</option>
+      <option value="SPOT_GRID">⊞ SPOT GRID</option>
+    </select>
+  </div>
+  <div style="align-self:flex-end">
+    <button type="submit" class="btn {{ 'btn-blue' if paper_mode else 'btn-red' }}" style="padding:8px 18px;font-weight:bold">
+      {{ '📄 Execute (Paper)' if paper_mode else '⚡ Execute (REAL)' }}
+    </button>
+  </div>
+</div>
+<small style="color:#444">SPOT = market order | SPOT GRID = 5 limit buy orders spread below current price (0.5% spacing)</small>
+</form>
+</div>
+<div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <span style="color:#8b949e;font-size:11px">Recent Paper Trades</span>
+  <button onclick="loadTrades()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 8px;font-size:10px">↻ Refresh</button>
+</div>
+<div id="paper-trades-log" style="background:#0d1117;border:1px solid #30363d;padding:10px;border-radius:4px;min-height:60px;font-size:10px;color:#6e7681">
+  <i>Click Refresh to load recent trades…</i>
+</div>
+</div>
+<script>
+function loadTrades(){
+  fetch('/admin/paper_trades').then(r=>r.json()).then(trades=>{
+    const el=document.getElementById('paper-trades-log');
+    if(!trades.length){el.innerHTML='<i style="color:#444">No trades logged yet.</i>';return;}
+    el.innerHTML=trades.slice(0,15).map(t=>{
+      const sc=t.side==='BUY'?'#3fb950':'#FFD700';
+      return `<div style="border-bottom:1px solid #1a1a2e;padding:3px 0">
+        <span style="color:${sc};font-weight:bold">${t.side}</span>
+        <span style="color:#c9d1d9"> ${(t.symbol||'').replace('USDT','')}</span>
+        <span style="color:#58a6ff"> $${t.amount_usdt}</span>
+        <span style="color:#555"> @ ${t.price||'?'}</span>
+        <span style="color:#555"> · ${t.strategy||'SPOT'}</span>
+        <span style="color:#444;float:right">${t.time}</span>
+      </div>`;
+    }).join('');
+  }).catch(()=>{document.getElementById('paper-trades-log').innerHTML='<i style="color:#FF4500">Error loading trades</i>';});
+}
+loadTrades();
+</script>
+</div>
+
+<!-- ══ HOT COINS ══ -->
 <div class="card"><h3>🔥 HOT COINS (3+ signals/hr)</h3>
 <table><thead><tr><th>Symbol</th><th>Count</th><th>Since</th></tr></thead><tbody>
 {% for h in hot_coins %}<tr><td>{{ h.symbol }}</td><td style="color:#FF6B35">{{ h.count }}</td><td>{{ h.since }}</td></tr>{% else %}<tr><td colspan="3" style="color:#444">No hot coins active</td></tr>{% endfor %}
 </tbody></table></div>
+
+<!-- ══ RECENT ALERTS ══ -->
 <div class="card"><h3>🔔 RECENT ALERTS</h3>
 <table><thead><tr><th>Time</th><th>Type</th><th>Symbol</th><th>Conf%</th><th>Traffic</th><th>Detail</th></tr></thead><tbody>
 {% for a in alerts[:20] %}<tr><td style="color:#444;font-size:10px">{{ a.time }}</td>
@@ -1148,28 +1438,20 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 <td>{{ a.symbol }}</td><td style="color:#FFD700">{{ a.confidence }}%</td>
 <td class="{{ 'green' if a.traffic=='GREEN' else 'yellow' if a.traffic=='YELLOW' else 'red' }}">{{ a.traffic or '—' }}</td>
 <td style="font-size:10px;color:#6e7681">{{ a.detail }}</td></tr>{% endfor %}</tbody></table></div>
+
+<!-- ══ AUDIT LOG ══ -->
 <div class="card"><h3>📋 AUDIT LOG</h3>
-<form method="GET" action="/admin/audit_log" style="margin-bottom:10px"><div class="form-row">
+<div class="form-row" style="margin-bottom:10px">
+<form method="GET" action="/admin/audit_log" style="display:flex;gap:8px;flex-wrap:wrap">
 <input type="date" name="date_from" value="{{ today }}"/><input type="date" name="date_to" value="{{ today }}"/>
-<select name="fmt"><option value="html">HTML</option><option value="csv">CSV</option></select>
-<button type="submit" class="btn btn-blue">Export</button></div></form>
-<div class="log-box">{{ audit_preview }}</div></div>
-<div class="card"><h3 style="color:{{ 'yellow' if paper_mode else '#FF4500' }}">{{ '📄 PAPER MODE' if paper_mode else '💰 REAL MODE — LIVE' }}</h3>
-<div style="margin-bottom:12px;padding:10px;background:#0d1117;border-radius:4px;border:2px solid {{ '#FFD700' if paper_mode else '#FF4500' }}">
-  <span style="color:{{ '#FFD700' if paper_mode else '#FF4500' }};font-size:18px;font-weight:bold">
-    {{ '📄 PAPER MODE — Simulated Trades' if paper_mode else '💰 REAL MODE — Live Execution ACTIVE ⚠️' }}
-  </span>
-  <p style="color:#555;font-size:11px;margin-top:6px">{{ 'All signals are simulated. No real money at risk. Safe for testing and development.' if paper_mode else 'CAUTION: All signals are treated as live trades. Real money execution mode.' }}</p>
+<select name="fmt"><option value="html">HTML</option><option value="csv">CSV ↓</option></select>
+<button type="submit" class="btn btn-blue">Export Audit Log</button></form>
+<form method="POST" action="/admin/refresh_scan" style="display:inline">
+<button type="submit" class="btn btn-green" onclick="return confirm('Force an immediate scan? This refreshes all signal data.')">🔄 Force Refresh Scan</button></form>
 </div>
-<form method="POST" action="/admin/set_mode">
-  {% if paper_mode %}
-  <button type="submit" class="btn btn-red" onclick="return confirm('⚠️ SWITCH TO REAL MODE?\n\nThis enables live trade execution. All signals will be treated as real trades.\n\nAre you ABSOLUTELY sure?')">
-    ⚡ Switch to REAL MODE
-  </button>
-  {% else %}
-  <button type="submit" class="btn btn-blue">📄 Switch to PAPER MODE (Safe)</button>
-  {% endif %}
-</form></div>
+<div class="log-box">{{ audit_preview }}</div></div>
+
+<!-- ══ CLIENT MANAGEMENT ══ -->
 <div class="card"><h3>👥 CLIENT MANAGEMENT</h3>
 <p style="color:#555;font-size:11px;margin-bottom:10px">Add/remove client access. Changes sync to Google Sheets USERS tab on next scan cycle.</p>
 <form method="POST" action="/admin/add_client"><div class="form-row">
@@ -1195,11 +1477,23 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 </td></tr>{% endfor %}</tbody></table>
 {% else %}<p style="color:#444;font-size:11px;margin-top:8px">No clients registered.</p>{% endif %}
 </div>
+
+<!-- ══ ADMIN CONTROLS ══ -->
 <div class="card"><h3 style="color:#FF4500">⚠️ ADMIN CONTROLS</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<form method="POST" action="/admin/refresh_scan" style="display:inline">
+<button type="submit" class="btn btn-green" onclick="return confirm('Force a full data scan now?')">🔄 Refresh/Reconnect</button></form>
+<form method="GET" action="/admin/audit_log" style="display:inline">
+<input type="hidden" name="date_from" value="{{ today }}"/>
+<input type="hidden" name="date_to" value="{{ today }}"/>
+<input type="hidden" name="fmt" value="csv"/>
+<button type="submit" class="btn btn-blue">📥 Export Audit Log</button></form>
 <form method="POST" action="/admin/clear_history" style="display:inline">
-<button type="submit" class="btn btn-red" onclick="return confirm('Clear history?')">Clear Alert History</button></form>
-<form method="POST" action="/admin/clear_backtest" style="display:inline;margin-left:8px">
-<button type="submit" class="btn btn-red" onclick="return confirm('Clear backtest?')">Clear Backtest</button></form></div>
+<button type="submit" class="btn btn-red" onclick="return confirm('Clear all alert history?')">🗑 Clear Alert History</button></form>
+<form method="POST" action="/admin/clear_backtest" style="display:inline">
+<button type="submit" class="btn btn-red" onclick="return confirm('Clear backtest results + stats?')">🗑 Clear Backtest</button></form>
+</div></div>
+
 </div></body></html>"""
 
 
@@ -1253,6 +1547,7 @@ def admin_portal():
         saved_keys=saved_keys_masked,
         ld=GLOBAL_DATA.get("learning_data", {}),
         clients=[type('C', (), c)() for c in _load_clients()],
+        fund_limit=CONFIG.get("bot_fund_limit_usdt", 10.0),
     )
 
 
@@ -1391,6 +1686,114 @@ def admin_clear_backtest():
     GLOBAL_DATA["backtest"] = []; GLOBAL_DATA["win_streak"] = 0
     GLOBAL_DATA["total_wins"] = 0; GLOBAL_DATA["total_losses"] = 0; GLOBAL_DATA["win_rate"] = 0.0
     audit(request.remote_addr, "CLEAR_BACKTEST", "OK", ""); return redirect("/admin")
+
+
+# ── System Health (public, used by admin portal JS) ────────────────────────────
+
+@app.route("/system_health")
+def system_health():
+    tg_ok = bool(BOT_TOKEN and CHAT_ID)
+    gs_ok = bool(GOOGLE_CREDENTIALS and GOOGLE_CREDENTIALS != "{}" and GOOGLE_SHEET_ID)
+    ex_ok = "BINANCE" if "BINANCE" in _API_KEYS else ("OTHER" if _API_KEYS else "NONE")
+    return jsonify({
+        "telegram":     "CONNECTED" if tg_ok else "NOT_SET",
+        "google_sheets":"CONNECTED" if gs_ok else "NOT_SET",
+        "exchange_api": ex_ok,
+        "paper_mode":   GLOBAL_DATA.get("paper_mode", True),
+        "status":       GLOBAL_DATA["status"],
+        "fund_limit":   CONFIG.get("bot_fund_limit_usdt", 10.0),
+    })
+
+
+# ── Fund Limit ─────────────────────────────────────────────────────────────────
+
+@app.route("/admin/set_fund_limit", methods=["POST"])
+@_admin_required
+def admin_set_fund_limit():
+    try:
+        limit = float(request.form.get("fund_limit", 10))
+        if limit <= 0:
+            return "<script>alert('Fund limit must be > 0');window.history.back()</script>"
+        CONFIG["bot_fund_limit_usdt"]      = limit
+        GLOBAL_DATA["fund_limit_usdt"]     = limit
+        with open("config.json", "w") as f: json.dump(CONFIG, f, indent=2)
+        audit(request.remote_addr, "SET_FUND_LIMIT", "OK", f"limit={limit} USDT")
+    except Exception as e:
+        audit(request.remote_addr, "SET_FUND_LIMIT", "ERROR", str(e))
+    return redirect("/admin")
+
+
+# ── Manual Trade Execution ─────────────────────────────────────────────────────
+
+@app.route("/admin/manual_trade", methods=["POST"])
+@_admin_required
+def admin_manual_trade():
+    symbol   = request.form.get("symbol", "").upper().strip()
+    if not symbol.endswith("USDT"):
+        symbol += "USDT"
+    side     = request.form.get("side", "BUY").upper()
+    strategy = request.form.get("strategy", "SPOT")
+    try:
+        amount = float(request.form.get("amount_usdt", 0))
+    except Exception:
+        return "<script>alert('Invalid amount');window.history.back()</script>"
+    if amount <= 0:
+        return "<script>alert('Amount must be greater than 0');window.history.back()</script>"
+
+    paper_mode = GLOBAL_DATA.get("paper_mode", True)
+
+    if paper_mode:
+        result   = _execute_paper_trade(symbol, side, amount, strategy, manual=True)
+        mode_str = "PAPER (SIMULATED)"
+    elif strategy == "SPOT_GRID":
+        result   = _execute_real_binance_spot_grid(symbol, amount)
+        mode_str = "REAL SPOT GRID"
+    else:
+        result   = _execute_real_binance_spot(symbol, side, amount)
+        mode_str = "REAL SPOT"
+
+    if result.get("ok"):
+        audit(request.remote_addr, "MANUAL_TRADE", "OK",
+              f"sym={symbol} side={side} amt={amount} mode={mode_str} strategy={strategy}")
+        msg = f"Trade executed ({mode_str}):\\n{side} ${amount} of {symbol.replace('USDT','')}\\n\\nCheck Manual Trading panel for details."
+    else:
+        audit(request.remote_addr, "MANUAL_TRADE", "FAIL",
+              f"sym={symbol} err={result.get('error','?')}")
+        msg = f"Trade FAILED:\\n{result.get('error','Unknown error')}"
+    return f"<script>alert('{msg}');window.location='/admin'</script>"
+
+
+# ── Force Scan ─────────────────────────────────────────────────────────────────
+
+@app.route("/admin/refresh_scan", methods=["POST"])
+@_admin_required
+def admin_refresh_scan():
+    """Kick off an immediate background scan without waiting for the timer."""
+    def _force_scan():
+        try:
+            from logic import process_vmc_signals, process_whale_walls
+            log.info("[ADMIN] Force scan triggered")
+            vmc_data   = process_vmc_signals(CONFIG)
+            price_map  = {c["symbol"]: c["price"] for c in vmc_data.get("ALL", [])}
+            whale_data = process_whale_walls(CONFIG, price_map, _previous_walls)
+            GLOBAL_DATA["vmc"]         = vmc_data
+            GLOBAL_DATA["whale"]       = whale_data
+            GLOBAL_DATA["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            GLOBAL_DATA["status"]      = "live"
+            log.info("[ADMIN] Force scan completed — data refreshed")
+        except Exception as e:
+            log.error(f"[ADMIN] Force scan error: {e}")
+    threading.Thread(target=_force_scan, daemon=True).start()
+    audit(request.remote_addr, "FORCE_SCAN", "TRIGGERED", "")
+    return "<script>alert('Force scan triggered!\\nAll signal data will refresh in ~30 seconds.');window.location='/admin'</script>"
+
+
+# ── Paper Trades Log ───────────────────────────────────────────────────────────
+
+@app.route("/admin/paper_trades")
+@_admin_required
+def admin_paper_trades_log():
+    return jsonify(PAPER_TRADES[:100])
 
 
 @app.route("/admin/audit_log")

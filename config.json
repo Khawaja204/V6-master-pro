@@ -77,5 +77,6 @@
     "max_bytes": 10485760,
     "backup_count": 5,
     "retention_days": 90
-  }
+  },
+  "bot_fund_limit_usdt": 10.0
 }
