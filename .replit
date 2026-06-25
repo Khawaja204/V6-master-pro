@@ -1,40 +1,42 @@
-run = "python main.py"
-modules = ["python-3.11"]
+run = "python3 main.py"
+  modules = ["python-3.11"]
 
-[[ports]]
-localPort = 8080
-externalPort = 80
+  [[ports]]
+  localPort = 8080
+  externalPort = 80
 
-[agent]
-expertMode = true
+  [agent]
+  expertMode = true
 
-[nix]
-packages = ["psmisc"]
-channel = "stable-25_05"
+  [nix]
+  packages = ["psmisc"]
+  channel = "stable-25_05"
 
-[deployment]
-deploymentTarget = "cloudrun"
+  [deployment]
+  deploymentTarget = "vm"
+  run = ["python3", "main.py"]
 
-[workflows]
-runButton = "Project"
+  [workflows]
+  runButton = "Project"
 
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
+  [[workflows.workflow]]
+  name = "Project"
+  mode = "parallel"
+  author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
+  [[workflows.workflow.tasks]]
+  task = "workflow.run"
+  args = "Start application"
 
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
+  [[workflows.workflow]]
+  name = "Start application"
+  author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python3 main.py"
-waitForPort = 8080
+  [[workflows.workflow.tasks]]
+  task = "shell.exec"
+  args = "python3 main.py"
+  waitForPort = 8080
 
-[workflows.workflow.metadata]
-outputType = "webview"
+  [workflows.workflow.metadata]
+  outputType = "webview"
+  
