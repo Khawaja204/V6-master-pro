@@ -78,6 +78,7 @@ GLOBAL_DATA = {
     "top_coin_today": None,
     "volume_surge":   [],
     "smart_divergence": [],
+    "upgrade_log":    [],
 }
 
 BACKTEST_SIGNALS   = []           # max 100 tracked signals
@@ -277,6 +278,70 @@ def alert_critical_whale(whale: dict):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# CONTINUOUS SELF-UPGRADE PROTOCOL
+# ══════════════════════════════════════════════════════════════════════════════
+
+def self_upgrade_cycle(inst_signals: list, whale_data: list, vmc_data: dict) -> list:
+    """
+    Auto-reviews signal quality every scan cycle, logs improvements, and
+    identifies system evolution opportunities. Stored in GLOBAL_DATA['upgrade_log'].
+    """
+    notes = []
+    ts = time.strftime("%H:%M:%S")
+
+    # 1. Win rate feedback — alert when system drifts
+    total_bt = GLOBAL_DATA.get("total_wins", 0) + GLOBAL_DATA.get("total_losses", 0)
+    wr = GLOBAL_DATA.get("win_rate", 0.0)
+    if total_bt >= 10 and wr < 45:
+        notes.append(f"[{ts}] ⚠️ Win rate {wr}% below 45% — market conditions may have shifted")
+    elif total_bt >= 10 and wr >= 70:
+        notes.append(f"[{ts}] ✅ Win rate {wr}% — system performing at institutional level")
+
+    # 2. Folder concentration detector
+    folder_dist = {f: len(vmc_data.get(f, [])) for f in ["VIP","GOLDEN","ENTRY","BOOM","EXIT","STUCK"]}
+    top_f = max(folder_dist, key=folder_dist.get)
+    if folder_dist[top_f] > 12:
+        notes.append(f"[{ts}] 📊 Concentration: {top_f}={folder_dist[top_f]} signals — trending market")
+
+    # 3. Whale coverage gap detection
+    whale_syms = {w["symbol"] for w in whale_data}
+    inst_syms  = {s["symbol"] for s in inst_signals}
+    uncovered  = inst_syms - whale_syms
+    if uncovered:
+        notes.append(f"[{ts}] 🔍 {len(uncovered)} inst signals without whale data: {list(uncovered)[:3]}")
+
+    # 4. BTC pause vs HOT COIN divergence
+    if GLOBAL_DATA.get("btc_pause") and len(GLOBAL_DATA.get("hot_coins", [])) > 2:
+        notes.append(f"[{ts}] 🚨 BTC BEARISH but {len(GLOBAL_DATA['hot_coins'])} HOT COINS active — sector divergence")
+
+    # 5. RSI-OBI confluence cluster
+    conf_cnt = sum(1 for s in inst_signals if s.get("rsi_obi_confluence"))
+    if conf_cnt >= 2:
+        syms = [s["symbol"].replace("USDT","") for s in inst_signals if s.get("rsi_obi_confluence")]
+        notes.append(f"[{ts}] ⚡ RSI-OBI Confluence × {conf_cnt}: {','.join(syms[:4])}")
+
+    # 6. Smart money alert
+    dist_cnt = len([x for x in GLOBAL_DATA.get("smart_divergence",[]) if x.get("signal")=="DISTRIBUTION"])
+    if dist_cnt >= 3:
+        notes.append(f"[{ts}] 🧠 {dist_cnt} coins DISTRIBUTING — smart money exiting pumps")
+
+    # 7. Volume surge alert
+    surge_cnt = len(GLOBAL_DATA.get("volume_surge",[]))
+    if surge_cnt >= 3:
+        syms = [v["symbol"].replace("USDT","") for v in GLOBAL_DATA["volume_surge"][:4]]
+        notes.append(f"[{ts}] 🚀 Volume Surge × {surge_cnt}: {','.join(syms)}")
+
+    for note in notes:
+        log.info(f"[SELF-UPGRADE] {note}")
+    upgrade_log = GLOBAL_DATA.get("upgrade_log", [])
+    upgrade_log.extend(notes)
+    if len(upgrade_log) > 100:
+        del upgrade_log[:len(upgrade_log)-100]
+    GLOBAL_DATA["upgrade_log"] = upgrade_log
+    return upgrade_log
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # BACKGROUND THREADS
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -398,6 +463,9 @@ def data_refresh_loop():
             if _today_coin_counts:
                 top = max(_today_coin_counts, key=_today_coin_counts.get)
                 GLOBAL_DATA["top_coin_today"] = {"symbol": top, "count": _today_coin_counts[top]}
+
+            # ── Continuous Self-Upgrade Protocol ─────────────────────────────
+            self_upgrade_cycle(inst_signals, whale_data, vmc_data)
 
             # ── Fire Alerts ──────────────────────────────────────────────────
             if not GLOBAL_DATA.get("btc_pause"):
@@ -1036,13 +1104,28 @@ def chart_data():
         vwap_line.append({"time": ts, "value": vwap})
     inst_s = next((s for s in GLOBAL_DATA["inst_signals"] if s["symbol"] == symbol), None)
     tp_z   = inst_s.get("tp_zones", {}) if inst_s else {}
+    # ── VMC Signal Markers (BUY / SELL labels on chart) ───────────────────────
     markers = []
-    for folder, pos, col, shp in [
-        ("ENTRY","belowBar","#3fb950","arrowUp"),("GOLDEN","belowBar","#FFD700","arrowUp"),
-        ("VIP","belowBar","#da70d6","arrowUp"),("EXIT","aboveBar","#FF4500","arrowDown"),
-    ]:
-        if any(c["symbol"] == symbol for c in GLOBAL_DATA["vmc"].get(folder, [])) and candles:
-            markers.append({"time": candles[-1]["time"], "position": pos, "color": col, "shape": shp, "text": f"VMC {folder}"})
+    buy_folders = [
+        ("VIP",    "belowBar", "#da70d6", "arrowUp",   "✅ BUY — VIP"),
+        ("GOLDEN", "belowBar", "#FFD700", "arrowUp",   "✅ BUY — GOLDEN"),
+        ("ENTRY",  "belowBar", "#3fb950", "arrowUp",   "✅ BUY — ENTRY"),
+        ("BOOM",   "belowBar", "#FF6B35", "arrowUp",   "✅ BUY — BOOM"),
+    ]
+    sell_folders = [
+        ("EXIT",   "aboveBar", "#FF4500", "arrowDown", "🚫 SELL — EXIT"),
+        ("STUCK",  "aboveBar", "#888888", "arrowDown", "⚠️ STUCK"),
+    ]
+    for folder, pos, col, shp, label in buy_folders + sell_folders:
+        coins_in_folder = GLOBAL_DATA["vmc"].get(folder, [])
+        if any(c["symbol"] == symbol for c in coins_in_folder) and candles:
+            markers.append({"time": candles[-1]["time"], "position": pos,
+                            "color": col, "shape": shp, "text": label})
+    # ── Inst signal spike marker ───────────────────────────────────────────────
+    inst_s2 = next((s for s in GLOBAL_DATA["inst_signals"] if s["symbol"] == symbol), None)
+    if inst_s2 and inst_s2.get("inst", {}).get("spike") and candles:
+        markers.append({"time": candles[-1]["time"], "position": "belowBar",
+                        "color": "#00FFFF", "shape": "arrowUp", "text": "⚡ SPIKE"})
     wh = next((w for w in GLOBAL_DATA["whale"] if w["symbol"] == symbol), None)
     whale_walls = [{"price": w["price_level"], "side": w["side"], "size_usdt": w["size_usdt"]}
                    for w in (wh.get("walls", []) if wh else [])]

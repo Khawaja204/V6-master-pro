@@ -205,6 +205,30 @@ tr:hover td { background: #161b22; cursor: pointer; }
 /* ── Market Breadth ── */
 .breadth-bull { color: #3fb950; } .breadth-bear { color: #FF4500; }
 
+/* ── COMMAND CENTER ── */
+.cc-stats { display:flex; gap:10px; padding:8px 12px 6px; flex-wrap:wrap; align-items:center; }
+.cc-card  {
+  text-align:center; padding:8px 18px; border-radius:6px; border:1px solid;
+  min-width:72px; transition:filter 0.15s; cursor:default;
+}
+.cc-count { font-size:30px; font-weight:bold; line-height:1; }
+.cc-label { font-size:9px; margin-top:2px; font-weight:bold; letter-spacing:1px; }
+.cc-buy   { border-color:#3fb950; background:#061910; color:#3fb950; }
+.cc-sell  { border-color:#FFD700; background:#1a1600; color:#FFD700; }
+.cc-avoid { border-color:#FF4500; background:#1a0600; color:#FF4500; }
+.cc-wait  { border-color:#444;    background:#0d1117; color:#8b949e; }
+.cc-hold  { border-color:#1f6feb; background:#061428; color:#58a6ff; }
+.cc-top-coins { padding:0 12px 10px; display:flex; gap:8px; flex-wrap:wrap; }
+.cc-top-coin  {
+  background:#0d1117; border:1px solid; border-radius:6px; padding:6px 10px;
+  cursor:pointer; min-width:155px; max-width:220px; font-size:11px; transition:filter 0.15s;
+}
+.cc-top-coin:hover { filter:brightness(1.3); }
+
+/* ── Smart Money Divergence ── */
+.smd-section { flex:1; min-width:190px; }
+.smd-head    { font-size:10px; font-weight:bold; margin-bottom:4px; padding:2px 6px; border-radius:3px; }
+
 /* ── Focus action borders ── */
 .card-buy  { box-shadow: 0 0 10px #3fb95055; border-color: #3fb950 !important; }
 .card-sell { border-color: #FFD700 !important; }
@@ -322,6 +346,43 @@ document.addEventListener('click', () => _ac(), { once: true });
 <!-- Main -->
 <div id="main">
 
+  <!-- PANEL 0: Command Center -->
+  <div class="panel" id="panel-cc" style="border-color:#FFD700">
+    <div class="panel-header" style="background:#0a0d00">
+      <span class="panel-label" style="color:#FFD700">⚡ COMMAND CENTER — Clear BUY / SELL / AVOID</span>
+      <span id="cc-time" style="font-size:10px;color:#555;margin-left:auto"></span>
+    </div>
+    <div class="cc-stats">
+      <div class="cc-card cc-buy"  onclick="filterCC('BUY NOW')" style="cursor:pointer">
+        <div class="cc-count" id="cc-buy-cnt">0</div>
+        <div class="cc-label">BUY NOW</div>
+      </div>
+      <div class="cc-card cc-sell" onclick="filterCC('SELL')" style="cursor:pointer">
+        <div class="cc-count" id="cc-sell-cnt">0</div>
+        <div class="cc-label">SELL</div>
+      </div>
+      <div class="cc-card cc-hold" onclick="filterCC('HOLD')" style="cursor:pointer">
+        <div class="cc-count" id="cc-hold-cnt">0</div>
+        <div class="cc-label">HOLD</div>
+      </div>
+      <div class="cc-card cc-wait" onclick="filterCC('WAIT')" style="cursor:pointer">
+        <div class="cc-count" id="cc-wait-cnt">0</div>
+        <div class="cc-label">WAIT</div>
+      </div>
+      <div class="cc-card cc-avoid" onclick="filterCC('AVOID')" style="cursor:pointer">
+        <div class="cc-count" id="cc-avoid-cnt">0</div>
+        <div class="cc-label">AVOID</div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="font-size:10px;color:#555;text-align:right;line-height:1.6">
+        <div>Regime: <span id="cc-regime" style="color:#58a6ff">—</span></div>
+        <div>Hot Coins: <span id="cc-hot-n" style="color:#FF6B35">0</span></div>
+        <div>Win Rate: <span id="cc-wr" style="color:#3fb950">—</span></div>
+      </div>
+    </div>
+    <div class="cc-top-coins" id="cc-top-coins"></div>
+  </div>
+
   <!-- PANEL A: VMC Signal Engine -->
   <div class="panel" id="panel-a">
     <div class="panel-header">
@@ -411,6 +472,28 @@ document.addEventListener('click', () => _ac(), { once: true });
         </tr></thead>
         <tbody id="history-body"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- PANEL F: Smart Money Divergence + Volume Surge -->
+  <div class="panel" id="panel-f" style="border-color:#00FFAA22">
+    <div class="panel-header" style="background:#000d08">
+      <span class="panel-label" style="color:#00FFAA">🧠 SMART MONEY DIVERGENCE — Distribution vs Accumulation + Volume Surge</span>
+      <span id="f-summary" style="font-size:10px;color:#555"></span>
+    </div>
+    <div id="smd-content" style="display:flex;gap:12px;padding:8px 12px 10px;flex-wrap:wrap">
+      <div class="smd-section">
+        <div class="smd-head" style="color:#FF4500;background:#1a0600">📤 DISTRIBUTION — Smart Money SELLING into pump</div>
+        <div id="smd-dist"><div class="ab-empty">No distribution signals</div></div>
+      </div>
+      <div class="smd-section">
+        <div class="smd-head" style="color:#3fb950;background:#061910">📥 ACCUMULATION — Smart Money BUYING the dip</div>
+        <div id="smd-acc"><div class="ab-empty">No accumulation signals</div></div>
+      </div>
+      <div class="smd-section">
+        <div class="smd-head" style="color:#FF6B35;background:#1a0d00">🚀 VOLUME SURGE — &gt;2.5× Median Volume</div>
+        <div id="smd-vsurge"><div class="ab-empty">No volume surges</div></div>
+      </div>
     </div>
   </div>
 
@@ -969,6 +1052,83 @@ document.getElementById('sniper-overlay').addEventListener('click', function(e) 
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSniper(); });
 
+// ── Command Center ────────────────────────────────────────────────────────────
+let _ccFilter = null;
+function filterCC(action) {
+  _ccFilter = (_ccFilter === action) ? null : action;
+  if (data) renderCommandCenter(data);
+}
+function renderCommandCenter(d) {
+  const sigs   = d.inst_signals || [];
+  const whales = d.whale || [];
+  const seen = {}; const uniq = [];
+  sigs.forEach(s => { if (!seen[s.symbol]) { seen[s.symbol]=true; uniq.push(s); } });
+  const classified = uniq.map(s => ({ ...s, _act: classifyAction(s, whales) }));
+  const counts = { 'BUY NOW':0,'SELL':0,'AVOID':0,'WAIT':0,'HOLD':0 };
+  classified.forEach(s => { if (counts[s._act.action] !== undefined) counts[s._act.action]++; });
+  document.getElementById('cc-buy-cnt').textContent   = counts['BUY NOW'];
+  document.getElementById('cc-sell-cnt').textContent  = counts['SELL'];
+  document.getElementById('cc-avoid-cnt').textContent = counts['AVOID'];
+  document.getElementById('cc-wait-cnt').textContent  = counts['WAIT'];
+  document.getElementById('cc-hold-cnt').textContent  = counts['HOLD'];
+  document.getElementById('cc-regime').textContent  = d.market_regime || '—';
+  document.getElementById('cc-hot-n').textContent   = (d.hot_coins||[]).length;
+  document.getElementById('cc-wr').textContent      = d.win_rate ? d.win_rate+'%' : '—';
+  document.getElementById('cc-time').textContent    = d.last_update ? 'Updated: '+d.last_update : '';
+  const order = { 'BUY NOW':0,'SELL':1,'HOLD':2,'WAIT':3,'AVOID':4 };
+  classified.sort((a,b) => (order[a._act.action]??5)-(order[b._act.action]??5));
+  const show = _ccFilter ? classified.filter(s => s._act.action === _ccFilter) : classified.slice(0,8);
+  const topEl = document.getElementById('cc-top-coins');
+  topEl.innerHTML = show.slice(0,8).map(s => {
+    const act = s._act; const sym=(s.symbol||'').replace('USDT','');
+    const tp=s.tp_zones||{}; const wp=s.inst?.whale_power||0;
+    const hot = isHot(s.symbol)?'🔥':'';
+    const detail = act.action==='BUY NOW'
+      ? `Entry:${fmtP(tp.entry_low)} | TP1:${fmtP(tp.tp1)} | SL:${fmtP(tp.stop_loss)}`
+      : act.reason.slice(0,55);
+    return `<div class="cc-top-coin" style="border-color:${act.color}" onclick="openSniper('${s.symbol}')">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <span style="color:${act.color};font-weight:bold">${act.icon} ${sym}${hot}</span>
+        <span class="ab-badge" style="color:${act.color};border-color:${act.color}">${act.action}</span>
+        <span style="color:#555;font-size:9px">🐋${wp}%</span>
+      </div>
+      <div style="color:#555;font-size:9px">${detail}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Smart Money Divergence ─────────────────────────────────────────────────────
+function renderSmartDiv(d) {
+  const div    = d.smart_divergence || [];
+  const vsurge = d.volume_surge     || [];
+  const fSum   = document.getElementById('f-summary');
+  if (fSum) fSum.textContent = `${div.length} divergences | ${vsurge.length} volume surges`;
+  const dist = div.filter(x => x.signal === 'DISTRIBUTION');
+  const acc  = div.filter(x => x.signal === 'ACCUMULATION');
+  const mkRow = (x, type) => {
+    const col = type === 'dist' ? '#FF4500' : '#3fb950';
+    const lbl = type === 'dist' ? '📤 DIST' : '📥 ACCUM';
+    const chg = type === 'dist' ? `▲+${x.change_pct?.toFixed(2)}%` : `▼${x.change_pct?.toFixed(2)}%`;
+    return `<div class="ab-row" style="border-color:${col};cursor:pointer" onclick="openSniper('${x.symbol}')">
+      <span class="ab-sym">${x.symbol.replace('USDT','')}</span>
+      <span class="ab-badge" style="color:${col};border-color:${col}">${lbl}</span>
+      <span class="ab-meta">${chg}</span>
+      <span class="ab-reason">OBI:${typeof x.obi==='number'?x.obi.toFixed(4):x.obi} | ${x.signal}</span>
+    </div>`;
+  };
+  const distEl = document.getElementById('smd-dist');
+  if (distEl) distEl.innerHTML = dist.length ? dist.map(x=>mkRow(x,'dist')).join('') : '<div class="ab-empty">No distribution signals</div>';
+  const accEl = document.getElementById('smd-acc');
+  if (accEl) accEl.innerHTML = acc.length ? acc.map(x=>mkRow(x,'acc')).join('') : '<div class="ab-empty">No accumulation signals</div>';
+  const vEl = document.getElementById('smd-vsurge');
+  if (vEl) vEl.innerHTML = vsurge.length ? vsurge.map(v =>
+    `<div class="ab-row" style="border-color:#FF6B35;cursor:pointer" onclick="openSniper('${v.symbol}')">
+      <span class="ab-sym">${v.symbol.replace('USDT','')}</span>
+      <span class="ab-badge" style="color:#FF6B35;border-color:#FF6B35">🚀 ${v.surge_ratio}×</span>
+      <span class="ab-reason">Vol: ${fmtVol(v.volume)} USDT</span>
+    </div>`).join('') : '<div class="ab-empty">No surges detected</div>';
+}
+
 // ── URL-based auto-open sniper ─────────────────────────────────────────────
 const _urlSniper = new URLSearchParams(window.location.search).get('sniper');
 if (_urlSniper) setTimeout(() => openSniper(_urlSniper), 2000);
@@ -987,6 +1147,8 @@ async function fetchData() {
     renderBacktest(data.backtest || [], data.total_wins || 0, data.total_losses || 0, data.win_rate || 0);
     renderHistory(data.alert_history || []);
     renderActionBanner(data);
+    renderCommandCenter(data);
+    renderSmartDiv(data);
   } catch(e) {
     document.getElementById('sb-status').textContent = 'fetch error';
     document.getElementById('sb-status').className   = 'error';
