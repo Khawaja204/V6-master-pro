@@ -1,10 +1,5 @@
 flask
 requests
-python-socks
-gspread
-oauth2client
-flask
-gspread
-oauth2client
 PySocks
-requests
+gspread
+oauth2client

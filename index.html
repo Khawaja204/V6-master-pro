@@ -1293,16 +1293,30 @@ function renderPaperBanner(d) {
 function searchCoins(q) {
   const res = document.getElementById('search-results');
   if (!data || q.trim().length < 1) { res.className = ''; return; }
-  const all  = (data.vmc && data.vmc.ALL) ? data.vmc.ALL : [];
   const term = q.trim().toUpperCase();
-  const hits = all.filter(c => (c.symbol||'').replace('USDT','').includes(term)).slice(0, 10);
+  // Search across ALL VMC folders combined, deduped by symbol (case-insensitive)
+  const seen = new Set();
+  const pool = [];
+  Object.entries(data.vmc || {}).forEach(([folder, coins]) => {
+    (coins || []).forEach(c => {
+      if (!seen.has(c.symbol)) { seen.add(c.symbol); pool.push({ ...c, folder }); }
+    });
+  });
+  // Also include whale symbols that may not be in vmc yet
+  (data.whale || []).forEach(w => {
+    if (!seen.has(w.symbol)) { seen.add(w.symbol); pool.push({ symbol: w.symbol, price: w.price, change_pct: 0, folder: 'WHALE' }); }
+  });
+  const hits = pool.filter(c => {
+    const sym = (c.symbol || '').toUpperCase();
+    return sym.replace('USDT','').includes(term) || sym.includes(term);
+  }).slice(0, 10);
   if (!hits.length) { res.className = ''; return; }
   res.className = 'open';
   res.innerHTML = hits.map(c => {
     const sym  = (c.symbol||'').replace('USDT','');
     const price= typeof c.price === 'number' ? (c.price >= 1 ? c.price.toFixed(4) : c.price.toFixed(8)) : '—';
     const chg  = c.change_pct ? (c.change_pct > 0 ? '+' : '') + c.change_pct.toFixed(2) + '%' : '';
-    const chgC = c.change_pct > 0 ? '#3fb950' : '#FF4500';
+    const chgC = (c.change_pct||0) > 0 ? '#3fb950' : '#FF4500';
     const fld  = c.folder || '—';
     return `<div class="sr-item" onmousedown="openSniper('${c.symbol}')">
       <span class="sr-sym">${sym}</span>
@@ -1385,7 +1399,13 @@ function renderSimpleView(d) {
   if (!_svActive) return;
   const grid = document.getElementById('sv-grid');
   if (!grid) return;
-  const all = d.inst_signals || [];
+  // Deduplicate by symbol — keep highest confidence entry per coin
+  const symMap = {};
+  (d.inst_signals || []).forEach(c => {
+    const sym = c.symbol;
+    if (!symMap[sym] || (c.confidence||0) > (symMap[sym].confidence||0)) symMap[sym] = c;
+  });
+  const all = Object.values(symMap);
   const _order = { 'BUY NOW':0,'HOLD':1,'WAIT':2,'SELL NOW':3,'AVOID':4 };
   const sorted = [...all].sort((a, b) => {
     const aa = _svAction(a), ab = _svAction(b);
