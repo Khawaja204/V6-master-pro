@@ -1227,17 +1227,30 @@ input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6
   <span><span class="dot dot-yellow" id="dot-ex"></span><span id="lbl-ex" style="font-size:12px">Exchange API: checking…</span></span>
   <span><span class="dot dot-yellow" id="dot-pm"></span><span id="lbl-pm" style="font-size:12px">Trade Mode: checking…</span></span>
 </div>
+<div style="margin-top:8px;font-size:10px;color:#555" id="conn-meta">Last checked: —</div>
 <script>
-fetch('/system_health').then(r=>r.json()).then(d=>{
-  const set=(id,ok,label)=>{
-    document.getElementById('dot-'+id).className='dot '+(ok?'dot-green':'dot-red');
-    document.getElementById('lbl-'+id).textContent=label;
-  };
-  set('tg',  d.telegram==='CONNECTED',    'Telegram: '+(d.telegram==='CONNECTED'?'✅ Connected':'❌ BOT_TOKEN not set'));
-  set('gs',  d.google_sheets==='CONNECTED','Google Sheets: '+(d.google_sheets==='CONNECTED'?'✅ Connected':'❌ GOOGLE_CREDENTIALS not set'));
-  set('ex',  d.exchange_api!=='NONE',     'Exchange API: '+(d.exchange_api!=='NONE'?'✅ '+d.exchange_api+' Configured':'❌ No keys — set in API Key Management'));
-  set('pm',  d.paper_mode,                'Trade Mode: '+(d.paper_mode?'📄 PAPER (safe)':'⚡ REAL LIVE'));
-}).catch(()=>{});
+function refreshHealth(){
+  fetch('/system_health',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+    const set=(id,ok,label)=>{
+      const dot=document.getElementById('dot-'+id), lbl=document.getElementById('lbl-'+id);
+      if(dot) dot.className='dot '+(ok?'dot-green':'dot-red');
+      if(lbl) lbl.textContent=label;
+    };
+    set('tg', d.telegram==='CONNECTED',     'Telegram: '+(d.telegram==='CONNECTED'?'✅ Connected':'❌ BOT_TOKEN not set'));
+    set('gs', d.google_sheets==='CONNECTED','Google Sheets: '+(d.google_sheets==='CONNECTED'?'✅ Connected':'❌ GOOGLE_CREDENTIALS not set'));
+    const exUp = d.exchange_api==='CONNECTED';
+    set('ex', exUp, 'Exchange API: '+(exUp?'✅ Connected ('+(d.exchange_host||'binance').replace('https://','')+')':'❌ '+(d.exchange_detail||'Disconnected')));
+    set('pm', true, 'Trade Mode: '+(d.paper_mode?'📄 PAPER (safe)':'⚡ REAL LIVE'));
+    document.getElementById('dot-pm').className='dot '+(d.paper_mode?'dot-green':'dot-red');
+    const meta=document.getElementById('conn-meta');
+    if(meta) meta.textContent='Last checked: '+new Date().toLocaleTimeString()+(d.exchange_last_ok?'  ·  Exchange last OK: '+d.exchange_last_ok:'');
+  }).catch(()=>{
+    const meta=document.getElementById('conn-meta');
+    if(meta) meta.textContent='Health check failed — retrying…';
+  });
+}
+refreshHealth();
+setInterval(refreshHealth, 15000);
 </script></div>
 
 <!-- ══ RISK CALCULATOR + FUND LIMIT ══ -->
@@ -1694,14 +1707,37 @@ def admin_clear_backtest():
 def system_health():
     tg_ok = bool(BOT_TOKEN and CHAT_ID)
     gs_ok = bool(GOOGLE_CREDENTIALS and GOOGLE_CREDENTIALS != "{}" and GOOGLE_SHEET_ID)
-    ex_ok = "BINANCE" if "BINANCE" in _API_KEYS else ("OTHER" if _API_KEYS else "NONE")
+
+    # Live Binance connectivity — read the latest snapshot maintained by the
+    # background health monitor + scan loop. No network work happens in this
+    # request path (keeps the public endpoint fast and abuse-resistant).
+    try:
+        from logic import get_binance_health
+        health = get_binance_health()
+    except Exception as e:
+        health = {"reachable": False, "last_ok": None, "last_error": str(e),
+                  "active_host": ""}
+
+    binance_up = bool(health.get("reachable"))
+    has_keys   = "BINANCE" in _API_KEYS
+    if binance_up:
+        exchange_status = "CONNECTED"          # network reachable
+        exchange_detail = "Trading keys set" if has_keys else "Public data only (no API key)"
+    else:
+        exchange_status = "DISCONNECTED"
+        exchange_detail = health.get("last_error", "Unreachable")
+
     return jsonify({
-        "telegram":     "CONNECTED" if tg_ok else "NOT_SET",
-        "google_sheets":"CONNECTED" if gs_ok else "NOT_SET",
-        "exchange_api": ex_ok,
-        "paper_mode":   GLOBAL_DATA.get("paper_mode", True),
-        "status":       GLOBAL_DATA["status"],
-        "fund_limit":   CONFIG.get("bot_fund_limit_usdt", 10.0),
+        "telegram":         "CONNECTED" if tg_ok else "NOT_SET",
+        "google_sheets":    "CONNECTED" if gs_ok else "NOT_SET",
+        "exchange_api":     exchange_status,
+        "exchange_detail":  exchange_detail,
+        "exchange_host":    health.get("active_host", ""),
+        "exchange_last_ok": health.get("last_ok"),
+        "has_api_keys":     has_keys,
+        "paper_mode":       GLOBAL_DATA.get("paper_mode", True),
+        "status":           GLOBAL_DATA["status"],
+        "fund_limit":       CONFIG.get("bot_fund_limit_usdt", 10.0),
     })
 
 
@@ -2248,6 +2284,11 @@ if __name__ == "__main__":
         f"Admin:/admin | Client:/client | Focus:/focus"
     )
     audit("SYSTEM", "STARTUP", "OK", f"port={PORT}")
+    try:
+        from logic import start_health_monitor
+        start_health_monitor(interval=30)
+    except Exception as _e:
+        log.warning(f"health monitor start failed: {_e}")
     threading.Thread(target=data_refresh_loop,   daemon=True).start()
     threading.Thread(target=heartbeat_loop,       daemon=True).start()
     threading.Thread(target=btc_monitor_loop,     daemon=True).start()
