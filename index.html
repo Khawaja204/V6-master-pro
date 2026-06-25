@@ -1318,7 +1318,7 @@ function closeSearch() {
 }
 
 // ── Simple View ───────────────────────────────────────────────────────────────
-let _svActive = false;
+let _svActive = true;
 function toggleSimpleView() {
   _svActive = !_svActive;
   const sv   = document.getElementById('simple-view');
@@ -1333,26 +1333,52 @@ function toggleSimpleView() {
   }
 }
 
+// ── Simple View Helpers ───────────────────────────────────────────────────────
 function _svAction(coin) {
-  const inst = coin.inst || {};
-  const tl   = inst.traffic || 'RED';
-  const wp   = inst.whale_power || 0;
-  const conf = coin.confidence || 0;
+  const inst  = coin.inst || {};
+  const tl    = inst.traffic || 'RED';
+  const wp    = inst.whale_power || 0;
+  const conf  = coin.confidence || 0;
   const price = coin.price || 0;
-  const tp   = coin.tp_zones || {};
-  if (tl === 'RED') return { label:'AVOID', cls:'avoid', color:'#FF4500', reason:'RED signal — no entry' };
-  if (tp.tp1 && price >= tp.tp1 * 0.995) return { label:'SELL NOW', cls:'sell', color:'#FFD700',
-    reason:`Near TP1 ${tp.tp1 > 0 ? tp.tp1.toFixed(4) : '—'}` };
+  const tp    = coin.tp_zones || {};
+  if (tl === 'RED') return { label:'AVOID', cls:'avoid', color:'#FF4500' };
+  if (tp.tp1 && price >= tp.tp1 * 0.995) return { label:'SELL NOW', cls:'sell', color:'#FFD700' };
   if ((tl === 'GREEN' || tl === 'YELLOW') && wp > 50 && conf > 50)
-    return { label:'BUY NOW', cls:'buy', color:'#3fb950',
-      reason:`Entry ~${tp.entry_low ? tp.entry_low.toFixed(4) : '—'} | TP1 ${tp.tp1 ? tp.tp1.toFixed(4) : '—'}` };
-  if (tl === 'YELLOW') return { label:'WAIT', cls:'wait', color:'#888',
-    reason:`WP ${wp}% Conf ${conf}% — signal building` };
-  if (tp.tp1 && price > 0) {
-    const dTp1 = ((tp.tp1 - price) / price * 100).toFixed(1);
-    return { label:'HOLD', cls:'hold', color:'#1f6feb', reason:`TP1 +${dTp1}% away` };
+    return { label:'BUY NOW', cls:'buy', color:'#3fb950' };
+  if (tl === 'YELLOW') return { label:'WAIT', cls:'wait', color:'#888' };
+  if (tp.tp1 && price > 0) return { label:'HOLD', cls:'hold', color:'#1f6feb' };
+  return { label:'WAIT', cls:'wait', color:'#888' };
+}
+
+function getSimpleReason(coin, act) {
+  const wp  = coin.inst?.whale_power || 0;
+  const hot = (data?.hot_coins||[]).some(h => h.symbol === coin.symbol);
+  if (act.label === 'BUY NOW') {
+    if (wp >= 80) return '🐋 Whale khareed raha hai — Strong BUY';
+    if (wp >= 65) return '📈 Bada order aa raha hai — BUY karo';
+    if (hot)      return '🔥 Hot coin — Baar baar signal aa raha hai';
+    return '✅ Signal strong hai — Entry safe hai';
   }
-  return { label:'WAIT', cls:'wait', color:'#888', reason:'Signal building…' };
+  if (act.label === 'AVOID')    return '🚫 Trap hai — Bilkul mat khareedo abhi';
+  if (act.label === 'WAIT')     return wp <= 50 ? '⏳ Whale abhi nahi aaya — Thodi der ruko' : '⏳ Signal build ho raha hai — Ruko';
+  if (act.label === 'SELL NOW') return '💰 Profit nikalo — Target par pahunch gaya';
+  if (act.label === 'HOLD')     return '🔵 Target door hai — Hold karo, mat becho';
+  return '⏳ System scan kar raha hai — Wait karo';
+}
+
+function calcProfitRR(coin) {
+  const tp    = coin.tp_zones || {};
+  const price = coin.price || 0;
+  const entry = tp.entry_low || price;
+  const tp1   = tp.tp1 || 0;
+  const sl    = tp.stop_loss || 0;
+  const expPct  = tp1 && entry > 0 ? ((tp1 - entry) / entry * 100).toFixed(1) : null;
+  const riskPct = sl  && entry > 0 ? ((entry - sl)  / entry * 100).toFixed(1) : null;
+  const rr      = expPct && riskPct && parseFloat(riskPct) > 0
+                  ? (parseFloat(expPct) / parseFloat(riskPct)).toFixed(1) : null;
+  const curPct  = entry > 0 && price > 0
+                  ? ((price - entry) / entry * 100).toFixed(2) : null;
+  return { expPct, riskPct, rr, curPct };
 }
 
 function renderSimpleView(d) {
@@ -1360,39 +1386,51 @@ function renderSimpleView(d) {
   const grid = document.getElementById('sv-grid');
   if (!grid) return;
   const all = d.inst_signals || [];
+  const _order = { 'BUY NOW':0,'HOLD':1,'WAIT':2,'SELL NOW':3,'AVOID':4 };
   const sorted = [...all].sort((a, b) => {
-    const wa = a.inst?.whale_power || 0, wb = b.inst?.whale_power || 0;
-    return wb - wa;
+    const aa = _svAction(a), ab = _svAction(b);
+    const oa = _order[aa.label]??9, ob = _order[ab.label]??9;
+    if (oa !== ob) return oa - ob;
+    return (b.inst?.whale_power||0) - (a.inst?.whale_power||0);
   });
   const coins = sorted.slice(0, 8);
   if (!coins.length) {
-    grid.innerHTML = '<div class="sv-empty">Scanning markets… first cycle in progress.</div>'; return;
+    grid.innerHTML = '<div class="sv-empty">⏳ Scanning markets… first data in ~60 seconds.</div>'; return;
   }
   grid.innerHTML = coins.map(coin => {
-    const sym   = (coin.symbol || '').replace('USDT', '');
-    const price = coin.price ? (coin.price >= 1 ? coin.price.toFixed(4) : coin.price.toFixed(6)) : '—';
-    const act   = _svAction(coin);
-    const wp    = coin.inst?.whale_power || 0;
-    const conf  = coin.confidence || 0;
-    const hot   = (d.hot_coins || []).some(h => h.symbol === coin.symbol) ? '🔥 HOT' : '';
-    return `<div class="sv-card" style="border-color:${act.color}20">
-      <button class="sv-detail-btn" onclick="openSniper('${coin.symbol}');toggleSimpleView()">Details →</button>
+    const sym    = (coin.symbol||'').replace('USDT','');
+    const price  = coin.price ? (coin.price >= 1 ? coin.price.toFixed(4) : coin.price.toFixed(6)) : '—';
+    const act    = _svAction(coin);
+    const wp     = coin.inst?.whale_power || 0;
+    const conf   = coin.confidence || 0;
+    const hot    = (d.hot_coins||[]).some(h => h.symbol === coin.symbol);
+    const pr     = calcProfitRR(coin);
+    const strat  = coin.trading_strategy || '';
+    const reason = getSimpleReason(coin, act);
+    return `<div class="sv-card" style="border-color:${act.color}50">
+      <button class="sv-detail-btn" onclick="openSniper('${coin.symbol}');if(_svActive)toggleSimpleView()">Details →</button>
       <div class="sv-card-top">
-        <span class="sv-coin-name">${sym} ${hot}</span>
-        <span class="sv-price">$${price}</span>
+        <div>
+          <div class="sv-coin-name">${sym}${hot?' 🔥':''}</div>
+          <div class="sv-price">$ ${price}</div>
+        </div>
+        ${strat ? `<span style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid;color:${strat==='SPOT'?'#3fb950':'#58a6ff'};border-color:${strat==='SPOT'?'#3fb950':'#58a6ff'};white-space:nowrap">${strat==='SPOT'?'⚡ SPOT':'⊞ GRID'}</span>` : ''}
       </div>
-      <button class="sv-btn ${act.cls}" onclick="openSniper('${coin.symbol}');toggleSimpleView()">
+      <button class="sv-btn ${act.cls}" onclick="openSniper('${coin.symbol}');if(_svActive)toggleSimpleView()">
         ${act.label}
       </button>
-      <div class="sv-reason">${act.reason}</div>
+      <div class="sv-reason" style="font-size:13px;margin:8px 0">${reason}</div>
+      ${pr.expPct ? `<div style="font-size:13px;color:#3fb950;font-weight:bold;margin:4px 0">📈 Expected: +${pr.expPct}% → TP1</div>` : ''}
+      ${act.label==='SELL NOW' && pr.curPct ? `<div style="font-size:13px;color:#FFD700;font-weight:bold;margin:4px 0">💰 Current P&L: ${pr.curPct}%</div>` : ''}
+      ${pr.riskPct && pr.expPct ? `<div class="sv-meta" style="font-size:11px"><span>⚠️ Risk ${pr.riskPct}%</span><span>🎯 Reward ${pr.expPct}%</span>${pr.rr?`<span>R/R 1:${pr.rr}</span>`:''}</div>` : ''}
       <div class="sv-meta">
         <span>🐋 ${wp}% Whale</span>
-        <span>🎯 ${conf}% Confidence</span>
+        <span>📊 ${conf}% Conf</span>
       </div>
     </div>`;
   }).join('');
   document.getElementById('sv-sub').textContent =
-    `${sorted.length} coins scanned · ${coins.length} shown · Auto-refresh 30s · BTC: ${d.btc?.sentiment || '?'}`;
+    `${sorted.length} coins scanned · ${coins.length} shown · Auto-refresh 30s · BTC: ${d.btc?.sentiment||'?'} · Tap card for full analysis`;
 }
 
 // ── Countdown (30s) ───────────────────────────────────────────────────────────
@@ -1429,7 +1467,7 @@ setInterval(tick, 1000);
 </script>
 
 <!-- SIMPLE VIEW OVERLAY -->
-<div id="simple-view">
+<div id="simple-view" class="active">
   <div class="sv-header">
     <h2>⚡ SIMPLE VIEW — V6 MASTER PRO</h2>
     <span id="sv-sub" style="color:#555;font-size:11px"></span>

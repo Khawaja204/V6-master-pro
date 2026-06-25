@@ -408,6 +408,11 @@ function renderList(data) {
     const tp3    = tp.tp3  ? fmtP(tp.tp3)  : '—';
     const sl     = tp.stop_loss ? fmtP(tp.stop_loss) : '—';
     const pos    = siz.alloc_usdt ? `$${siz.alloc_usdt}` : (siz.note ? siz.note.split(' ')[0] : '—');
+    const expPct = tp.tp1 && tp.entry_low ? ((tp.tp1 - tp.entry_low) / tp.entry_low * 100).toFixed(1) : null;
+    const rskPct = tp.stop_loss && tp.entry_low ? ((tp.entry_low - tp.stop_loss) / tp.entry_low * 100).toFixed(1) : null;
+    const rrRat  = expPct && rskPct && parseFloat(rskPct) > 0 ? (parseFloat(expPct)/parseFloat(rskPct)).toFixed(1) : null;
+    const curPnl = tp.entry_low && c.price > 0 ? ((c.price - tp.entry_low)/tp.entry_low*100).toFixed(2) : null;
+    const strat  = c.trading_strategy || '';
     return `
     <div class="${cardCls}" onclick="openCoin('${c.symbol}')">
       <div class="card-top">
@@ -444,6 +449,10 @@ function renderList(data) {
           <span>🎯 ${conf}% Conf</span>
         </div>
         <div class="act-reason">${act.reason}</div>
+        ${expPct ? `<div style="color:#3fb950;font-size:10px;font-weight:bold;margin-top:4px">📈 Expected +${expPct}% → TP1${rrRat?` | R/R 1:${rrRat}`:''}</div>` : ''}
+        ${rskPct && expPct ? `<div style="color:#555;font-size:9px;margin-top:1px">⚠️ Risk ${rskPct}% | 🎯 Reward ${expPct}%</div>` : ''}
+        ${act.action==='SELL' && curPnl ? `<div style="color:#FFD700;font-size:10px;font-weight:bold;margin-top:4px">💰 P&L vs Entry: ${curPnl}%</div>` : ''}
+        ${strat ? `<div style="margin-top:5px;display:inline-block;font-size:9px;padding:2px 7px;border-radius:3px;border:1px solid ${strat==='SPOT'?'#3fb950':'#58a6ff'};color:${strat==='SPOT'?'#3fb950':'#58a6ff'}">${strat==='SPOT'?'⚡ SPOT':'⊞ SPOT GRID'}</div>` : ''}
       </div>
     </div>`;
   }).join('');

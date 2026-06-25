@@ -80,7 +80,48 @@ GLOBAL_DATA = {
     "smart_divergence": [],
     "upgrade_log":    [],
     "paper_mode":     True,
+    "price_alerts":   [],
+    "learning_data":  {},
 }
+
+# ── Price Alerts ──────────────────────────────────────────────────────────────
+PRICE_ALERTS: list = []   # [{id, symbol, target_price, direction, note, created_at}]
+_alert_id_counter  = 0
+
+# ── Paper Mode Intelligence Learning Data ──────────────────────────────────────
+_LD_FILE = "learning_data.json"
+_DEFAULT_LD = {
+    "paper_trades": 0, "paper_wins": 0, "paper_losses": 0,
+    "paper_win_rate": 0.0, "wp_threshold": 50, "conf_threshold": 50,
+    "last_adjustment": None, "adjustment_log": [], "ready_for_real": False,
+    "signal_stats": {},
+}
+try:
+    with open(_LD_FILE) as _f:
+        _ld_saved = json.load(_f)
+        _DEFAULT_LD.update(_ld_saved)
+except Exception:
+    pass
+GLOBAL_DATA["learning_data"] = _DEFAULT_LD
+
+# ── API Keys (masked storage) ──────────────────────────────────────────────────
+_API_KEYS_FILE = "api_keys.json"
+try:
+    with open(_API_KEYS_FILE) as _f:
+        _API_KEYS: dict = json.load(_f)
+except Exception:
+    _API_KEYS = {}
+
+def _save_api_keys():
+    try:
+        with open(_API_KEYS_FILE, "w") as f:
+            json.dump(_API_KEYS, f, indent=2)
+    except Exception as e:
+        log.debug(f"API keys save failed: {e}")
+
+def _mask(s: str) -> str:
+    if not s or len(s) < 8: return "●" * 8
+    return "●" * (len(s) - 4) + s[-4:]
 
 BACKTEST_SIGNALS   = []           # max 100 tracked signals
 _previous_walls    = {}
@@ -343,6 +384,166 @@ def self_upgrade_cycle(inst_signals: list, whale_data: list, vmc_data: dict) -> 
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PRICE ALERT CHECKER
+# ══════════════════════════════════════════════════════════════════════════════
+
+def check_price_alerts(all_coins: list):
+    """Fire Telegram alert when a coin crosses its user-set price target."""
+    global PRICE_ALERTS
+    if not PRICE_ALERTS:
+        return
+    to_remove = []
+    for alert in PRICE_ALERTS:
+        coin = next((c for c in all_coins if c["symbol"] == alert["symbol"]), None)
+        if not coin:
+            continue
+        price  = coin.get("price", 0)
+        target = alert["target_price"]
+        hit    = (alert["direction"] == "ABOVE" and price >= target) or \
+                 (alert["direction"] == "BELOW" and price <= target)
+        if hit:
+            ts  = time.strftime("%Y-%m-%d %H:%M:%S")
+            sym = alert["symbol"]
+            msg = (f"🎯 <b>PRICE ALERT HIT!</b>\n"
+                   f"📊 {sym.replace('USDT','')} / USDT\n"
+                   f"💰 Current: {_fmtP(price)}\n"
+                   f"🎯 Target ({alert['direction']}): {_fmtP(target)}\n"
+                   f"📝 Note: {alert.get('note','—')}\n"
+                   f"⏰ {ts}")
+            _bot_reply(CHAT_ID, msg)
+            log.info(f"[PRICE ALERT] {sym} target {target} hit at {price}")
+            GLOBAL_DATA["alert_history"].insert(0, {
+                "time": ts, "type": "PRICE_ALERT", "symbol": sym,
+                "confidence": 100, "traffic": "GREEN",
+                "detail": f"Target {_fmtP(target)} hit ({alert['direction']})"
+            })
+            to_remove.append(alert["id"])
+    PRICE_ALERTS    = [a for a in PRICE_ALERTS if a["id"] not in to_remove]
+    GLOBAL_DATA["price_alerts"] = PRICE_ALERTS[:]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SMART TRADING ENGINE — SPOT vs SPOT_GRID STRATEGY SELECTOR
+# ══════════════════════════════════════════════════════════════════════════════
+
+def determine_trading_strategy(coin: dict, whale_data: list, market_regime: str) -> tuple:
+    """
+    Automatically selects SPOT or SPOT_GRID strategy.
+    Returns (strategy_str, reason_str).
+    """
+    inst       = coin.get("inst", {})
+    wp         = inst.get("whale_power", 0)
+    traffic    = inst.get("traffic", "RED")
+    inst_score = inst.get("inst_score", 0)
+    conf       = coin.get("confidence", 0)
+    atr        = coin.get("atr", 0)
+
+    whale = next((w for w in whale_data if w["symbol"] == coin.get("symbol")), None)
+    walls = whale.get("walls", []) if whale else []
+    has_bid = any(w.get("side") == "BID" for w in walls)
+    has_ask = any(w.get("side") == "ASK" for w in walls)
+
+    # ── SPOT GRID: ranging + walls on both sides ──────────────────────────────
+    if market_regime == "RANGING" and has_bid and has_ask:
+        return "SPOT_GRID", "Ranging mkt + walls both sides"
+    if market_regime == "RANGING" and inst_score < 6:
+        return "SPOT_GRID", "Low momentum — grid preferred"
+
+    # ── SPOT: clear directional signal ───────────────────────────────────────
+    if traffic == "GREEN" and wp > 60 and inst_score >= 7:
+        return "SPOT", "Strong BUY — clear direction"
+    if traffic in ["GREEN", "YELLOW"] and wp > 50 and conf > 55:
+        return "SPOT", "Whale momentum + confidence"
+    if market_regime == "TRENDING":
+        return "SPOT", "Trending market — ride the move"
+
+    return "SPOT_GRID", "No clear direction"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAPER MODE INTELLIGENCE — LEARNING ENGINE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _save_learning_data():
+    ld = GLOBAL_DATA.get("learning_data", {})
+    try:
+        with open(_LD_FILE, "w") as f:
+            json.dump(ld, f, indent=2)
+    except Exception as e:
+        log.debug(f"Learning data save failed: {e}")
+
+
+def update_paper_learning():
+    """After every scan, update paper trade learning from resolved backtest signals."""
+    if not GLOBAL_DATA.get("paper_mode", True):
+        return                        # only learn in paper mode
+    ld = GLOBAL_DATA.get("learning_data", {})
+    if not isinstance(ld, dict):
+        ld = dict(_DEFAULT_LD)
+
+    resolved = [b for b in BACKTEST_SIGNALS if b.get("result") in ("WIN", "LOSS")
+                and not b.get("learning_recorded")]
+    if not resolved:
+        return
+
+    for b in resolved:
+        b["learning_recorded"] = True
+        is_win = b["result"] == "WIN"
+        ld["paper_trades"]  = ld.get("paper_trades", 0) + 1
+        if is_win:
+            ld["paper_wins"]   = ld.get("paper_wins", 0) + 1
+        else:
+            ld["paper_losses"] = ld.get("paper_losses", 0) + 1
+
+        # Per-symbol stats
+        sym = b.get("symbol", "?")
+        ss  = ld.setdefault("signal_stats", {}).setdefault(sym, {"wins":0,"losses":0})
+        if is_win: ss["wins"]   += 1
+        else:      ss["losses"] += 1
+
+    total = ld.get("paper_trades", 0)
+    wins  = ld.get("paper_wins", 0)
+    ld["paper_win_rate"] = round(wins / total * 100, 1) if total else 0.0
+
+    # ── Auto-adjust thresholds every 10 trades ────────────────────────────────
+    if total > 0 and total % 10 == 0:
+        wr = ld["paper_win_rate"]
+        old_wp   = ld.get("wp_threshold", 50)
+        old_conf = ld.get("conf_threshold", 50)
+        # If win rate poor: raise thresholds (be more selective)
+        if wr < 45:
+            ld["wp_threshold"]   = min(80, old_wp + 5)
+            ld["conf_threshold"] = min(80, old_conf + 5)
+            note = f"[{time.strftime('%H:%M')}] WR {wr}% < 45% → raise WP→{ld['wp_threshold']}% Conf→{ld['conf_threshold']}%"
+        elif wr >= 65:
+            ld["wp_threshold"]   = max(40, old_wp - 3)
+            ld["conf_threshold"] = max(40, old_conf - 3)
+            note = f"[{time.strftime('%H:%M')}] WR {wr}% ≥ 65% → lower WP→{ld['wp_threshold']}% (more trades)"
+        else:
+            note = f"[{time.strftime('%H:%M')}] WR {wr}% stable after {total} trades"
+
+        ld.setdefault("adjustment_log", []).append(note)
+        if len(ld["adjustment_log"]) > 50:
+            ld["adjustment_log"] = ld["adjustment_log"][-50:]
+        ld["last_adjustment"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        log.info(f"[LEARNING] {note}")
+
+        # ── Ready-for-real alert ──────────────────────────────────────────────
+        if wr >= 65 and total >= 10 and not ld.get("ready_for_real"):
+            ld["ready_for_real"] = True
+            msg = (f"🏆 <b>SYSTEM READY FOR REAL MODE!</b>\n"
+                   f"🎯 Paper Win Rate: <b>{wr}%</b>\n"
+                   f"📊 Trades tracked: {total}\n"
+                   f"⚡ WP Threshold: {ld['wp_threshold']}% | Conf: {ld['conf_threshold']}%\n"
+                   f"✅ System has learned and optimised.\n"
+                   f"⚠️ Switch to REAL MODE in Admin Portal only after careful review.")
+            _bot_reply(CHAT_ID, msg)
+
+    GLOBAL_DATA["learning_data"] = ld
+    _save_learning_data()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # BACKGROUND THREADS
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -447,6 +648,13 @@ def data_refresh_loop():
                 else:
                     s["rsi_obi_confluence"] = False
 
+            # ── Smart Trading Engine: Spot vs Spot-Grid per coin ──────────────
+            _mkt_reg = GLOBAL_DATA.get("market_regime", "RANGING")
+            for s in inst_signals:
+                _strat, _sreason = determine_trading_strategy(s, whale_data, _mkt_reg)
+                s["trading_strategy"]        = _strat
+                s["trading_strategy_reason"] = _sreason
+
             GLOBAL_DATA["vmc"]          = vmc_data
             GLOBAL_DATA["whale"]        = whale_data
             GLOBAL_DATA["inst_signals"] = inst_signals
@@ -467,6 +675,15 @@ def data_refresh_loop():
 
             # ── Continuous Self-Upgrade Protocol ─────────────────────────────
             self_upgrade_cycle(inst_signals, whale_data, vmc_data)
+
+            # ── Price Alert Checker ──────────────────────────────────────────
+            check_price_alerts(vmc_data.get("ALL", []))
+
+            # ── Paper Mode Learning Update ───────────────────────────────────
+            update_paper_learning()
+
+            # ── Sync price_alerts to GLOBAL_DATA ────────────────────────────
+            GLOBAL_DATA["price_alerts"] = PRICE_ALERTS[:]
 
             # ── Fire Alerts ──────────────────────────────────────────────────
             if not GLOBAL_DATA.get("btc_pause"):
@@ -840,6 +1057,65 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 <form method="POST" action="/admin/set_exchange"><div class="form-row">
 <select name="exchange">{% for ex in exchanges %}<option value="{{ ex }}" {{ 'selected' if ex == exchange else '' }}>{{ ex }}</option>{% endfor %}</select>
 <button type="submit" class="btn btn-blue">Switch</button></div></form></div>
+
+<div class="card"><h3>🎯 PRICE ALERTS ({{ price_alerts|length }} active)</h3>
+<form method="POST" action="/admin/set_price_alert"><div class="form-row">
+<input type="text" name="symbol" placeholder="BTCUSDT" style="width:110px" required/>
+<input type="number" name="target_price" step="any" placeholder="Target Price" style="width:130px" required/>
+<select name="direction" style="width:90px"><option value="ABOVE">ABOVE ↑</option><option value="BELOW">BELOW ↓</option></select>
+<input type="text" name="note" placeholder="My reason…" style="flex:1"/>
+<button type="submit" class="btn btn-blue">+ Add Alert</button></div></form>
+{% if price_alerts %}
+<table style="margin-top:10px"><thead><tr><th>Symbol</th><th>Target</th><th>Dir</th><th>Note</th><th>Set At</th><th></th></tr></thead><tbody>
+{% for a in price_alerts %}<tr>
+<td style="color:#FFD700">{{ a.symbol.replace('USDT','') }}</td>
+<td style="color:#3fb950">{{ a.target_price }}</td>
+<td><span style="color:{{ '#3fb950' if a.direction=='ABOVE' else '#FF4500' }}">{{ a.direction }}</span></td>
+<td style="color:#555;font-size:10px">{{ a.note or '—' }}</td>
+<td style="color:#444;font-size:10px">{{ a.created_at }}</td>
+<td><form method="POST" action="/admin/delete_price_alert" style="display:inline">
+<input type="hidden" name="alert_id" value="{{ a.id }}"/>
+<button type="submit" class="btn btn-red" style="padding:2px 8px">✕</button></form></td>
+</tr>{% endfor %}</tbody></table>
+{% else %}<p style="color:#444;font-size:11px;margin-top:8px">No active alerts. Set a price target above — Telegram fires when hit.</p>{% endif %}
+</div>
+
+<div class="card"><h3>🔑 API KEY MANAGEMENT</h3>
+<p style="background:#1a0000;border:1px solid #FF4500;padding:8px;border-radius:4px;color:#FF4500;font-size:11px;margin-bottom:12px">
+⚠️ <b>SECURITY:</b> Enable <b>Read + Trade only.</b> NEVER enable Withdraw permission. Keys are masked after saving.
+</p>
+{% for ex in ['BINANCE','KUCOIN','MEXC','BITMART','BYBIT','OKX'] %}
+<details style="margin-bottom:6px;background:#0d1117;border-radius:4px;border:1px solid {{ '#30363d' if ex not in saved_keys else '#3fb950' }};padding:6px 10px">
+<summary style="cursor:pointer;color:{{ '#3fb950' if ex in saved_keys else '#8b949e' }};font-weight:bold;font-size:12px">
+{{ '✅' if ex in saved_keys else '⬜' }} {{ ex }}{{ ' — Configured' if ex in saved_keys else ' — Not set' }}
+</summary>
+<form method="POST" action="/admin/set_api_key" style="margin-top:8px">
+<input type="hidden" name="exchange" value="{{ ex }}"/>
+<div class="form-row">
+<input type="text" name="api_key" placeholder="API Key" style="flex:1"/>
+<input type="password" name="secret_key" placeholder="Secret Key" style="flex:1"/>
+{% if ex == 'OKX' %}<input type="password" name="passphrase" placeholder="Passphrase" style="width:130px"/>{% endif %}
+<button type="submit" class="btn btn-blue">Save</button>
+<form method="POST" action="/admin/test_connection" style="display:inline"><input type="hidden" name="exchange" value="{{ ex }}"/><button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d">Test ⚡</button></form>
+</div></form>
+{% if ex in saved_keys %}<p style="color:#555;font-size:10px;margin-top:4px">API Key: {{ saved_keys[ex]['api_key_mask'] }} | Secret: ●●●●●●●●●●●● (saved)</p>{% endif %}
+</details>{% endfor %}
+</div>
+
+<div class="card"><h3>🧠 PAPER MODE INTELLIGENCE</h3>
+<div>
+<div class="stat"><span class="val">{{ ld.get('paper_trades',0) }}</span><span class="lbl">Trades</span></div>
+<div class="stat"><span class="val {{ 'green' if ld.get('paper_win_rate',0)>=65 else 'yellow' if ld.get('paper_win_rate',0)>=50 else 'red' }}">{{ ld.get('paper_win_rate',0) }}%</span><span class="lbl">Win Rate</span></div>
+<div class="stat"><span class="val">{{ ld.get('wp_threshold',50) }}%</span><span class="lbl">WP Min</span></div>
+<div class="stat"><span class="val">{{ ld.get('conf_threshold',50) }}%</span><span class="lbl">Conf Min</span></div>
+{% if ld.get('ready_for_real') %}<div class="stat"><span class="val green">🏆 READY</span><span class="lbl">Real Mode</span></div>{% endif %}
+</div>
+{% if ld.get('adjustment_log') %}
+<div class="log-box" style="height:100px;margin-top:10px">{% for l in ld.get('adjustment_log',[])[-8:] %}{{ l }}
+{% endfor %}</div>{% endif %}
+<p style="color:#555;font-size:10px;margin-top:8px">Bot learns from every paper trade. Thresholds auto-adjust every 10 trades. Telegram alert fires at 65%+ win rate.</p>
+</div>
+
 <div class="card"><h3>🔥 HOT COINS (3+ signals/hr)</h3>
 <table><thead><tr><th>Symbol</th><th>Count</th><th>Since</th></tr></thead><tbody>
 {% for h in hot_coins %}<tr><td>{{ h.symbol }}</td><td style="color:#FF6B35">{{ h.count }}</td><td>{{ h.since }}</td></tr>{% else %}<tr><td colspan="3" style="color:#444">No hot coins active</td></tr>{% endfor %}
@@ -911,6 +1187,8 @@ def admin_portal():
         with open("system_audit.log") as f: preview = "".join(f.readlines()[-30:])
     except Exception:
         preview = "No audit log yet."
+    saved_keys_masked = {ex: {"api_key_mask": _mask(_API_KEYS[ex].get("api_key",""))}
+                         for ex in _API_KEYS}
     return render_template_string(ADMIN_PORTAL_HTML,
         status=GLOBAL_DATA["status"], cycles=GLOBAL_DATA["cycle_count"],
         uptime=f"{h}h {m}m {s}s", btc_pause=GLOBAL_DATA.get("btc_pause"),
@@ -925,7 +1203,92 @@ def admin_portal():
         hot_coins=GLOBAL_DATA["hot_coins"], alerts=GLOBAL_DATA["alert_history"],
         audit_preview=preview, today=time.strftime("%Y-%m-%d"),
         paper_mode=GLOBAL_DATA.get("paper_mode", True),
+        price_alerts=GLOBAL_DATA.get("price_alerts", []),
+        saved_keys=saved_keys_masked,
+        ld=GLOBAL_DATA.get("learning_data", {}),
     )
+
+
+@app.route("/admin/set_price_alert", methods=["POST"])
+@_admin_required
+def admin_set_price_alert():
+    global PRICE_ALERTS, _alert_id_counter
+    sym    = request.form.get("symbol", "").upper().strip()
+    if not sym.endswith("USDT"): sym += "USDT"
+    try:    target = float(request.form.get("target_price", 0))
+    except: return redirect("/admin")
+    direction = request.form.get("direction", "ABOVE").upper()
+    note      = request.form.get("note", "")[:120]
+    _alert_id_counter += 1
+    alert = {
+        "id":           _alert_id_counter,
+        "symbol":       sym,
+        "target_price": target,
+        "direction":    direction,
+        "note":         note,
+        "created_at":   time.strftime("%Y-%m-%d %H:%M"),
+    }
+    PRICE_ALERTS.append(alert)
+    GLOBAL_DATA["price_alerts"] = PRICE_ALERTS[:]
+    audit(request.remote_addr, "SET_PRICE_ALERT", "OK",
+          f"{sym} {direction} {target}")
+    return redirect("/admin")
+
+
+@app.route("/admin/delete_price_alert", methods=["POST"])
+@_admin_required
+def admin_delete_price_alert():
+    global PRICE_ALERTS
+    try:    aid = int(request.form.get("alert_id", -1))
+    except: return redirect("/admin")
+    PRICE_ALERTS = [a for a in PRICE_ALERTS if a["id"] != aid]
+    GLOBAL_DATA["price_alerts"] = PRICE_ALERTS[:]
+    audit(request.remote_addr, "DELETE_PRICE_ALERT", "OK", f"id={aid}")
+    return redirect("/admin")
+
+
+@app.route("/admin/set_api_key", methods=["POST"])
+@_admin_required
+def admin_set_api_key():
+    ex         = request.form.get("exchange", "").upper()
+    api_key    = request.form.get("api_key", "").strip()
+    secret_key = request.form.get("secret_key", "").strip()
+    passphrase = request.form.get("passphrase", "").strip()
+    if not ex or not api_key or not secret_key:
+        return redirect("/admin")
+    _API_KEYS[ex] = {"api_key": api_key, "secret_key": secret_key}
+    if passphrase: _API_KEYS[ex]["passphrase"] = passphrase
+    _save_api_keys()
+    audit(request.remote_addr, "SET_API_KEY", "OK",
+          f"ex={ex} key=...{api_key[-4:]}")
+    return redirect("/admin")
+
+
+@app.route("/admin/test_connection", methods=["POST"])
+@_admin_required
+def admin_test_connection():
+    ex = request.form.get("exchange", "").upper()
+    if ex not in _API_KEYS:
+        return f"<script>alert('No API key saved for {ex}');window.history.back()</script>"
+    try:
+        import hmac as _hmac, hashlib as _hl, urllib.parse as _up
+        import requests as _rq
+        key = _API_KEYS[ex]["api_key"]
+        sec = _API_KEYS[ex]["secret_key"]
+        if ex == "BINANCE":
+            ts  = int(time.time() * 1000)
+            qs  = f"timestamp={ts}"
+            sig = _hmac.new(sec.encode(), qs.encode(), _hl.sha256).hexdigest()
+            r   = _rq.get(f"https://api.binance.com/api/v3/account?{qs}&signature={sig}",
+                          headers={"X-MBX-APIKEY": key}, timeout=8)
+            ok  = r.status_code == 200
+        else:
+            ok = False  # stub for other exchanges
+        audit(request.remote_addr, "TEST_CONNECTION", "OK" if ok else "FAIL", f"ex={ex}")
+        msg = f"✅ {ex} Connected!" if ok else f"❌ {ex} Connection Failed (check key/secret)"
+    except Exception as e:
+        msg = f"❌ Error: {e}"
+    return f"<script>alert('{msg}');window.history.back()</script>"
 
 
 @app.route("/admin/set_mode", methods=["POST"])
