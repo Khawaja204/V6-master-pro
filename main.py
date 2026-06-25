@@ -53,9 +53,9 @@ SESSION_SECRET     = os.getenv("SESSION_SECRET") or \
     _hashlib.sha256(f"v6-session-{SECRET_KEY_VAL}".encode()).hexdigest()
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS", "{}")
 GOOGLE_SHEET_ID    = os.getenv("GOOGLE_SHEET_ID", "17mdb-9JuinpDAezkk5qCYgcP5GZYTU8KUBfLha_44mo")
-# ADMIN_PASSWORD: DASHBOARD_PASS → ADMIN_PASSWORD → hardcoded "786"
+# ADMIN_PASSWORD: single source of truth → ADMIN_PASSWORD env var, else "786".
 # (does NOT fall back to SECRET_KEY — that is an API key, not the admin password)
-ADMIN_PASSWORD     = os.getenv("DASHBOARD_PASS") or os.getenv("ADMIN_PASSWORD") or "786"
+ADMIN_PASSWORD     = os.getenv("ADMIN_PASSWORD") or "786"
 # TELEGRAM_PROXY: optional SOCKS5/HTTP proxy for regions where Telegram is blocked
 # Set to e.g. socks5://user:pass@host:1080 or http://host:8080
 TELEGRAM_PROXY     = os.getenv("TELEGRAM_PROXY")
