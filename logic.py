@@ -524,7 +524,36 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list, credentials_json: st
                           w["spoofing"]["bid_spoof"], w["spoofing"]["ask_spoof"],
                           w["wall_count"], w["min_dist_pct"], w.get("whale_power", 0)])
         ws_watch.clear(); ws_watch.update("A1", wrows)
-        log.info(f"Sheets updated — {len(rows)-1} LIVE_DASHBOARD, {len(wrows)-1} WATCH rows.")
+
+        # ARCHIVE_LOG — ensure tab always exists; append rows when LIVE > 1000
+        try: ws_arch = sheet.worksheet("ARCHIVE_LOG")
+        except Exception: ws_arch = sheet.add_worksheet("ARCHIVE_LOG", rows=5000, cols=15)
+        try:
+            all_live = ws_live.get_all_values()
+            if len(all_live) > 1000:
+                ws_arch.append_rows(all_live[1:len(all_live)-500])
+        except Exception: pass
+
+        # USERS — sync from local clients.json so the tab always reflects registered clients
+        try: ws_users = sheet.worksheet("USERS")
+        except Exception: ws_users = sheet.add_worksheet("USERS", rows=200, cols=8)
+        try:
+            import json as _j2
+            with open("clients.json") as _f:
+                clients_local = _j2.load(_f)
+        except Exception:
+            clients_local = []
+        urows = [["Name","UID","Password","Status","Expiry","SigLimit","Role","Added"]]
+        for c in clients_local:
+            urows.append([
+                c.get("name",""), c.get("uid",""), c.get("password",""),
+                c.get("status","ACTIVE"), c.get("expiry","UNLIMITED"),
+                c.get("sig_limit","100"), c.get("role","CLIENT"), c.get("added",""),
+            ])
+        ws_users.clear()
+        if urows: ws_users.update("A1", urows)
+
+        log.info(f"Sheets updated — {len(rows)-1} LIVE_DASHBOARD, {len(wrows)-1} WATCH, {len(urows)-1} USERS rows.")
         return True
     except ImportError:
         log.warning("gspread/oauth2client not installed — Sheets push skipped."); return False

@@ -1160,6 +1160,31 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
   <button type="submit" class="btn btn-blue">📄 Switch to PAPER MODE (Safe)</button>
   {% endif %}
 </form></div>
+<div class="card"><h3>👥 CLIENT MANAGEMENT</h3>
+<p style="color:#555;font-size:11px;margin-bottom:10px">Add/remove client access. Changes sync to Google Sheets USERS tab on next scan cycle.</p>
+<form method="POST" action="/admin/add_client"><div class="form-row">
+<input type="text" name="name" placeholder="Username" style="width:110px" required/>
+<input type="text" name="uid" placeholder="UID/ID" style="width:80px" required/>
+<input type="password" name="password" placeholder="Password" style="width:110px" required/>
+<input type="text" name="expiry" placeholder="UNLIMITED or YYYY-MM-DD" style="width:160px"/>
+<input type="number" name="sig_limit" placeholder="Signals/day" value="100" style="width:100px"/>
+<button type="submit" class="btn btn-blue">+ Add Client</button></div></form>
+{% if clients %}
+<table style="margin-top:12px"><thead><tr><th>Name</th><th>UID</th><th>Status</th><th>Expiry</th><th>Sig/Day</th><th></th></tr></thead><tbody>
+{% for c in clients %}<tr>
+<td style="color:#3fb950">{{ c.name }}</td>
+<td style="color:#FFD700">{{ c.uid }}</td>
+<td><span style="color:{{ '#3fb950' if c.status=='ACTIVE' else '#FF4500' }}">{{ c.status }}</span></td>
+<td style="color:#555;font-size:10px">{{ c.expiry }}</td>
+<td style="color:#8b949e">{{ c.sig_limit }}</td>
+<td>
+<form method="POST" action="/admin/toggle_client" style="display:inline"><input type="hidden" name="name" value="{{ c.name }}"/>
+<button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:2px 8px">{{ 'Disable' if c.status=='ACTIVE' else 'Enable' }}</button></form>
+<form method="POST" action="/admin/delete_client" style="display:inline;margin-left:4px"><input type="hidden" name="name" value="{{ c.name }}"/>
+<button type="submit" class="btn btn-red" style="padding:2px 8px" onclick="return confirm('Remove {{ c.name }}?')">✕</button></form>
+</td></tr>{% endfor %}</tbody></table>
+{% else %}<p style="color:#444;font-size:11px;margin-top:8px">No clients registered.</p>{% endif %}
+</div>
 <div class="card"><h3 style="color:#FF4500">⚠️ ADMIN CONTROLS</h3>
 <form method="POST" action="/admin/clear_history" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear history?')">Clear Alert History</button></form>
@@ -1217,6 +1242,7 @@ def admin_portal():
         price_alerts=GLOBAL_DATA.get("price_alerts", []),
         saved_keys=saved_keys_masked,
         ld=GLOBAL_DATA.get("learning_data", {}),
+        clients=[type('C', (), c)() for c in _load_clients()],
     )
 
 
@@ -1374,6 +1400,64 @@ def admin_audit_log():
     return f"<pre style='background:#0d1117;color:#c9d1d9;padding:20px;font-size:11px'>{''.join(filtered[-200:]) or 'No entries.'}</pre>"
 
 
+# ── Client Management Helpers ──────────────────────────────────────────────────
+
+def _load_clients() -> list:
+    try:
+        with open("clients.json") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_clients(clients: list):
+    with open("clients.json", "w") as f:
+        json.dump(clients, f, indent=2)
+
+
+@app.route("/admin/add_client", methods=["POST"])
+@_admin_required
+def admin_add_client():
+    name  = request.form.get("name", "").strip()
+    uid   = request.form.get("uid", "").strip()
+    pwd   = request.form.get("password", "").strip()
+    exp   = request.form.get("expiry", "UNLIMITED").strip() or "UNLIMITED"
+    lim   = request.form.get("sig_limit", "100").strip() or "100"
+    if not name or not uid or not pwd:
+        return redirect("/admin")
+    clients = _load_clients()
+    if any(c.get("name") == name for c in clients):
+        return f"<script>alert('Client \"{name}\" already exists.');window.history.back()</script>"
+    clients.append({"name": name, "uid": uid, "password": pwd, "status": "ACTIVE",
+                    "expiry": exp, "sig_limit": lim, "role": "CLIENT",
+                    "added": time.strftime("%Y-%m-%d")})
+    _save_clients(clients)
+    audit(request.remote_addr, "ADD_CLIENT", "OK", f"name={name} uid={uid}")
+    return redirect("/admin")
+
+
+@app.route("/admin/delete_client", methods=["POST"])
+@_admin_required
+def admin_delete_client():
+    name    = request.form.get("name", "").strip()
+    clients = [c for c in _load_clients() if c.get("name") != name]
+    _save_clients(clients)
+    audit(request.remote_addr, "DELETE_CLIENT", "OK", f"name={name}")
+    return redirect("/admin")
+
+
+@app.route("/admin/toggle_client", methods=["POST"])
+@_admin_required
+def admin_toggle_client():
+    name    = request.form.get("name", "").strip()
+    clients = _load_clients()
+    for c in clients:
+        if c.get("name") == name:
+            c["status"] = "INACTIVE" if c.get("status") == "ACTIVE" else "ACTIVE"
+    _save_clients(clients)
+    audit(request.remote_addr, "TOGGLE_CLIENT", "OK", f"name={name}")
+    return redirect("/admin")
+
+
 # ── Client Portal ──────────────────────────────────────────────────────────────
 
 CLIENT_LOGIN_HTML = """<!DOCTYPE html><html><head><title>V6 Client</title>
@@ -1391,28 +1475,55 @@ button{width:100%;padding:12px;background:#238636;color:#fff;border:none;border-
 </div></body></html>"""
 
 
-def _verify_client(username: str, password: str):
+def _verify_client_local(username: str, password: str):
+    """Verify client against local clients.json file."""
     try:
-        import gspread, json as _j
-        from oauth2client.service_account import ServiceAccountCredentials
-        cd = _j.loads(GOOGLE_CREDENTIALS)
-        if not cd or not GOOGLE_SHEET_ID: return None
-        creds  = ServiceAccountCredentials.from_json_keyfile_dict(cd, ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"])
-        client = gspread.authorize(creds)
-        ws     = client.open_by_key(GOOGLE_SHEET_ID).worksheet("USERS")
-        for row in ws.get_all_values()[1:]:
-            if len(row) < 6: continue
-            name, uid, pwd, status, expiry, lim = row[:6]
-            if name.strip() == username and pwd.strip() == password:
-                if status.strip().upper() != "ACTIVE": return {"error": "Account inactive."}
+        with open("clients.json") as _f:
+            clients = json.load(_f)
+        for c in clients:
+            if c.get("name", "").strip() == username and c.get("password", "").strip() == password:
+                status = c.get("status", "ACTIVE")
+                if status.strip().upper() != "ACTIVE":
+                    return {"error": "Account inactive."}
+                expiry = c.get("expiry", "UNLIMITED")
                 if expiry.strip().upper() not in ("UNLIMITED", ""):
                     try:
-                        if time.gmtime() > time.strptime(expiry.strip(), "%Y-%m-%d"): return {"error": "Account expired."}
-                    except Exception: pass
-                return {"username": name, "uid": uid, "sig_limit": lim, "role": "CLIENT"}
+                        if time.gmtime() > time.strptime(expiry.strip(), "%Y-%m-%d"):
+                            return {"error": "Account expired."}
+                    except Exception:
+                        pass
+                return {"username": c["name"], "uid": c.get("uid", ""), "sig_limit": c.get("sig_limit", "100"), "role": "CLIENT"}
         return None
     except Exception as e:
-        log.warning(f"Client verify failed: {e}"); return None
+        log.warning(f"Client verify (local) failed: {e}"); return None
+
+
+def _verify_client(username: str, password: str):
+    # Try Google Sheets first (if credentials are configured)
+    if GOOGLE_CREDENTIALS and GOOGLE_CREDENTIALS != "{}":
+        try:
+            import gspread, json as _j
+            from oauth2client.service_account import ServiceAccountCredentials
+            cd = _j.loads(GOOGLE_CREDENTIALS)
+            if cd and GOOGLE_SHEET_ID:
+                creds  = ServiceAccountCredentials.from_json_keyfile_dict(cd, ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"])
+                gc     = gspread.authorize(creds)
+                ws     = gc.open_by_key(GOOGLE_SHEET_ID).worksheet("USERS")
+                for row in ws.get_all_values()[1:]:
+                    if len(row) < 6: continue
+                    name, uid, pwd, status, expiry, lim = row[:6]
+                    if name.strip() == username and pwd.strip() == password:
+                        if status.strip().upper() != "ACTIVE": return {"error": "Account inactive."}
+                        if expiry.strip().upper() not in ("UNLIMITED", ""):
+                            try:
+                                if time.gmtime() > time.strptime(expiry.strip(), "%Y-%m-%d"): return {"error": "Account expired."}
+                            except Exception: pass
+                        return {"username": name, "uid": uid, "sig_limit": lim, "role": "CLIENT"}
+                return None
+        except Exception as e:
+            log.warning(f"Client verify (Sheets) failed: {e} — falling back to local store")
+    # Fallback: local clients.json (always works, no external dependency)
+    return _verify_client_local(username, password)
 
 
 @app.route("/client/login", methods=["GET", "POST"])
