@@ -1,12 +1,12 @@
 run = "python3 main.py"
   modules = ["python-3.11"]
 
-  [[ports]]
-  localPort = 8080
-  externalPort = 80
+[[ports]]
+localPort = 8080
+externalPort = 80
 
   [agent]
-  expertMode = true
+expertMode = true
 
   [nix]
   packages = ["psmisc"]

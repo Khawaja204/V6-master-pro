@@ -43,13 +43,18 @@ with open("config.json") as f:
     CONFIG = json.load(f)
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
+import hashlib as _hashlib
 BOT_TOKEN          = os.getenv("BOT_TOKEN")
 CHAT_ID            = os.getenv("CHAT_ID", "8743601537")
 SECRET_KEY_VAL     = os.getenv("SECRET_KEY", "786")
-SESSION_SECRET     = os.getenv("SESSION_SECRET", _secrets.token_hex(32))
+# SESSION_SECRET: use env var if set, otherwise derive a STABLE secret from
+# SECRET_KEY so it never changes on restart (fixes deployed session loss).
+SESSION_SECRET     = os.getenv("SESSION_SECRET") or \
+    _hashlib.sha256(f"v6-session-{SECRET_KEY_VAL}".encode()).hexdigest()
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS", "{}")
 GOOGLE_SHEET_ID    = os.getenv("GOOGLE_SHEET_ID", "17mdb-9JuinpDAezkk5qCYgcP5GZYTU8KUBfLha_44mo")
-ADMIN_PASSWORD     = os.getenv("SECRET_KEY", "786")
+# ADMIN_PASSWORD: dedicated secret → SECRET_KEY fallback → hardcoded default
+ADMIN_PASSWORD     = os.getenv("ADMIN_PASSWORD") or os.getenv("SECRET_KEY", "786")
 PORT               = int(os.getenv("PORT", "8080"))
 
 # ── Global State ──────────────────────────────────────────────────────────────
@@ -79,7 +84,7 @@ GLOBAL_DATA = {
     "volume_surge":   [],
     "smart_divergence": [],
     "upgrade_log":    [],
-    "paper_mode":     True,
+    "paper_mode":     CONFIG.get("paper_mode", True),
     "price_alerts":   [],
     "learning_data":  {},
 }
@@ -933,6 +938,12 @@ def _admin_required(fn):
 
 app = Flask(__name__)
 app.secret_key = SESSION_SECRET
+# ProxyFix: Replit runs behind a reverse proxy in production.
+# Without this, Flask sees wrong scheme/host and session cookies may fail.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 
 @app.route("/")
@@ -1297,6 +1308,13 @@ def admin_set_mode():
     current = GLOBAL_DATA.get("paper_mode", True)
     GLOBAL_DATA["paper_mode"] = not current
     mode = "PAPER" if GLOBAL_DATA["paper_mode"] else "REAL"
+    # Persist to config.json so paper_mode survives server restarts
+    CONFIG["paper_mode"] = GLOBAL_DATA["paper_mode"]
+    try:
+        with open("config.json", "w") as _cf:
+            json.dump(CONFIG, _cf, indent=2)
+    except Exception as _e:
+        log.debug(f"paper_mode save failed: {_e}")
     audit(request.remote_addr, "SET_MODE", "OK", f"mode={mode}")
     return redirect("/admin")
 
