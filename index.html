@@ -229,6 +229,87 @@ tr:hover td { background: #161b22; cursor: pointer; }
 .smd-section { flex:1; min-width:190px; }
 .smd-head    { font-size:10px; font-weight:bold; margin-bottom:4px; padding:2px 6px; border-radius:3px; }
 
+/* ── Paper Mode Banner ── */
+#paper-banner {
+  background:#1a1000; border-bottom:2px solid #FFD700; padding:5px 16px;
+  display:flex; align-items:center; gap:10px; font-size:11px; flex-shrink:0;
+}
+#paper-banner.real-mode { background:#1a0000; border-bottom-color:#FF4500; }
+.pm-badge { font-weight:bold; font-size:12px; padding:2px 8px; border-radius:3px; }
+.pm-paper { background:#2a2000; color:#FFD700; border:1px solid #FFD700; }
+.pm-real  { background:#2a0000; color:#FF4500; border:1px solid #FF4500; }
+
+/* ── Search Bar ── */
+.search-wrap { position:relative; display:flex; align-items:center; margin-left:auto; }
+#search-input {
+  background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:3px 8px 3px 26px;
+  border-radius:4px; font-size:11px; font-family:monospace; width:160px; outline:none;
+  transition:border-color 0.2s;
+}
+#search-input:focus { border-color:#58a6ff; width:200px; }
+.search-icon { position:absolute; left:7px; color:#555; font-size:12px; pointer-events:none; }
+#sv-toggle-btn {
+  background:#21262d; border:1px solid #30363d; color:#58a6ff; padding:2px 8px;
+  border-radius:3px; cursor:pointer; font-size:10px; font-family:monospace;
+  margin-left:6px; white-space:nowrap; transition:color 0.2s, border-color 0.2s;
+}
+#sv-toggle-btn:hover { border-color:#58a6ff; }
+#search-results {
+  position:absolute; top:110%; right:0; background:#161b22; border:1px solid #30363d;
+  border-radius:6px; min-width:260px; z-index:1000; max-height:320px; overflow-y:auto;
+  display:none; box-shadow:0 8px 24px #000;
+}
+#search-results.open { display:block; }
+.sr-item {
+  display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer;
+  border-bottom:1px solid #21262d; font-size:11px; transition:background 0.1s;
+}
+.sr-item:hover { background:#21262d; }
+.sr-sym  { color:#FFD700; font-weight:bold; width:55px; }
+.sr-price { color:#c9d1d9; flex:1; }
+.sr-act  { font-size:9px; padding:1px 5px; border-radius:3px; border:1px solid; }
+
+/* ── Simple View ── */
+#simple-view {
+  display:none; position:fixed; inset:0; background:#0a0a0f; z-index:500;
+  overflow-y:auto; padding:12px;
+}
+#simple-view.active { display:block; }
+.sv-header {
+  display:flex; align-items:center; gap:12px; margin-bottom:16px;
+  border-bottom:1px solid #21262d; padding-bottom:10px; flex-wrap:wrap;
+}
+.sv-header h2 { color:#FFD700; font-size:14px; flex:1; }
+.sv-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+.sv-card {
+  background:#111827; border:2px solid; border-radius:10px; padding:16px;
+  cursor:default; position:relative;
+}
+.sv-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.sv-coin-name { font-size:22px; font-weight:bold; color:#fff; }
+.sv-price { color:#8b949e; font-size:13px; }
+.sv-btn {
+  width:100%; padding:14px; border:none; border-radius:8px; font-size:16px; font-weight:bold;
+  font-family:monospace; cursor:pointer; letter-spacing:1px; margin-bottom:10px;
+  transition:filter 0.15s;
+}
+.sv-btn:hover { filter:brightness(1.15); }
+.sv-btn.buy   { background:#3fb950; color:#000; }
+.sv-btn.sell  { background:#FFD700; color:#000; }
+.sv-btn.hold  { background:#1f6feb; color:#fff; }
+.sv-btn.wait  { background:#333; color:#8b949e; }
+.sv-btn.avoid { background:#da3633; color:#fff; animation:svBlink 1.5s infinite; }
+@keyframes svBlink { 50% { opacity:0.7; } }
+.sv-reason { color:#8b949e; font-size:11px; margin-bottom:8px; line-height:1.4; }
+.sv-meta   { font-size:10px; color:#555; display:flex; gap:10px; }
+.sv-detail-btn {
+  position:absolute; top:12px; right:12px; background:#21262d; border:1px solid #30363d;
+  color:#58a6ff; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:10px;
+  font-family:monospace; transition:background 0.15s;
+}
+.sv-detail-btn:hover { background:#30363d; }
+.sv-empty { color:#444; text-align:center; padding:40px; font-size:13px; }
+
 /* ── Focus action borders ── */
 .card-buy  { box-shadow: 0 0 10px #3fb95055; border-color: #3fb950 !important; }
 .card-sell { border-color: #FFD700 !important; }
@@ -327,6 +408,21 @@ document.addEventListener('click', () => _ac(), { once: true });
   <span id="hot-cnt" style="color:#FF6B35">0</span>
   <span style="color:#555;margin-left:8px">W/L:</span>
   <span id="wl-ratio" style="color:#3fb950">—</span>
+  <span style="color:#30363d;margin-left:8px">│</span>
+  <button onclick="toggleSimpleView()" id="sv-toggle-btn" title="Simple View — 5 big coins">⚡ SIMPLE</button>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Search coin…" autocomplete="off"
+           oninput="searchCoins(this.value)" onblur="setTimeout(closeSearch,200)">
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<!-- PAPER MODE BANNER -->
+<div id="paper-banner">
+  <span class="pm-badge pm-paper" id="pm-badge-lbl">📄 PAPER MODE</span>
+  <span id="pm-desc" style="color:#FFD700">Simulated — trades are NOT real. Safe for testing.</span>
+  <span style="margin-left:auto;color:#555;font-size:10px">Toggle in Admin Portal → Mode Settings</span>
 </div>
 
 <!-- ACTION BANNER -->
@@ -430,7 +526,7 @@ document.addEventListener('click', () => _ac(), { once: true });
       <table>
         <thead><tr>
           <th>Symbol</th><th>Price</th><th>WhalePow%</th><th>Label</th>
-          <th>Walls</th><th>MinDist%</th><th>Blink</th><th>OBI</th><th>OBI Spk</th><th>Spoofing</th><th>Closest</th>
+          <th>Walls</th><th>MinDist%</th><th>Blink</th><th>OBI</th><th>OBI Spk</th><th>Spoofing</th><th>Closest</th><th>ACTION</th>
         </tr></thead>
         <tbody id="whale-body"></tbody>
       </table>
@@ -800,7 +896,7 @@ function renderWhale(whales, whale24) {
   _prevWhaleCrit = critCount;
 
   if (!whales.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="11">No whale walls detected…</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="12">No whale walls detected…</td></tr>`;
     return;
   }
   tbody.innerHTML = whales.slice(0, 50).map(w => {
@@ -810,12 +906,28 @@ function renderWhale(whales, whale24) {
     const spf    = (w.spoofing||{}).details !== 'Clean'
                  ? `<span class="tag-WHALE-TRAP">${(w.spoofing||{}).details}</span>`
                  : '<span class="neu">Clean</span>';
+    const isFake = (w.spoofing||{}).details && (w.spoofing||{}).details !== 'Clean';
     const closest = (w.walls||[]).length
       ? `${w.walls[0].side}@${fmtP(w.walls[0].price_level)}(${w.walls[0].dist_pct}%)` : '—';
     const obi    = w.obi || {};
     const obiCls = obi.spike ? 'obi-spike' : obi.obi > 0 ? 'obi-pos' : obi.obi < 0 ? 'obi-neg' : 'neu';
     const obiSpk = obi.spike ? `<span class="obi-spike">⚡${obi.velocity}</span>` : '—';
     const wp     = w.whale_power || 0;
+    // ── Whale ACTION classification ───────────────────────────────────────────
+    let wAction, wActColor;
+    if (lbl === 'WHALE TRAP' || isFake) {
+      wAction = '🚫 AVOID'; wActColor = '#FF4500';
+    } else if (w.blink_to_push) {
+      wAction = '👀 WATCH'; wActColor = '#FF6B35';
+    } else if (lbl === 'BLINK→PUSH') {
+      wAction = '👀 WATCH'; wActColor = '#FF6B35';
+    } else if ((w.walls||[]).some(x => x.side === 'BID' && x.size_usdt > 500000)) {
+      wAction = '📊 SUPPORT'; wActColor = '#3fb950';
+    } else if ((w.walls||[]).some(x => x.side === 'ASK' && x.size_usdt > 500000)) {
+      wAction = '📊 RESIST'; wActColor = '#FFD700';
+    } else {
+      wAction = '◎ SR Level'; wActColor = '#555';
+    }
     return `<tr onclick="openSniper('${w.symbol}')">
       <td class="col-sym ${wp>=85?'tag-GOLDEN':'tag-FAV'}">${(w.symbol||'').replace('USDT','')}</td>
       <td>${fmtP(w.price)}</td>
@@ -828,6 +940,7 @@ function renderWhale(whales, whale24) {
       <td>${obiSpk}</td>
       <td>${spf}</td>
       <td class="neu" style="font-size:10px">${closest}</td>
+      <td><span style="color:${wActColor};font-weight:bold;font-size:10px">${wAction}</span></td>
     </tr>`;
   }).join('');
 }
@@ -1149,10 +1262,137 @@ async function fetchData() {
     renderActionBanner(data);
     renderCommandCenter(data);
     renderSmartDiv(data);
+    renderPaperBanner(data);
+    if (_svActive) renderSimpleView(data);
   } catch(e) {
     document.getElementById('sb-status').textContent = 'fetch error';
     document.getElementById('sb-status').className   = 'error';
   }
+}
+
+// ── Paper Mode Banner ─────────────────────────────────────────────────────────
+function renderPaperBanner(d) {
+  const banner = document.getElementById('paper-banner');
+  const badge  = document.getElementById('pm-badge-lbl');
+  const desc   = document.getElementById('pm-desc');
+  if (!banner) return;
+  if (d.paper_mode === false) {
+    banner.className = 'real-mode'; banner.style.display = 'flex';
+    badge.className = 'pm-badge pm-real'; badge.textContent = '💰 REAL MODE';
+    desc.style.color = '#FF4500';
+    desc.textContent = 'LIVE EXECUTION — Trade signals are real. Use extreme caution.';
+  } else {
+    banner.className = ''; banner.style.display = 'flex';
+    badge.className = 'pm-badge pm-paper'; badge.textContent = '📄 PAPER MODE';
+    desc.style.color = '#FFD700';
+    desc.textContent = 'Simulated — trades are NOT real. Safe for testing.';
+  }
+}
+
+// ── Search Bar ────────────────────────────────────────────────────────────────
+function searchCoins(q) {
+  const res = document.getElementById('search-results');
+  if (!data || q.trim().length < 1) { res.className = ''; return; }
+  const all  = (data.vmc && data.vmc.ALL) ? data.vmc.ALL : [];
+  const term = q.trim().toUpperCase();
+  const hits = all.filter(c => (c.symbol||'').replace('USDT','').includes(term)).slice(0, 10);
+  if (!hits.length) { res.className = ''; return; }
+  res.className = 'open';
+  res.innerHTML = hits.map(c => {
+    const sym  = (c.symbol||'').replace('USDT','');
+    const price= typeof c.price === 'number' ? (c.price >= 1 ? c.price.toFixed(4) : c.price.toFixed(8)) : '—';
+    const chg  = c.change_pct ? (c.change_pct > 0 ? '+' : '') + c.change_pct.toFixed(2) + '%' : '';
+    const chgC = c.change_pct > 0 ? '#3fb950' : '#FF4500';
+    const fld  = c.folder || '—';
+    return `<div class="sr-item" onmousedown="openSniper('${c.symbol}')">
+      <span class="sr-sym">${sym}</span>
+      <span class="sr-price">${price}</span>
+      <span style="color:${chgC};font-size:10px">${chg}</span>
+      <span class="sr-act" style="color:#58a6ff;border-color:#21262d">${fld}</span>
+    </div>`;
+  }).join('');
+}
+function closeSearch() {
+  const res = document.getElementById('search-results');
+  if (res) res.className = '';
+}
+
+// ── Simple View ───────────────────────────────────────────────────────────────
+let _svActive = false;
+function toggleSimpleView() {
+  _svActive = !_svActive;
+  const sv   = document.getElementById('simple-view');
+  const btn  = document.getElementById('sv-toggle-btn');
+  if (_svActive) {
+    sv.classList.add('active');
+    btn.style.color = '#FFD700'; btn.style.borderColor = '#FFD700';
+    if (data) renderSimpleView(data);
+  } else {
+    sv.classList.remove('active');
+    btn.style.color = ''; btn.style.borderColor = '';
+  }
+}
+
+function _svAction(coin) {
+  const inst = coin.inst || {};
+  const tl   = inst.traffic || 'RED';
+  const wp   = inst.whale_power || 0;
+  const conf = coin.confidence || 0;
+  const price = coin.price || 0;
+  const tp   = coin.tp_zones || {};
+  if (tl === 'RED') return { label:'AVOID', cls:'avoid', color:'#FF4500', reason:'RED signal — no entry' };
+  if (tp.tp1 && price >= tp.tp1 * 0.995) return { label:'SELL NOW', cls:'sell', color:'#FFD700',
+    reason:`Near TP1 ${tp.tp1 > 0 ? tp.tp1.toFixed(4) : '—'}` };
+  if ((tl === 'GREEN' || tl === 'YELLOW') && wp > 50 && conf > 50)
+    return { label:'BUY NOW', cls:'buy', color:'#3fb950',
+      reason:`Entry ~${tp.entry_low ? tp.entry_low.toFixed(4) : '—'} | TP1 ${tp.tp1 ? tp.tp1.toFixed(4) : '—'}` };
+  if (tl === 'YELLOW') return { label:'WAIT', cls:'wait', color:'#888',
+    reason:`WP ${wp}% Conf ${conf}% — signal building` };
+  if (tp.tp1 && price > 0) {
+    const dTp1 = ((tp.tp1 - price) / price * 100).toFixed(1);
+    return { label:'HOLD', cls:'hold', color:'#1f6feb', reason:`TP1 +${dTp1}% away` };
+  }
+  return { label:'WAIT', cls:'wait', color:'#888', reason:'Signal building…' };
+}
+
+function renderSimpleView(d) {
+  if (!_svActive) return;
+  const grid = document.getElementById('sv-grid');
+  if (!grid) return;
+  const all = d.inst_signals || [];
+  const sorted = [...all].sort((a, b) => {
+    const wa = a.inst?.whale_power || 0, wb = b.inst?.whale_power || 0;
+    return wb - wa;
+  });
+  const coins = sorted.slice(0, 8);
+  if (!coins.length) {
+    grid.innerHTML = '<div class="sv-empty">Scanning markets… first cycle in progress.</div>'; return;
+  }
+  grid.innerHTML = coins.map(coin => {
+    const sym   = (coin.symbol || '').replace('USDT', '');
+    const price = coin.price ? (coin.price >= 1 ? coin.price.toFixed(4) : coin.price.toFixed(6)) : '—';
+    const act   = _svAction(coin);
+    const wp    = coin.inst?.whale_power || 0;
+    const conf  = coin.confidence || 0;
+    const hot   = (d.hot_coins || []).some(h => h.symbol === coin.symbol) ? '🔥 HOT' : '';
+    return `<div class="sv-card" style="border-color:${act.color}20">
+      <button class="sv-detail-btn" onclick="openSniper('${coin.symbol}');toggleSimpleView()">Details →</button>
+      <div class="sv-card-top">
+        <span class="sv-coin-name">${sym} ${hot}</span>
+        <span class="sv-price">$${price}</span>
+      </div>
+      <button class="sv-btn ${act.cls}" onclick="openSniper('${coin.symbol}');toggleSimpleView()">
+        ${act.label}
+      </button>
+      <div class="sv-reason">${act.reason}</div>
+      <div class="sv-meta">
+        <span>🐋 ${wp}% Whale</span>
+        <span>🎯 ${conf}% Confidence</span>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('sv-sub').textContent =
+    `${sorted.length} coins scanned · ${coins.length} shown · Auto-refresh 30s · BTC: ${d.btc?.sentiment || '?'}`;
 }
 
 // ── Countdown (30s) ───────────────────────────────────────────────────────────
@@ -1187,5 +1427,23 @@ panelIds.forEach(id => { const el = document.getElementById(id); if (el) obs.obs
 fetchData();
 setInterval(tick, 1000);
 </script>
+
+<!-- SIMPLE VIEW OVERLAY -->
+<div id="simple-view">
+  <div class="sv-header">
+    <h2>⚡ SIMPLE VIEW — V6 MASTER PRO</h2>
+    <span id="sv-sub" style="color:#555;font-size:11px"></span>
+    <button onclick="toggleSimpleView()" style="background:#21262d;border:1px solid #30363d;color:#58a6ff;padding:5px 12px;border-radius:4px;cursor:pointer;font-family:monospace;font-size:11px">
+      ← Full Dashboard
+    </button>
+  </div>
+  <div id="sv-grid" class="sv-grid">
+    <div class="sv-empty">Scanning markets… first cycle in progress.</div>
+  </div>
+  <div style="margin-top:20px;padding:10px;background:#0d1117;border-radius:6px;font-size:10px;color:#555;text-align:center">
+    🟢 GREEN = BUY NOW &nbsp;│&nbsp; 🟡 GOLD = SELL NOW &nbsp;│&nbsp; 🔵 BLUE = HOLD &nbsp;│&nbsp; ⬛ GREY = WAIT &nbsp;│&nbsp; 🔴 RED = AVOID<br>
+    Click any button to open full coin analysis
+  </div>
+</div>
 </body>
 </html>

@@ -79,6 +79,7 @@ GLOBAL_DATA = {
     "volume_surge":   [],
     "smart_divergence": [],
     "upgrade_log":    [],
+    "paper_mode":     True,
 }
 
 BACKTEST_SIGNALS   = []           # max 100 tracked signals
@@ -856,6 +857,22 @@ table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;c
 <select name="fmt"><option value="html">HTML</option><option value="csv">CSV</option></select>
 <button type="submit" class="btn btn-blue">Export</button></div></form>
 <div class="log-box">{{ audit_preview }}</div></div>
+<div class="card"><h3 style="color:{{ 'yellow' if paper_mode else '#FF4500' }}">{{ '📄 PAPER MODE' if paper_mode else '💰 REAL MODE — LIVE' }}</h3>
+<div style="margin-bottom:12px;padding:10px;background:#0d1117;border-radius:4px;border:2px solid {{ '#FFD700' if paper_mode else '#FF4500' }}">
+  <span style="color:{{ '#FFD700' if paper_mode else '#FF4500' }};font-size:18px;font-weight:bold">
+    {{ '📄 PAPER MODE — Simulated Trades' if paper_mode else '💰 REAL MODE — Live Execution ACTIVE ⚠️' }}
+  </span>
+  <p style="color:#555;font-size:11px;margin-top:6px">{{ 'All signals are simulated. No real money at risk. Safe for testing and development.' if paper_mode else 'CAUTION: All signals are treated as live trades. Real money execution mode.' }}</p>
+</div>
+<form method="POST" action="/admin/set_mode">
+  {% if paper_mode %}
+  <button type="submit" class="btn btn-red" onclick="return confirm('⚠️ SWITCH TO REAL MODE?\n\nThis enables live trade execution. All signals will be treated as real trades.\n\nAre you ABSOLUTELY sure?')">
+    ⚡ Switch to REAL MODE
+  </button>
+  {% else %}
+  <button type="submit" class="btn btn-blue">📄 Switch to PAPER MODE (Safe)</button>
+  {% endif %}
+</form></div>
 <div class="card"><h3 style="color:#FF4500">⚠️ ADMIN CONTROLS</h3>
 <form method="POST" action="/admin/clear_history" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear history?')">Clear Alert History</button></form>
@@ -907,7 +924,18 @@ def admin_portal():
         exchanges=["BINANCE","KUCOIN","BITMART","MEXC"],
         hot_coins=GLOBAL_DATA["hot_coins"], alerts=GLOBAL_DATA["alert_history"],
         audit_preview=preview, today=time.strftime("%Y-%m-%d"),
+        paper_mode=GLOBAL_DATA.get("paper_mode", True),
     )
+
+
+@app.route("/admin/set_mode", methods=["POST"])
+@_admin_required
+def admin_set_mode():
+    current = GLOBAL_DATA.get("paper_mode", True)
+    GLOBAL_DATA["paper_mode"] = not current
+    mode = "PAPER" if GLOBAL_DATA["paper_mode"] else "REAL"
+    audit(request.remote_addr, "SET_MODE", "OK", f"mode={mode}")
+    return redirect("/admin")
 
 
 @app.route("/admin/set_balance", methods=["POST"])
