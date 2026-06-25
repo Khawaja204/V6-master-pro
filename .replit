@@ -39,4 +39,8 @@ deploymentTarget = "cloudrun"
 
   [workflows.workflow.metadata]
   outputType = "webview"
+
+[userenv]
+
+[userenv.shared]
   
