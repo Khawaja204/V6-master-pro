@@ -76,6 +76,8 @@ GLOBAL_DATA = {
     "market_regime":  "RANGING",
     "today_signals":  0,
     "top_coin_today": None,
+    "volume_surge":   [],
+    "smart_divergence": [],
 }
 
 BACKTEST_SIGNALS   = []           # max 100 tracked signals
@@ -327,6 +329,57 @@ def data_refresh_loop():
                     })
 
             inst_signals.sort(key=lambda x: (x["inst"]["spike"], x["confidence"]), reverse=True)
+
+            # ── Agent Self-Upgrade: Volume Surge Detection ─────────────────────
+            all_coins = vmc_data.get("ALL", [])
+            volumes   = [c.get("volume", 0) for c in all_coins if c.get("volume", 0) > 0]
+            if volumes:
+                vols_sorted  = sorted(volumes)
+                median_vol   = vols_sorted[len(vols_sorted)//2] if vols_sorted else 1
+                vol_surge_coins = [
+                    {"symbol": c["symbol"], "volume": c.get("volume",0),
+                     "surge_ratio": round(c.get("volume",0) / (median_vol or 1), 2)}
+                    for c in all_coins
+                    if c.get("volume", 0) >= median_vol * 2.5 and c.get("volume",0) > 0
+                ]
+                vol_surge_coins.sort(key=lambda x: x["surge_ratio"], reverse=True)
+                GLOBAL_DATA["volume_surge"] = vol_surge_coins[:10]
+            else:
+                GLOBAL_DATA["volume_surge"] = []
+
+            # ── Agent Self-Upgrade: Smart Money Divergence (price↑ OBI↓) ──────
+            smart_div = []
+            for w in whale_data:
+                sym    = w["symbol"]
+                obi_v  = w.get("obi", {}).get("obi", 0)
+                coin_c = next((c for c in all_coins if c["symbol"] == sym), None)
+                if not coin_c:
+                    continue
+                chg = coin_c.get("change_pct", 0)
+                # Distribution: price up but OBI negative = asks dominating (smart money selling into pump)
+                if chg > 1.5 and obi_v < 0:
+                    smart_div.append({"symbol": sym, "change_pct": chg,
+                                      "obi": round(obi_v, 4), "signal": "DISTRIBUTION"})
+                # Accumulation: price down but OBI positive = bids dominating (smart money buying dip)
+                elif chg < -1.5 and obi_v > 0:
+                    smart_div.append({"symbol": sym, "change_pct": chg,
+                                      "obi": obi_v, "signal": "ACCUMULATION"})
+            smart_div.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+            GLOBAL_DATA["smart_divergence"] = smart_div[:10]
+
+            # ── Agent Self-Upgrade: RSI-OBI Confluence Boost ──────────────────
+            for s in inst_signals:
+                sym      = s["symbol"]
+                rsi_val  = s.get("rsi", 50)
+                obi_val  = s.get("inst", {}).get("ofi_score", 50)
+                # Confluence: oversold RSI + strong bid OBI = strong buy setup
+                if rsi_val and rsi_val < 38 and obi_val > 60:
+                    s["rsi_obi_confluence"] = True
+                    s["confidence"] = min(99, s["confidence"] + 8)
+                elif rsi_val and rsi_val > 68 and obi_val < 40:
+                    s["rsi_obi_confluence"] = True   # overbought + bid dropping
+                else:
+                    s["rsi_obi_confluence"] = False
 
             GLOBAL_DATA["vmc"]          = vmc_data
             GLOBAL_DATA["whale"]        = whale_data

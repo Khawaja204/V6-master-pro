@@ -171,6 +171,50 @@ tr:hover td { background: #161b22; cursor: pointer; }
 .streak-badge { background: #1a3a1a; color: #3fb950; border: 1px solid #3fb950;
                 border-radius: 3px; padding: 1px 6px; font-size: 10px; font-weight: bold; }
 
+/* ── ACTION BANNER ── */
+#action-banner {
+  background: #0d1117; border-bottom: 2px solid #1f6feb;
+  padding: 0 12px; flex-shrink: 0;
+}
+.ab-title {
+  color: #555; font-size: 10px; padding: 4px 0 2px;
+  display: flex; align-items: center; gap: 8px;
+}
+.ab-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px; margin: 2px 0; border-radius: 4px;
+  border: 1px solid #21262d; cursor: pointer; font-size: 11px;
+  transition: filter 0.15s; background: #111827; flex-wrap: wrap;
+}
+.ab-row:hover { filter: brightness(1.25); }
+.ab-buy  { box-shadow: 0 0 8px #3fb95055; border-color: #3fb950 !important; }
+.ab-sell { border-color: #FFD700 !important; }
+.ab-hold { border-color: #1f6feb !important; }
+.ab-avoid{ border-color: #FF4500 !important; animation: critBlink 1.2s infinite; }
+@keyframes critBlink { 50% { border-color: #3a0000 !important; } }
+.ab-icon { font-size: 14px; flex-shrink: 0; }
+.ab-sym  { color: #FFD700; font-weight: bold; width: 52px; flex-shrink: 0; }
+.ab-badge {
+  font-size: 9px; font-weight: bold; padding: 1px 6px;
+  border-radius: 3px; border: 1px solid; flex-shrink: 0; white-space: nowrap;
+}
+.ab-meta  { color: #8b949e; font-size: 10px; flex-shrink: 0; }
+.ab-reason{ color: #6e7681; font-size: 10px; flex: 1; }
+.ab-empty { color: #333; text-align: center; padding: 8px; font-size: 11px; }
+
+/* ── Market Breadth ── */
+.breadth-bull { color: #3fb950; } .breadth-bear { color: #FF4500; }
+
+/* ── Focus action borders ── */
+.card-buy  { box-shadow: 0 0 10px #3fb95055; border-color: #3fb950 !important; }
+.card-sell { border-color: #FFD700 !important; }
+.card-avoid{ border-color: #FF4500 !important; }
+.card-hold { border-color: #1f6feb !important; }
+.action-badge {
+  font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 3px;
+  border: 1px solid; margin-top: 4px; display: inline-block;
+}
+
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   body { font-size: 11px; height: auto; overflow: auto; }
@@ -259,6 +303,20 @@ document.addEventListener('click', () => _ac(), { once: true });
   <span id="hot-cnt" style="color:#FF6B35">0</span>
   <span style="color:#555;margin-left:8px">W/L:</span>
   <span id="wl-ratio" style="color:#3fb950">—</span>
+</div>
+
+<!-- ACTION BANNER -->
+<div id="action-banner">
+  <div class="ab-title">
+    ⚡ ACTION SIGNALS — Top 5 coins by priority &nbsp;
+    <span style="color:#388bfd">BUY NOW</span> &nbsp;
+    <span style="color:#FFD700">SELL</span> &nbsp;
+    <span style="color:#58a6ff">HOLD</span> &nbsp;
+    <span style="color:#888">WAIT</span> &nbsp;
+    <span style="color:#FF4500">AVOID</span>
+    <span id="breadth-stat" style="margin-left:auto;font-size:10px;color:#555"></span>
+  </div>
+  <div id="ab-rows"><div class="ab-empty">Awaiting first scan cycle…</div></div>
 </div>
 
 <!-- Main -->
@@ -479,17 +537,125 @@ function renderVMC(vmc) {
   }).join('');
 }
 
+// ── Classify Action ────────────────────────────────────────────────────────────
+function classifyAction(sig, whaleArr) {
+  const inst  = sig.inst || {};
+  const tp    = sig.tp_zones || {};
+  const siz   = sig.sizing || {};
+  const tl    = inst.traffic || 'RED';
+  const wp    = inst.whale_power || 0;
+  const conf  = sig.confidence || 0;
+  const price = sig.price || 0;
+  const wh    = (whaleArr || []).find(w => w.symbol === sig.symbol) || {};
+  const blink = wh.blink_to_push || false;
+  const label = wh.label || '';
+
+  // AVOID: RED light OR Whale Trap OR BLINK→PUSH
+  if (tl === 'RED' || label === 'WHALE TRAP' || blink) {
+    const risk = blink ? 'BLINK→PUSH detected' : label === 'WHALE TRAP' ? 'Whale Trap active' : 'RED light — no entry';
+    return { action:'AVOID', icon:'🚫', color:'#FF4500', cls:'ab-avoid', reason: risk };
+  }
+  // SELL: Price within 0.5% of TP1 or TP2
+  if (tp.tp1 && price >= tp.tp1 * 0.995) {
+    const pnl = tp.entry_low ? ((price - tp.entry_low) / tp.entry_low * 100).toFixed(2) : '?';
+    return { action:'SELL', icon:'💰', color:'#FFD700', cls:'ab-sell', reason:`Near TP1 ${fmtP(tp.tp1)} (+${pnl}% est)` };
+  }
+  if (tp.tp2 && price >= tp.tp2 * 0.995) {
+    return { action:'SELL', icon:'💰', color:'#FFD700', cls:'ab-sell', reason:`Near TP2 ${fmtP(tp.tp2)}` };
+  }
+  // BUY NOW: (GREEN or YELLOW) + Whale > 50% + Conf > 50%
+  if ((tl === 'GREEN' || tl === 'YELLOW') && wp > 50 && conf > 50) {
+    return { action:'BUY NOW', icon:'✅', color:'#3fb950', cls:'ab-buy',
+             reason:`Entry ${fmtP(tp.entry_low)} TP1 ${fmtP(tp.tp1)} TP2 ${fmtP(tp.tp2)} TP3 ${fmtP(tp.tp3)} SL ${fmtP(tp.stop_loss)} Pos ${siz.alloc_usdt?'$'+siz.alloc_usdt:'—'}` };
+  }
+  // WAIT: YELLOW + Conf < 50%
+  if (tl === 'YELLOW') {
+    const miss = wp <= 50 ? `Need WhalePow>50% (now ${wp}%)` : `Need Conf>50% (now ${conf}%)`;
+    return { action:'WAIT', icon:'⏳', color:'#8b949e', cls:'', reason: miss };
+  }
+  // HOLD: active signal, not near TP yet
+  if (tp.tp1 && price > 0) {
+    const dTp1 = ((tp.tp1 - price) / price * 100).toFixed(2);
+    const dSl  = tp.stop_loss ? ((price - tp.stop_loss) / price * 100).toFixed(2) : '?';
+    return { action:'HOLD', icon:'⏸️', color:'#58a6ff', cls:'ab-hold', reason:`TP1 +${dTp1}% | SL -${dSl}%` };
+  }
+  return { action:'WAIT', icon:'⏳', color:'#8b949e', cls:'', reason:'Signal building' };
+}
+
+// ── Action Banner ──────────────────────────────────────────────────────────────
+function renderActionBanner(data) {
+  const signals  = data.inst_signals || [];
+  const whales   = data.whale || [];
+  const hotSyms  = (data.hot_coins || []).map(h => h.symbol);
+
+  // Market breadth (coins with positive change = bullish)
+  const allCoins = (data.vmc || {}).ALL || [];
+  if (allCoins.length) {
+    const bullish = allCoins.filter(c => (c.change_pct||0) > 0).length;
+    const pct     = Math.round(bullish / allCoins.length * 100);
+    const bEl     = document.getElementById('breadth-stat');
+    if (bEl) bEl.innerHTML = `Market Breadth: <span class="${pct>=55?'breadth-bull':'breadth-bear'}">${pct}%</span> bullish (${bullish}/${allCoins.length} coins ▲)`;
+  }
+
+  if (!signals.length) {
+    document.getElementById('ab-rows').innerHTML = '<div class="ab-empty">Awaiting scan…</div>';
+    return;
+  }
+
+  // Dedup signals by symbol before classifying
+  const seen = {}; const uniq = [];
+  signals.forEach(s => { if (!seen[s.symbol]) { seen[s.symbol] = true; uniq.push(s); } });
+
+  const classified = uniq.map(s => ({ ...s, _act: classifyAction(s, whales) }));
+  const order = { 'BUY NOW':0, 'SELL':1, 'HOLD':2, 'WAIT':3, 'AVOID':4 };
+  classified.sort((a,b) => (order[a._act.action]??5) - (order[b._act.action]??5));
+  const top5 = classified.slice(0, 5);
+
+  document.getElementById('ab-rows').innerHTML = top5.map(s => {
+    const act = s._act;
+    const sym = (s.symbol||'').replace('USDT','');
+    const wp  = s.inst?.whale_power || 0;
+    const conf = s.confidence || 0;
+    const hot = hotSyms.includes(s.symbol) ? '<span class="hot-tag">🔥HOT</span>' : '';
+    return `<div class="ab-row ${act.cls}" onclick="openSniper('${s.symbol}')">
+      <span class="ab-icon">${act.icon}</span>
+      <span class="ab-sym">${sym}</span>
+      <span class="ab-badge" style="color:${act.color};border-color:${act.color}">${act.action}</span>
+      <span class="ab-meta">🐋${wp}% Conf:${conf}%</span>
+      <span class="ab-reason">${act.reason}</span>
+      ${hot}
+    </div>`;
+  }).join('');
+}
+
 // ── Institutional ─────────────────────────────────────────────────────────────
-function renderInst(signals) {
+function renderInst(signals, whaleArr) {
   const tbody = document.getElementById('inst-body');
   const bSum  = document.getElementById('b-summary');
   if (!signals || !signals.length) {
     tbody.innerHTML = `<tr class="empty-row"><td colspan="14">Computing institutional signals…</td></tr>`;
-    bSum.textContent = '';
-    return;
+    bSum.textContent = ''; return;
   }
-  bSum.textContent = `${signals.length} signals | top conf: ${signals[0]?.confidence ?? '—'}%`;
-  const top = signals[0];
+
+  // ── DEDUP: one row per symbol, combine folder tags ─────────────────────────
+  const bySymbol = {};
+  signals.forEach(s => {
+    const sym = s.symbol;
+    if (!bySymbol[sym]) {
+      bySymbol[sym] = { ...s, _folders: [s.folder || 'ALL'] };
+    } else {
+      const f = s.folder || 'ALL';
+      if (!bySymbol[sym]._folders.includes(f)) bySymbol[sym]._folders.push(f);
+      // Keep highest inst_score version
+      if ((s.inst?.inst_score||0) > (bySymbol[sym].inst?.inst_score||0))
+        bySymbol[sym] = { ...s, _folders: bySymbol[sym]._folders };
+    }
+  });
+  const deduped = Object.values(bySymbol).sort((a,b) =>
+    (b.confidence||0) - (a.confidence||0));
+
+  bSum.textContent = `${deduped.length} unique coins (${signals.length} signals) | top conf: ${deduped[0]?.confidence ?? '—'}%`;
+  const top = deduped[0];
   if (top && top.inst) {
     const tl = top.inst.traffic || 'RED';
     const el = document.getElementById('global-tl');
@@ -497,25 +663,28 @@ function renderInst(signals) {
     el.className   = tl === 'GREEN' ? 'tl-green' : tl === 'YELLOW' ? 'tl-yellow' : 'tl-red';
     document.getElementById('global-inst').textContent = top.inst.inst_score ?? '—';
   }
-  const hasSpike = signals.some(s => s.inst && s.inst.spike);
+  const hasSpike = deduped.some(s => s.inst && s.inst.spike);
   if (hasSpike && !_prevInstSpike) soundSuddenSpike();
   _prevInstSpike = hasSpike;
 
-  tbody.innerHTML = signals.slice(0, 20).map((s, i) => {
-    const inst  = s.inst   || {};
-    const tp    = s.tp_zones || {};
-    const siz   = s.sizing  || {};
-    const tl    = inst.traffic || 'RED';
-    const spike = inst.spike ? '<span class="spike-tag">⚡SPIKE</span>' : '';
-    const conf  = s.confidence ?? 0;
+  tbody.innerHTML = deduped.slice(0, 30).map((s, i) => {
+    const inst   = s.inst || {};
+    const tp     = s.tp_zones || {};
+    const siz    = s.sizing  || {};
+    const tl     = inst.traffic || 'RED';
+    const spike  = inst.spike ? '<span class="spike-tag">⚡SPIKE</span>' : '';
+    const conf   = s.confidence ?? 0;
     const sizCls = tl === 'GREEN' ? 'pos' : tl === 'YELLOW' ? '' : 'neg';
-    const ofi   = (inst.ofi_score || 0) >= 55 ? '<span class="obi-pos">▲</span>' :
-                  (inst.ofi_score || 0) <= 45 ? '<span class="obi-neg">▼</span>' : '<span class="neu">—</span>';
+    const ofi    = (inst.ofi_score||0) >= 55 ? '<span class="obi-pos">▲</span>'
+                 : (inst.ofi_score||0) <= 45 ? '<span class="obi-neg">▼</span>' : '<span class="neu">—</span>';
     const hotTag = isHot(s.symbol) ? '<span class="hot-tag">🔥</span>' : '';
+    const act    = classifyAction(s, whaleArr || []);
+    const foldersHtml = (s._folders || [s.folder || 'ALL']).map(f =>
+      `<span class="tag-${f}" style="margin-right:2px">${f}</span>`).join('');
     return `<tr onclick="openSniper('${s.symbol}')">
       <td>${spike}${i===0&&inst.spike?'👑':'#'+(i+1)}</td>
       <td class="col-sym tag-VIP">${(s.symbol||'').replace('USDT','')}${hotTag}</td>
-      <td><span class="tag-${s.folder||'ALL'}">${s.folder||'—'}</span></td>
+      <td>${foldersHtml}</td>
       <td>${tlCell(tl)}</td>
       <td>${inst.inst_score ?? '—'}</td>
       <td>${conf}%${confBar(conf)}</td>
@@ -526,7 +695,7 @@ function renderInst(signals) {
       <td class="tp-b">▲▲${fmtP(tp.tp2)}</td>
       <td class="tp-b">▲▲▲${fmtP(tp.tp3)}</td>
       <td class="${sizCls}">${siz.alloc_usdt ? '$'+siz.alloc_usdt : '—'}</td>
-      <td style="color:#555">${inst.confirms??'—'}/3</td>
+      <td><span class="ab-badge" style="color:${act.color};border-color:${act.color};font-size:8px">${act.icon}${act.action}</span></td>
     </tr>`;
   }).join('');
 }
@@ -813,10 +982,11 @@ async function fetchData() {
     renderStatus(data);
     renderBTC(data.btc || {}, data.btc_pause || false, data.market_regime || 'RANGING');
     renderVMC(data.vmc || {});
-    renderInst(data.inst_signals || []);
+    renderInst(data.inst_signals || [], data.whale || []);
     renderWhale(data.whale || [], data.whale_24h || []);
     renderBacktest(data.backtest || [], data.total_wins || 0, data.total_losses || 0, data.win_rate || 0);
     renderHistory(data.alert_history || []);
+    renderActionBanner(data);
   } catch(e) {
     document.getElementById('sb-status').textContent = 'fetch error';
     document.getElementById('sb-status').className   = 'error';

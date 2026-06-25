@@ -40,9 +40,24 @@ body { background: #0a0a0f; color: #c9d1d9; font-family: 'Courier New', monospac
   padding: 12px; cursor: pointer; transition: border-color 0.2s;
   position: relative; overflow: hidden;
 }
-.coin-card:hover { border-color: #388bfd; background: #161b22; }
+.coin-card:hover { filter: brightness(1.15); }
 .coin-card.critical { border-color: #FF4500; animation: critBlink 1s infinite; }
-@keyframes critBlink { 50% { border-color: #4a1515; } }
+.coin-card.card-buy  { border-color: #3fb950 !important; box-shadow: 0 0 10px #3fb95066; }
+.coin-card.card-sell { border-color: #FFD700 !important; box-shadow: 0 0 8px #FFD70033; }
+.coin-card.card-avoid{ border-color: #FF4500 !important; animation: critBlink 1.2s infinite; }
+.coin-card.card-hold { border-color: #1f6feb !important; }
+@keyframes critBlink { 50% { border-color: #3a0000 !important; box-shadow: none; } }
+
+.act-badge {
+  display: inline-block; font-size: 9px; font-weight: bold; padding: 2px 6px;
+  border-radius: 3px; border: 1px solid; margin-top: 5px;
+}
+.act-reason { font-size: 9px; color: #555; margin-top: 3px; line-height: 1.3; }
+.hot-filter-btn {
+  padding: 3px 10px; border: 1px solid #FF6B35; background: #0d1117; color: #FF6B35;
+  cursor: pointer; border-radius: 4px; font-size: 10px; font-family: monospace;
+}
+.hot-filter-btn.active { background: #FF6B35; color: #fff; }
 
 .card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .card-sym  { color: #FFD700; font-weight: bold; font-size: 15px; flex: 1; }
@@ -171,6 +186,9 @@ body { background: #0a0a0f; color: #c9d1d9; font-family: 'Courier New', monospac
       <button class="sort-btn" onclick="setSort('whale')">Whale Power</button>
       <button class="sort-btn" onclick="setSort('confidence')">Confidence</button>
       <button class="sort-btn" onclick="setSort('inst')">Inst Score</button>
+      <span style="color:#333;margin:0 4px">|</span>
+      <button class="hot-filter-btn" id="hot-filter-btn" onclick="toggleHotOnly()">🔥 HOT ONLY</button>
+      <span style="color:#555;font-size:10px" id="hot-filter-note"></span>
     </div>
   </div>
   <div id="coin-grid" style="padding:12px 16px;"></div>
@@ -216,6 +234,7 @@ let focusData = null;
 let currentSym = null;
 let currentInterval = '1h';
 let sortMode = 'combined';
+let showHotOnly = false;
 let chart = null;
 let candleSeries = null;
 let countdown = 30;
@@ -260,6 +279,54 @@ const folderCls = f => {
 };
 const dr = (label, val, cls='') => `<div class="dr"><span class="dl">${label}</span><span class="dv ${cls}">${val}</span></div>`;
 
+// ── Action Classifier ─────────────────────────────────────────────────────────
+function classifyAction(coin) {
+  const inst  = coin.inst || {};
+  const tp    = coin.tp_zones || {};
+  const siz   = coin.sizing || {};
+  const tl    = inst.traffic || 'RED';
+  const wp    = inst.whale_power || 0;
+  const conf  = coin.confidence || 0;
+  const price = coin.price || 0;
+  const blink = false; // whale blink data not in focus_data
+  const label = '';    // resolved in whale_detail
+
+  if (tl === 'RED') {
+    return { action:'AVOID', icon:'🚫', color:'#FF4500', cls:'card-avoid', reason:'RED light — no entry' };
+  }
+  if (tp.tp1 && price >= tp.tp1 * 0.995) {
+    const pnl = tp.entry_low ? ((price - tp.entry_low) / tp.entry_low * 100).toFixed(2) : '?';
+    return { action:'SELL', icon:'💰', color:'#FFD700', cls:'card-sell', reason:`Near TP1 ${fmtP(tp.tp1)} (+${pnl}% est)` };
+  }
+  if (tp.tp2 && price >= tp.tp2 * 0.995) {
+    return { action:'SELL', icon:'💰', color:'#FFD700', cls:'card-sell', reason:`Near TP2 ${fmtP(tp.tp2)}` };
+  }
+  if ((tl === 'GREEN' || tl === 'YELLOW') && wp > 50 && conf > 50) {
+    return { action:'BUY NOW', icon:'✅', color:'#3fb950', cls:'card-buy',
+             reason:`Entry ${fmtP(tp.entry_low)} TP1 ${fmtP(tp.tp1)} SL ${fmtP(tp.stop_loss)} Pos ${siz.alloc_usdt?'$'+siz.alloc_usdt:'—'}` };
+  }
+  if (tl === 'YELLOW') {
+    const miss = wp <= 50 ? `WhalePow ${wp}%<50` : `Conf ${conf}%<50`;
+    return { action:'WAIT', icon:'⏳', color:'#8b949e', cls:'', reason: `Missing: ${miss}` };
+  }
+  if (tp.tp1 && price > 0) {
+    const dTp1 = ((tp.tp1 - price) / price * 100).toFixed(2);
+    const dSl  = tp.stop_loss ? ((price - tp.stop_loss) / price * 100).toFixed(2) : '?';
+    return { action:'HOLD', icon:'⏸️', color:'#58a6ff', cls:'card-hold', reason:`TP1 +${dTp1}% | SL -${dSl}%` };
+  }
+  return { action:'WAIT', icon:'⏳', color:'#8b949e', cls:'', reason:'Signal building' };
+}
+
+// ── HOT ONLY Toggle ──────────────────────────────────────────────────────────
+function toggleHotOnly() {
+  showHotOnly = !showHotOnly;
+  const btn  = document.getElementById('hot-filter-btn');
+  const note = document.getElementById('hot-filter-note');
+  btn.classList.toggle('active', showHotOnly);
+  note.textContent = showHotOnly ? '(showing hot coins only)' : '';
+  if (focusData) renderList(focusData);
+}
+
 // ── Sort ──────────────────────────────────────────────────────────────────────
 function setSort(mode) {
   sortMode = mode;
@@ -278,12 +345,16 @@ function sortCoins(coins) {
 
 // ── List Render ───────────────────────────────────────────────────────────────
 function renderList(data) {
-  const coins = sortCoins(data.coins || []);
+  let coins = sortCoins(data.coins || []);
+  if (showHotOnly) coins = coins.filter(c => c.is_hot);
+
   document.getElementById('list-sub').textContent =
-    `${coins.length} coins | Sorted by ${sortMode} | BTC: ${data.btc?.sentiment||'?'} | Auto-refresh 30s`;
+    `${coins.length} coins${showHotOnly?' (HOT ONLY)':''} | Sorted by ${sortMode} | BTC: ${data.btc?.sentiment||'?'} | Auto-refresh 30s`;
   const grid = document.getElementById('coin-grid');
   if (!coins.length) {
-    grid.innerHTML = '<div class="spinner">No signals yet — waiting for scan cycle…</div>';
+    grid.innerHTML = showHotOnly
+      ? '<div class="spinner">No HOT COINS detected yet — need 3+ signals in 1hr per coin…</div>'
+      : '<div class="spinner">No signals yet — waiting for scan cycle…</div>';
     return;
   }
   grid.innerHTML = coins.map(c => {
@@ -294,8 +365,10 @@ function renderList(data) {
     const tl    = inst.traffic || 'RED';
     const crit  = wp >= 85;
     const price = fmtP(c.price);
+    const act   = classifyAction(c);
+    const cardCls = `coin-card ${crit?'critical':''} ${act.cls}`.trim();
     return `
-    <div class="coin-card${crit?' critical':''}" onclick="openCoin('${c.symbol}')">
+    <div class="${cardCls}" onclick="openCoin('${c.symbol}')">
       <div class="card-top">
         <span class="card-sym">${(c.symbol||'').replace('USDT','')}</span>
         <span class="card-folder ${folderCls(c.folder)}">${c.folder||'—'}</span>
@@ -312,6 +385,10 @@ function renderList(data) {
         <span style="color:#555">RSI:${c.rsi||'—'}</span>
         <span style="color:#555">C/3:${inst.confirms||0}</span>
       </div>
+      <div>
+        <span class="act-badge" style="color:${act.color};border-color:${act.color}">${act.icon} ${act.action}</span>
+      </div>
+      <div class="act-reason">${act.reason}</div>
     </div>`;
   }).join('');
 }
