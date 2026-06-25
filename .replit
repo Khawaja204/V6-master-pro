@@ -13,7 +13,7 @@ run = "python3 main.py"
   channel = "stable-25_05"
 
   [deployment]
-  deploymentTarget = "vm"
+deploymentTarget = "cloudrun"
   run = ["python3", "main.py"]
 
   [workflows]
