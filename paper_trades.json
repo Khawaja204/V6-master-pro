@@ -1,1 +1,54 @@
-[]
+[
+  {
+    "id": "PT-1782386262-ETHU",
+    "symbol": "ETHUSDT",
+    "side": "SELL",
+    "strategy": "SPOT",
+    "amount_usdt": 10.0,
+    "price": 1634.98,
+    "qty": 0.006116,
+    "mode": "PAPER",
+    "manual": true,
+    "status": "FILLED (SIMULATED)",
+    "time": "2026-06-25 11:17:42"
+  },
+  {
+    "id": "PT-1782386233-BTCU",
+    "symbol": "BTCUSDT",
+    "side": "SELL",
+    "strategy": "SPOT",
+    "amount_usdt": 10.0,
+    "price": 61284.97,
+    "qty": 0.000163,
+    "mode": "PAPER",
+    "manual": true,
+    "status": "FILLED (SIMULATED)",
+    "time": "2026-06-25 11:17:13"
+  },
+  {
+    "id": "PT-1782386175-ETHU",
+    "symbol": "ETHUSDT",
+    "side": "BUY",
+    "strategy": "SPOT",
+    "amount_usdt": 10.0,
+    "price": 1636.0,
+    "qty": 0.006112,
+    "mode": "PAPER",
+    "manual": true,
+    "status": "FILLED (SIMULATED)",
+    "time": "2026-06-25 11:16:15"
+  },
+  {
+    "id": "PT-1782386086-BTCU",
+    "symbol": "BTCUSDT",
+    "side": "BUY",
+    "strategy": "SPOT",
+    "amount_usdt": 10.0,
+    "price": 61348.54,
+    "qty": 0.000163,
+    "mode": "PAPER",
+    "manual": true,
+    "status": "FILLED (SIMULATED)",
+    "time": "2026-06-25 11:14:46"
+  }
+]
