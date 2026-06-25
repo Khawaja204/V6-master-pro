@@ -44,8 +44,8 @@ with open("config.json") as f:
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
 import hashlib as _hashlib
-BOT_TOKEN          = os.getenv("BOT_TOKEN")
-CHAT_ID            = os.getenv("CHAT_ID", "8743601537")
+BOT_TOKEN          = (os.getenv("BOT_TOKEN") or "").strip() or None
+CHAT_ID            = (os.getenv("CHAT_ID", "8743601537") or "").strip() or None
 SECRET_KEY_VAL     = os.getenv("SECRET_KEY", "786")
 # SESSION_SECRET: use env var if set, otherwise derive a STABLE secret from
 # SECRET_KEY so it never changes on restart (fixes deployed session loss).
@@ -148,7 +148,8 @@ def _save_paper_trades():
 
 
 def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
-                          strategy: str, manual: bool = False) -> dict:
+                          strategy: str, manual: bool = False,
+                          reason: str = "") -> dict:
     """Simulate a trade — records result, no real money moved."""
     from logic import fetch_ticker_price as _ftp
     price = _ftp(symbol)
@@ -166,6 +167,7 @@ def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
         "qty":         qty,
         "mode":        "PAPER",
         "manual":      manual,
+        "reason":      reason or ("Manual admin trade" if manual else "Auto trade"),
         "status":      "FILLED (SIMULATED)",
         "time":        time.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -277,6 +279,68 @@ _total_wins        = 0
 _total_losses      = 0
 _today_coin_counts = defaultdict(int)    # symbol → count today
 
+# ── Daily Circuit-Breaker state (resets at UTC midnight) ───────────────────────
+_daily_lock  = threading.Lock()
+_daily_stats = {"date": "", "losses": 0, "wins": 0,
+                "realized_pnl_pct": 0.0, "tripped": False, "tripped_reason": ""}
+
+
+def _today_utc() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def _reset_daily_if_needed() -> None:
+    today = _today_utc()
+    if _daily_stats["date"] != today:
+        _daily_stats.update({"date": today, "losses": 0, "wins": 0,
+                             "realized_pnl_pct": 0.0, "tripped": False,
+                             "tripped_reason": ""})
+
+
+def _entries_allowed() -> bool:
+    """False when the daily circuit-breaker has tripped."""
+    with _daily_lock:
+        _reset_daily_if_needed()
+        return not _daily_stats["tripped"]
+
+
+def _record_trade_result(is_win: bool, pnl_pct: float) -> None:
+    """Feed a resolved trade into the daily circuit-breaker; trip if limits hit."""
+    with _daily_lock:
+        _reset_daily_if_needed()
+        if is_win:
+            _daily_stats["wins"] += 1
+        else:
+            _daily_stats["losses"] += 1
+        _daily_stats["realized_pnl_pct"] = round(
+            _daily_stats["realized_pnl_pct"] + (pnl_pct or 0.0), 3)
+
+        tm       = CONFIG.get("trade_management", {})
+        max_loss = tm.get("daily_max_losses", 5)
+        max_dd   = abs(tm.get("daily_max_drawdown_pct", 10.0))
+        just_tripped = False
+        if not _daily_stats["tripped"]:
+            if _daily_stats["losses"] >= max_loss:
+                _daily_stats["tripped"] = True
+                _daily_stats["tripped_reason"] = f"{_daily_stats['losses']} losses ≥ {max_loss}"
+                just_tripped = True
+            elif _daily_stats["realized_pnl_pct"] <= -max_dd:
+                _daily_stats["tripped"] = True
+                _daily_stats["tripped_reason"] = f"drawdown {_daily_stats['realized_pnl_pct']}% ≤ -{max_dd}%"
+                just_tripped = True
+        GLOBAL_DATA["circuit_breaker"] = dict(_daily_stats)
+
+    if just_tripped:
+        log.warning(f"[CIRCUIT-BREAKER] Tripped: {_daily_stats['tripped_reason']} — entries paused for the day")
+        audit("SYSTEM", "CIRCUIT_BREAKER", "TRIPPED", _daily_stats["tripped_reason"])
+        send_telegram(
+            f"🛑 <b>DAILY CIRCUIT-BREAKER TRIPPED</b>\n"
+            f"Reason: {_daily_stats['tripped_reason']}\n"
+            f"Today: {_daily_stats['wins']}W / {_daily_stats['losses']}L | "
+            f"PnL {_daily_stats['realized_pnl_pct']}%\n"
+            f"⛔ New entries paused until 00:00 UTC."
+        )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS
@@ -302,14 +366,27 @@ def _record_alert(alert_type: str, symbol: str, label: str, price,
 
 
 def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
-                            tp_zones: dict, confidence: int):
-    """Record signal for live backtesting. Dedup: same coin not tracked twice in 30 min."""
+                            tp_zones: dict, confidence: int,
+                            traffic: str = "", reason: str = ""):
+    """Record signal as a tracked entry. Returns the entry dict, or None if the
+    entry was filtered out (GREEN-only rule, circuit-breaker, or dedup window).
+    Dedup: same coin not tracked twice in 30 min."""
     global BACKTEST_SIGNALS
+    tm = CONFIG.get("trade_management", {})
+
+    # ── GREEN-only entries: skip YELLOW/RED signals when enabled ──────────────
+    if tm.get("green_only_entries", True) and traffic and traffic != "GREEN":
+        return None
+    # ── Daily circuit-breaker: no new entries once tripped ────────────────────
+    if not _entries_allowed():
+        return None
+
     now = time.time()
     if now - _bt_dedup.get(symbol, 0) < 1800:
-        return
+        return None
     _bt_dedup[symbol] = now
 
+    sl = tp_zones.get("stop_loss", 0)
     entry = {
         "id":          f"{symbol}_{int(now)}",
         "symbol":      symbol,
@@ -320,7 +397,11 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         "tp1":         tp_zones.get("tp1", 0),
         "tp2":         tp_zones.get("tp2", 0),
         "tp3":         tp_zones.get("tp3", 0),
-        "stop_loss":   tp_zones.get("stop_loss", 0),
+        "stop_loss":   sl,
+        "original_sl": sl,          # preserved for trailing-stop display
+        "trailing":    "",          # "" | "BREAKEVEN" | "TP1"
+        "traffic":     traffic,
+        "reason":      reason or f"{folder} signal | conf {confidence}%",
         "confidence":  confidence,
         "status":      "OPEN",
         "tp1_hit":     False,
@@ -336,6 +417,7 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
     if len(BACKTEST_SIGNALS) > 100:
         BACKTEST_SIGNALS = BACKTEST_SIGNALS[:100]
     GLOBAL_DATA["backtest"] = BACKTEST_SIGNALS
+    return entry
 
 
 def _update_hot_coins(symbol: str) -> bool:
@@ -375,21 +457,63 @@ def _tg_proxies():
     return {"http": TELEGRAM_PROXY, "https": TELEGRAM_PROXY} if TELEGRAM_PROXY else None
 
 
-def send_telegram(msg: str, inline_button: dict = None):
+def send_telegram(msg: str, inline_button: dict = None) -> bool:
+    """Send a Telegram message. Returns True on a confirmed-OK send, else False."""
     if not BOT_TOKEN or not CHAT_ID:
-        return
-    try:
-        import requests as _r
-        payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}
-        if inline_button:
-            payload["reply_markup"] = {"inline_keyboard": [[{
-                "text": inline_button.get("text", "📊 View Dashboard"),
-                "url":  inline_button.get("url", "")
-            }]]}
-        _r.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json=payload, timeout=10, proxies=_tg_proxies())
-    except Exception as e:
-        log.warning(f"Telegram send failed: {e}")
+        return False
+    import requests as _r
+    payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}
+    if inline_button:
+        payload["reply_markup"] = {"inline_keyboard": [[{
+            "text": inline_button.get("text", "📊 View Dashboard"),
+            "url":  inline_button.get("url", "")
+        }]]}
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    # Try via proxy first (if configured); on any failure fall back to a direct
+    # connection so a flaky/misconfigured proxy never silently drops alerts.
+    proxy = _tg_proxies()
+    attempts = [proxy, None] if proxy else [None]
+    for i, prox in enumerate(attempts):
+        label = "proxy" if prox else "direct"
+        try:
+            resp = _r.post(url, json=payload, timeout=10, proxies=prox)
+            if resp.status_code == 200 and resp.json().get("ok"):
+                return True
+            # API reachable but rejected the request (bad token/chat_id) — no
+            # point retrying via direct, the payload/credentials are the issue.
+            log.warning(f"Telegram API rejected send ({label}): "
+                        f"HTTP {resp.status_code} {resp.text[:160]}")
+            return False
+        except Exception as e:
+            if i == len(attempts) - 1:
+                log.warning(f"Telegram send failed ({label}): {e}")
+            else:
+                log.info(f"Telegram {label} send failed, falling back to direct: {e}")
+    return False
+
+
+def notify_trade(symbol: str, side: str, strategy: str, mode: str, reason: str,
+                 price=None, amount=None, tp_zones: dict = None, traffic: str = ""):
+    """Unified Telegram alert for every trade/entry, including the rationale."""
+    side  = (side or "BUY").upper()
+    icon  = "🟢" if side == "BUY" else "🔴"
+    light = (f" | {traffic}") if traffic else ""
+    lines = [f"{icon} <b>TRADE {side} — {symbol}</b>",
+             f"Mode: {mode} | Strategy: {strategy}{light}"]
+    if price is not None:
+        lines.append(f"Entry: {_fmtP(price)}")
+    if amount is not None:
+        lines.append(f"Size: ${amount}")
+    if tp_zones:
+        lines.append(
+            f"🎯 TP1 {_fmtP(tp_zones.get('tp1',0))} | "
+            f"TP2 {_fmtP(tp_zones.get('tp2',0))} | "
+            f"TP3 {_fmtP(tp_zones.get('tp3',0))}")
+        lines.append(f"🛡 SL {_fmtP(tp_zones.get('stop_loss',0))}")
+    lines.append(f"📋 <b>Rationale:</b> {reason}")
+    send_telegram("\n".join(lines),
+                  inline_button={"text": f"📊 Sniper: {symbol.replace('USDT','')}",
+                                 "url": _dashboard_url(symbol)})
 
 
 def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: int = 0):
@@ -412,7 +536,20 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
     _record_alert("VIP", coin["symbol"], "VIP SIGNAL" + (" 🔥" if is_hot else ""),
                   coin["price"], f"Score:{coin['score']} | RSI:{coin['rsi']} | Conf:{confidence}%", tl, confidence)
     if tp_zones:
-        _record_backtest_signal(coin["symbol"], coin["price"], "VIP", tp_zones, confidence)
+        wp_v   = inst.get("whale_power", "—") if inst else "—"
+        ins_v  = inst.get("inst_score", "—") if inst else "—"
+        strat  = coin.get("trading_strategy", "SPOT")
+        sreason= coin.get("trading_strategy_reason", "")
+        reason = (f"VIP {tl} | Score {coin['score']} | RSI {coin['rsi']} | "
+                  f"WhalePow {wp_v}% | Inst {ins_v} | Conf {confidence}%"
+                  + (f" | {sreason}" if sreason else ""))
+        entry = _record_backtest_signal(coin["symbol"], coin["price"], "VIP",
+                                        tp_zones, confidence, traffic=tl, reason=reason)
+        if entry:   # an actual entry passed the GREEN-only + circuit-breaker gate
+            notify_trade(coin["symbol"], "BUY", strat, "PAPER (AUTO)", reason,
+                         price=coin["price"], tp_zones=tp_zones, traffic=tl)
+            audit("SYSTEM", "AUTO_ENTRY", "OPENED",
+                  f"sym={coin['symbol']} traffic={tl} conf={confidence}%")
     audit("SYSTEM", "VIP_ALERT", "SENT", f"sym={coin['symbol']} score={coin['score']} conf={confidence}%")
 
 
@@ -899,23 +1036,56 @@ def backtest_check_loop():
                     sig["tp1_hit"] = sig["tp2_hit"] = True
                 elif sig["tp1"] and current >= sig["tp1"]:
                     sig["tp1_hit"] = True
+
+                # ── Trailing stop: ratchet SL up as targets are reached ────────
+                tm = CONFIG.get("trade_management", {})
+                if tm.get("trailing_stop_enabled", True):
+                    if sig["tp2_hit"] and tm.get("trail_to_tp1_on_tp2", True) and sig["tp1"]:
+                        if sig["stop_loss"] < sig["tp1"]:
+                            sig["stop_loss"] = sig["tp1"]
+                            sig["trailing"]  = "TP1"
+                    elif sig["tp1_hit"] and tm.get("breakeven_on_tp1", True):
+                        if sig["stop_loss"] < entry:
+                            sig["stop_loss"] = entry
+                            sig["trailing"]  = "BREAKEVEN"
+
                 if sig["stop_loss"] and current <= sig["stop_loss"]:
                     sig["sl_hit"] = True
 
-                # Resolve after 1h
-                if age >= 3600:
-                    sig["exit_price"] = current
-                    sig["exit_time"]  = time.strftime("%Y-%m-%d %H:%M:%S")
-                    sig["pnl_pct"]    = round((current - entry) / entry * 100, 3)
+                # ── Early close: trailing stop hit AFTER a profit target — lock
+                #    the result immediately instead of waiting for 1h. ──
+                trailing_exit = sig["sl_hit"] and sig["tp1_hit"] and sig.get("trailing")
 
-                    if sig["tp1_hit"]:
+                # Resolve after 1h (or immediately on a trailing-stop exit)
+                if age >= 3600 or trailing_exit:
+                    # On an SL hit, fill at the stop level (not the polled price,
+                    # which can have gapped past it); otherwise fill at current.
+                    if sig["sl_hit"] and sig["stop_loss"]:
+                        sig["exit_price"] = min(current, sig["stop_loss"])
+                    else:
+                        sig["exit_price"] = current
+                    sig["exit_time"]  = time.strftime("%Y-%m-%d %H:%M:%S")
+                    sig["pnl_pct"]    = round((sig["exit_price"] - entry) / entry * 100, 3)
+
+                    # Classify by REALIZED PnL, not merely whether tp1 was tagged
+                    # — a trailing stop can exit at breakeven or a small loss.
+                    if sig["sl_hit"]:
+                        win = sig["pnl_pct"] > 0
+                        sig["result"] = "WIN" if win else "LOSS"
+                        sig["status"] = "CLOSED"
+                        if win: _total_wins += 1; _win_streak += 1
+                        else:   _total_losses += 1; _win_streak = 0
+                        _record_trade_result(win, sig["pnl_pct"])
+                    elif sig["tp1_hit"]:
                         sig["result"] = "WIN"; sig["status"] = "CLOSED"
                         _total_wins += 1
                         _win_streak += 1
-                    elif sig["sl_hit"] or (age >= 4 * 3600 and sig["pnl_pct"] < 0):
+                        _record_trade_result(True, sig["pnl_pct"])
+                    elif age >= 4 * 3600 and sig["pnl_pct"] < 0:
                         sig["result"] = "LOSS"; sig["status"] = "CLOSED"
                         _total_losses += 1
                         _win_streak = 0
+                        _record_trade_result(False, sig["pnl_pct"])
                     elif age >= 4 * 3600:
                         sig["result"] = "TIMEOUT"; sig["status"] = "CLOSED"
                     changed = True
@@ -1422,13 +1592,15 @@ function loadTrades(){
     if(!trades.length){el.innerHTML='<i style="color:#444">No trades logged yet.</i>';return;}
     el.innerHTML=trades.slice(0,15).map(t=>{
       const sc=t.side==='BUY'?'#3fb950':'#FFD700';
-      return `<div style="border-bottom:1px solid #1a1a2e;padding:3px 0">
+      const reason=t.reason?`<div style="color:#8b949e;font-size:9px;margin-top:2px">📋 ${t.reason}</div>`:'';
+      return `<div style="border-bottom:1px solid #1a1a2e;padding:4px 0">
         <span style="color:${sc};font-weight:bold">${t.side}</span>
         <span style="color:#c9d1d9"> ${(t.symbol||'').replace('USDT','')}</span>
         <span style="color:#58a6ff"> $${t.amount_usdt}</span>
         <span style="color:#555"> @ ${t.price||'?'}</span>
         <span style="color:#555"> · ${t.strategy||'SPOT'}</span>
         <span style="color:#444;float:right">${t.time}</span>
+        ${reason}
       </div>`;
     }).join('');
   }).catch(()=>{document.getElementById('paper-trades-log').innerHTML='<i style="color:#FF4500">Error loading trades</i>';});
@@ -1436,6 +1608,65 @@ function loadTrades(){
 loadTrades();
 </script>
 </div>
+
+<!-- ══ HISTORICAL BACKTEST (Phase 2) ══ -->
+<div class="card"><h3>📊 HISTORICAL BACKTEST</h3>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+  <select id="bt-months" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;padding:5px;border-radius:4px;font-size:11px">
+    <option value="1">1 month</option>
+    <option value="3" selected>3 months</option>
+    <option value="6">6 months</option>
+  </select>
+  <button onclick="runBacktest()" class="btn" style="background:#1f6feb;color:#fff;border:none;padding:5px 12px;font-size:11px">▶ Run Backtest</button>
+  <a id="bt-csv" href="#" onclick="downloadBtCsv(event)" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:5px 12px;font-size:11px;text-decoration:none">⬇ Download CSV</a>
+  <button onclick="testTelegram()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:5px 12px;font-size:11px">🧪 Test Telegram</button>
+</div>
+<div id="bt-status" style="color:#6e7681;font-size:11px;margin-bottom:8px"><i>Pick a window and run a backtest. First run fetches history and may take ~30–60s.</i></div>
+<div id="bt-metrics" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
+<canvas id="bt-equity" height="120" style="display:none;width:100%;background:#0d1117;border:1px solid #30363d;border-radius:4px;margin-bottom:8px"></canvas>
+<div id="bt-note" style="color:#6e7681;font-size:9px;font-style:italic"></div>
+</div>
+<script>
+function btCard(label,val,color){return `<div style="flex:1;min-width:90px;background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:8px"><div style="color:#6e7681;font-size:9px">${label}</div><div style="color:${color};font-size:16px;font-weight:bold">${val}</div></div>`;}
+function drawEquity(curve){
+  const cv=document.getElementById('bt-equity');cv.style.display='block';
+  const ctx=cv.getContext('2d');const W=cv.width=cv.clientWidth,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  if(!curve||curve.length<2)return;
+  const eq=curve.map(p=>p.equity);const mn=Math.min(...eq),mx=Math.max(...eq);const rng=(mx-mn)||1;
+  ctx.strokeStyle='#3fb950';ctx.lineWidth=1.5;ctx.beginPath();
+  curve.forEach((p,i)=>{const x=i/(curve.length-1)*(W-8)+4;const y=H-8-((p.equity-mn)/rng)*(H-16);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+  ctx.strokeStyle='#30363d';ctx.lineWidth=0.5;ctx.beginPath();
+  const y0=H-8-((curve[0].equity-mn)/rng)*(H-16);ctx.moveTo(4,y0);ctx.lineTo(W-4,y0);ctx.stroke();
+}
+function runBacktest(){
+  const m=document.getElementById('bt-months').value;
+  const st=document.getElementById('bt-status');
+  st.innerHTML='<span style="color:#d29922">⏳ Running backtest over '+m+' month(s)… fetching Binance history…</span>';
+  fetch('/admin/historical_backtest?months='+m).then(r=>r.json()).then(d=>{
+    if(d.error){st.innerHTML='<span style="color:#FF4500">Error: '+d.error+'</span>';return;}
+    st.innerHTML='<span style="color:#3fb950">✓ '+d.start+' → '+d.end+' · '+d.total_trades+' trades ('+d.skipped_by_circuit_breaker+' skipped by circuit-breaker)</span>';
+    const pfc=d.profit_factor>=1.5?'#3fb950':(d.profit_factor>=1?'#d29922':'#FF4500');
+    const wrc=d.win_rate>=50?'#3fb950':'#d29922';
+    const ddc=d.max_drawdown_pct<=15?'#3fb950':(d.max_drawdown_pct<=30?'#d29922':'#FF4500');
+    const nrc=d.net_return_pct>=0?'#3fb950':'#FF4500';
+    const mt=document.getElementById('bt-metrics');mt.style.display='flex';
+    mt.innerHTML=btCard('Win Rate',d.win_rate+'%',wrc)+btCard('Profit Factor',d.profit_factor,pfc)
+      +btCard('Max Drawdown',d.max_drawdown_pct+'%',ddc)+btCard('Net Return',d.net_return_pct+'%',nrc)
+      +btCard('End Equity','$'+d.end_equity,nrc)+btCard('W / L',d.wins+' / '+d.losses,'#c9d1d9');
+    drawEquity(d.equity_curve);
+    document.getElementById('bt-note').textContent='ℹ '+d.note;
+  }).catch(e=>{st.innerHTML='<span style="color:#FF4500">Request failed: '+e+'</span>';});
+}
+function downloadBtCsv(ev){ev.preventDefault();const m=document.getElementById('bt-months').value;window.location='/admin/backtest_csv?months='+m;}
+function testTelegram(){
+  const st=document.getElementById('bt-status');st.innerHTML='<span style="color:#d29922">⏳ Sending test message…</span>';
+  fetch('/admin/test_telegram').then(r=>r.json()).then(d=>{
+    st.innerHTML='<span style="color:'+(d.ok?'#3fb950':'#FF4500')+'">'+(d.ok?'✓ ':'✗ ')+d.message+'</span>';
+  }).catch(e=>{st.innerHTML='<span style="color:#FF4500">Request failed: '+e+'</span>';});
+}
+</script>
 
 <!-- ══ HOT COINS ══ -->
 <div class="card"><h3>🔥 HOT COINS (3+ signals/hr)</h3>
@@ -1778,8 +2009,22 @@ def admin_manual_trade():
 
     paper_mode = GLOBAL_DATA.get("paper_mode", True)
 
+    # ── Build the trade rationale from live signal context (if available) ──────
+    inst_s = next((s for s in GLOBAL_DATA.get("inst_signals", []) if s["symbol"] == symbol), None)
+    if inst_s:
+        ii     = inst_s.get("inst", {})
+        reason = (f"Manual {side} | {ii.get('traffic','—')} | Score {inst_s.get('score','—')} | "
+                  f"RSI {inst_s.get('rsi','—')} | WhalePow {ii.get('whale_power','—')}% | "
+                  f"Inst {ii.get('inst_score','—')} | Conf {inst_s.get('confidence','—')}%")
+        tp_ctx = inst_s.get("tp_zones", {})
+        traffic= ii.get("traffic", "")
+    else:
+        reason = f"Manual admin {side} (no live signal context for {symbol})"
+        tp_ctx = {}
+        traffic= ""
+
     if paper_mode:
-        result   = _execute_paper_trade(symbol, side, amount, strategy, manual=True)
+        result   = _execute_paper_trade(symbol, side, amount, strategy, manual=True, reason=reason)
         mode_str = "PAPER (SIMULATED)"
     elif strategy == "SPOT_GRID":
         result   = _execute_real_binance_spot_grid(symbol, amount)
@@ -1791,6 +2036,8 @@ def admin_manual_trade():
     if result.get("ok"):
         audit(request.remote_addr, "MANUAL_TRADE", "OK",
               f"sym={symbol} side={side} amt={amount} mode={mode_str} strategy={strategy}")
+        notify_trade(symbol, side, strategy, mode_str, reason,
+                     amount=amount, tp_zones=tp_ctx or None, traffic=traffic)
         msg = f"Trade executed ({mode_str}):\\n{side} ${amount} of {symbol.replace('USDT','')}\\n\\nCheck Manual Trading panel for details."
     else:
         audit(request.remote_addr, "MANUAL_TRADE", "FAIL",
@@ -1830,6 +2077,89 @@ def admin_refresh_scan():
 @_admin_required
 def admin_paper_trades_log():
     return jsonify(PAPER_TRADES[:100])
+
+
+# ── Historical Backtest (Phase 2) ───────────────────────────────────────────────
+
+_BACKTEST_CACHE = {"key": None, "report": None, "ts": 0}
+_BACKTEST_LOCK  = threading.Lock()
+
+
+def _backtest_symbols() -> list:
+    syms = (CONFIG.get("vmc", {}).get("favorite_coins")
+            or CONFIG.get("favorite_coins") or CONFIG.get("watchlist") or [])
+    syms = [s if s.endswith("USDT") else f"{s}USDT" for s in syms]
+    return syms[:8] if syms else ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]
+
+
+def _run_backtest(months: int) -> dict:
+    from logic import historical_backtest
+    syms = _backtest_symbols()
+    key  = f"{months}:{','.join(syms)}"
+    # Serialize so concurrent admin requests don't each kick off a heavy
+    # (~30–60s) Binance replay; the second waiter gets the fresh cached result.
+    with _BACKTEST_LOCK:
+        if (_BACKTEST_CACHE["key"] == key and _BACKTEST_CACHE["report"]
+                and time.time() - _BACKTEST_CACHE["ts"] < 1800):
+            return _BACKTEST_CACHE["report"]
+        report = historical_backtest(syms, months=months, interval="1h", config=CONFIG)
+        _BACKTEST_CACHE.update({"key": key, "report": report, "ts": time.time()})
+        return report
+
+
+@app.route("/admin/historical_backtest")
+@_admin_required
+def admin_historical_backtest():
+    try:
+        months = int(request.args.get("months", 3))
+    except (TypeError, ValueError):
+        months = 3
+    try:
+        report = _run_backtest(months)
+        audit(request.remote_addr, "BACKTEST", "OK",
+              f"months={months} trades={report.get('total_trades')}")
+        return jsonify(report)
+    except Exception as e:
+        log.error(f"[BACKTEST] failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/backtest_csv")
+@_admin_required
+def admin_backtest_csv():
+    try:
+        months = int(request.args.get("months", 3))
+    except (TypeError, ValueError):
+        months = 3
+    report = _run_backtest(months)
+    rows = ["symbol,entry_time,exit_time,entry_price,exit_price,pnl_pct,exit_reason,trailing,bars_held,counted,equity_after"]
+    for t in report.get("trades", []):
+        rows.append(",".join(str(t.get(c, "")) for c in (
+            "symbol", "entry_time", "exit_time", "entry_price", "exit_price",
+            "pnl_pct", "exit_reason", "trailing", "bars_held", "counted",
+            "equity_after")))
+    summary = (f"\n# SUMMARY,trades={report.get('total_trades')},"
+               f"win_rate={report.get('win_rate')}%,"
+               f"profit_factor={report.get('profit_factor')},"
+               f"max_drawdown={report.get('max_drawdown_pct')}%,"
+               f"net_return={report.get('net_return_pct')}%,"
+               f"end_equity={report.get('end_equity')}")
+    return Response("\n".join(rows) + summary, mimetype="text/csv",
+                    headers={"Content-Disposition":
+                             f"attachment;filename=backtest_{months}mo.csv"})
+
+
+@app.route("/admin/test_telegram")
+@_admin_required
+def admin_test_telegram():
+    ok = send_telegram(
+        "🧪 <b>V6 Master Pro — Telegram Test</b>\n"
+        "If you can read this, alerts are wired up correctly.\n"
+        f"Time: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+    audit(request.remote_addr, "TEST_TELEGRAM", "OK" if ok else "FAIL", "")
+    return jsonify({"ok": bool(ok),
+                    "message": "Sent — check your Telegram." if ok else
+                               "Failed — server could not reach Telegram (check BOT_TOKEN / proxy)."})
 
 
 @app.route("/admin/audit_log")

@@ -76,6 +76,14 @@
     "yellow_signal_max_pct": 1.25,
     "red_signal_max_pct": 0.0
   },
+  "trade_management": {
+    "green_only_entries": true,
+    "trailing_stop_enabled": true,
+    "breakeven_on_tp1": true,
+    "trail_to_tp1_on_tp2": true,
+    "daily_max_losses": 5,
+    "daily_max_drawdown_pct": 10.0
+  },
   "security": {
     "max_login_attempts": 3,
     "lockout_minutes": 30,

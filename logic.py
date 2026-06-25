@@ -235,6 +235,259 @@ def compute_vwap(symbol: str, interval: str = "1h", limit: int = 24) -> float:
         return 0.0
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# HISTORICAL BACKTESTER (Binance /api/v3/klines — no external data source needed)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def fetch_klines_range(symbol: str, interval: str, start_ms: int,
+                       end_ms: int) -> list:
+    """Paginate Binance klines (max 1000/request) across an arbitrary range."""
+    out: list = []
+    cursor = start_ms
+    guard  = 0
+    while cursor < end_ms and guard < 60:
+        guard += 1
+        resp = _binance_get("/api/v3/klines", params={
+            "symbol": symbol, "interval": interval,
+            "startTime": cursor, "endTime": end_ms, "limit": 1000,
+        }, timeout=10)
+        if resp is None or resp.status_code != 200:
+            break
+        batch = resp.json()
+        if not batch:
+            break
+        out.extend(batch)
+        last_open = int(batch[-1][0])
+        nxt = last_open + 1
+        if nxt <= cursor:
+            break
+        cursor = nxt
+        if len(batch) < 1000:
+            break
+    return out
+
+
+def _rsi_series(closes: list, period: int = 14) -> list:
+    rsis = [50.0] * len(closes)
+    for i in range(period, len(closes)):
+        rsis[i] = calculate_rsi(closes[i - period:i + 1], period)
+    return rsis
+
+
+def _atr_series(highs: list, lows: list, closes: list, period: int = 14) -> list:
+    n = len(closes)
+    trs = [0.0] * n
+    for i in range(1, n):
+        trs[i] = max(highs[i] - lows[i],
+                     abs(highs[i] - closes[i - 1]),
+                     abs(lows[i] - closes[i - 1]))
+    atrs = [0.0] * n
+    for i in range(period, n):
+        atrs[i] = sum(trs[i - period + 1:i + 1]) / period
+    return atrs
+
+
+def _ema_series(values: list, period: int) -> list:
+    if not values:
+        return []
+    k = 2 / (period + 1)
+    ema = [values[0]]
+    for v in values[1:]:
+        ema.append(v * k + ema[-1] * (1 - k))
+    return ema
+
+
+def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
+                        config: dict = None) -> dict:
+    """Replay a trend-pullback strategy with ATR targets + trailing stop +
+    daily circuit-breaker over Binance kline history. Order-book/whale layers
+    cannot be reconstructed from history, so this evaluates the technical +
+    risk-management core only (documented in the returned `note`)."""
+    cfg      = config or {}
+    tm       = cfg.get("trade_management", {})
+    risk     = cfg.get("risk", {})
+    vmc      = cfg.get("vmc", {})
+    inst     = cfg.get("institutional", {})
+
+    months   = max(1, min(int(months or 3), 6))
+    rsi_lo   = float(vmc.get("rsi_oversold", 38))
+    sl_mult  = float(inst.get("atr_stop_loss_multiplier", 1.5))
+    tp1_m    = float(inst.get("tp1_atr_multiplier", 1.5))
+    tp2_m    = float(inst.get("tp2_atr_multiplier", 3.0))
+    tp3_m    = float(inst.get("tp3_atr_multiplier", 5.0))
+    risk_pct = float(risk.get("green_signal_max_pct", 5.0))
+    balance0 = float(risk.get("account_balance_usdt", 1000))
+    max_dl   = int(tm.get("daily_max_losses", 5))
+    trail_on = bool(tm.get("trailing_stop_enabled", True))
+    be_tp1   = bool(tm.get("breakeven_on_tp1", True))
+    trail_t2 = bool(tm.get("trail_to_tp1_on_tp2", True))
+
+    now_ms   = int(time.time() * 1000)
+    start_ms = now_ms - months * 30 * 24 * 3600 * 1000
+    timeout_bars = 48  # ~2 days on 1h candles
+
+    # ── BTC trend filter (mirrors the live BTC gate) ──────────────────────────
+    btc_trend = {}
+    btc_raw   = fetch_klines_range("BTCUSDT", interval, start_ms, now_ms)
+    if btc_raw:
+        b_close = [float(k[4]) for k in btc_raw]
+        b_ema   = _ema_series(b_close, 50)
+        for idx, k in enumerate(btc_raw):
+            btc_trend[int(k[0])] = b_close[idx] > b_ema[idx]
+
+    all_trades: list = []
+    per_symbol: dict = {}
+
+    for sym in symbols:
+        kl = fetch_klines_range(sym, interval, start_ms, now_ms)
+        if len(kl) < 60:
+            per_symbol[sym] = {"trades": 0, "note": "insufficient history"}
+            continue
+        opens  = [int(k[0])   for k in kl]
+        highs  = [float(k[2]) for k in kl]
+        lows   = [float(k[3]) for k in kl]
+        closes = [float(k[4]) for k in kl]
+        rsi    = _rsi_series(closes, 14)
+        atr    = _atr_series(highs, lows, closes, 14)
+        ema50  = _ema_series(closes, 50)
+
+        pos = None
+        sym_trades = 0
+        for i in range(55, len(closes)):
+            if pos is None:
+                trend_up = closes[i] > ema50[i]
+                pullback = (rsi_lo - 8) <= rsi[i] <= (rsi_lo + 7)
+                btc_ok   = btc_trend.get(opens[i], True)
+                if trend_up and pullback and btc_ok and atr[i] > 0:
+                    e = closes[i]
+                    a = atr[i]
+                    pos = {
+                        "entry_i": i, "entry_price": e,
+                        "entry_time": time.strftime("%Y-%m-%d %H:%M",
+                                                    time.gmtime(opens[i] / 1000)),
+                        "sl":  e - sl_mult * a,
+                        "tp1": e + tp1_m * a,
+                        "tp2": e + tp2_m * a,
+                        "tp3": e + tp3_m * a,
+                        "tp1_hit": False, "tp2_hit": False, "tp3_hit": False,
+                        "trailing": "",
+                    }
+                continue
+
+            h, l, c = highs[i], lows[i], closes[i]
+            # Conservative intrabar policy: OHLC gives no tick order, so first
+            # test the candle low against the SL *as it stood entering the bar*
+            # (before any TP-driven ratchet this same bar). This avoids the
+            # optimistic bias of moving the stop up on a TP touch and then
+            # pretending the same candle's dip respected the higher stop.
+            sl_at_open = pos["sl"]
+            exit_price = None; exit_reason = ""
+            if l <= sl_at_open:
+                exit_price = sl_at_open
+                exit_reason = "TRAIL-STOP" if pos["trailing"] else "STOP-LOSS"
+            else:
+                if pos["tp1"] and h >= pos["tp1"]: pos["tp1_hit"] = True
+                if pos["tp2"] and h >= pos["tp2"]: pos["tp2_hit"] = True
+                if pos["tp3"] and h >= pos["tp3"]: pos["tp3_hit"] = True
+
+                if trail_on:
+                    if pos["tp2_hit"] and trail_t2 and pos["sl"] < pos["tp1"]:
+                        pos["sl"] = pos["tp1"]; pos["trailing"] = "TP1"
+                    elif pos["tp1_hit"] and be_tp1 and pos["sl"] < pos["entry_price"]:
+                        pos["sl"] = pos["entry_price"]; pos["trailing"] = "BREAKEVEN"
+
+                if pos["tp3_hit"]:
+                    exit_price = pos["tp3"]; exit_reason = "TP3"
+                elif (i - pos["entry_i"]) >= timeout_bars:
+                    exit_price = c; exit_reason = "TIMEOUT"
+
+            if exit_price is not None:
+                pnl = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
+                all_trades.append({
+                    "symbol": sym,
+                    "entry_time": pos["entry_time"],
+                    "exit_time": time.strftime("%Y-%m-%d %H:%M",
+                                               time.gmtime(opens[i] / 1000)),
+                    "exit_ts": opens[i],
+                    "entry_price": round(pos["entry_price"], 8),
+                    "exit_price": round(exit_price, 8),
+                    "pnl_pct": round(pnl, 3),
+                    "exit_reason": exit_reason,
+                    "trailing": pos["trailing"] or "—",
+                    "bars_held": i - pos["entry_i"],
+                })
+                sym_trades += 1
+                pos = None
+        per_symbol[sym] = {"trades": sym_trades}
+
+    # ── Build compounding equity curve + metrics with daily circuit-breaker ───
+    max_dd_pct = float(tm.get("daily_max_drawdown_pct", 10.0))
+    all_trades.sort(key=lambda t: t["exit_ts"])
+    equity = balance0; peak = balance0; max_dd = 0.0
+    gross_p = 0.0; gross_l = 0.0; wins = 0; losses = 0; counted = 0; skipped = 0
+    daily_losses: dict = {}
+    daily_start_eq: dict = {}   # equity at the first trade of each UTC day
+    curve = [{"t": time.strftime("%Y-%m-%d", time.gmtime(start_ms / 1000)),
+              "equity": round(equity, 2)}]
+
+    for tr in all_trades:
+        day = tr["exit_time"][:10]
+        day_open_eq = daily_start_eq.setdefault(day, equity)
+        # Daily circuit-breaker: trip on too many losses OR too deep a daily
+        # drawdown — mirrors the live _record_trade_result logic.
+        day_dd = (day_open_eq - equity) / day_open_eq * 100.0 if day_open_eq else 0.0
+        if daily_losses.get(day, 0) >= max_dl or day_dd >= max_dd_pct:
+            tr["counted"] = False; skipped += 1
+            continue
+        size = equity * risk_pct / 100.0
+        pnl_usdt = size * tr["pnl_pct"] / 100.0
+        equity += pnl_usdt
+        counted += 1
+        tr["counted"] = True
+        tr["equity_after"] = round(equity, 2)
+        if tr["pnl_pct"] > 0:
+            wins += 1; gross_p += pnl_usdt
+        else:
+            losses += 1; gross_l += abs(pnl_usdt)
+            daily_losses[day] = daily_losses.get(day, 0) + 1
+        peak = max(peak, equity)
+        if peak > 0:
+            max_dd = max(max_dd, (peak - equity) / peak * 100.0)
+        curve.append({"t": tr["exit_time"], "equity": round(equity, 2)})
+
+    win_rate = round(wins / counted * 100, 1) if counted else 0.0
+    profit_factor = round(gross_p / gross_l, 2) if gross_l > 0 else (
+        float("inf") if gross_p > 0 else 0.0)
+    net_return = round((equity - balance0) / balance0 * 100, 2) if balance0 else 0.0
+
+    return {
+        "generated":      time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "symbols":        symbols,
+        "months":         months,
+        "interval":       interval,
+        "start":          time.strftime("%Y-%m-%d", time.gmtime(start_ms / 1000)),
+        "end":            time.strftime("%Y-%m-%d", time.gmtime(now_ms / 1000)),
+        "total_trades":   counted,
+        "skipped_by_circuit_breaker": skipped,
+        "wins":           wins,
+        "losses":         losses,
+        "win_rate":       win_rate,
+        "profit_factor":  (round(profit_factor, 2)
+                           if profit_factor != float("inf") else 999.0),
+        "max_drawdown_pct": round(max_dd, 2),
+        "net_return_pct": net_return,
+        "start_equity":   round(balance0, 2),
+        "end_equity":     round(equity, 2),
+        "equity_curve":   curve,
+        "per_symbol":     per_symbol,
+        "trades":         all_trades,
+        "note": ("Technical + risk-management core (RSI pullback in uptrend, "
+                 "ATR targets, trailing stop, daily circuit-breaker, BTC trend "
+                 "filter). Order-book/whale layers are excluded — Binance does "
+                 "not serve historical depth snapshots."),
+    }
+
+
 def detect_rsi_divergence(klines: list) -> str:
     """
     Self-upgrade feature: simple 2-point RSI divergence.
