@@ -1,3 +1,5 @@
 - [V6 Master Pro Architecture](v6-architecture.md) — Pure Python Flask, port 8080, scan loop every 60s, all state in GLOBAL_DATA dict
 - [V6 Feature Map](v6-feature-map.md) — 39 original points + 7 new tasks; all wired into data_refresh_loop → scan_loop
 - [Binance connectivity resilience](binance-connectivity.md) — transient DNS to api.binance.com; multi-host failover + retry session + background health probe; report real reachability, not key presence.
+- [Telegram alerts & secrets](telegram-and-secrets.md) — send_telegram returns bool; HTTP 404 = invalid/revoked BOT_TOKEN (user must fix), not a code bug; tokens .strip()-ed at load.
+- [Backtest & trade resolution](backtest-and-trade-resolution.md) — conservative intrabar SL-at-open; classify WIN/LOSS by realized PnL; no historical order-book; favorite_coins under vmc section.
