@@ -10,60 +10,86 @@
 body {
   background: #0a0a0f; color: #c9d1d9;
   font-family: 'Courier New', monospace; font-size: 12px;
-  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden;
 }
 
-/* ── Status Bar ── */
-#status-bar {
-  background: #111827; border-bottom: 1px solid #21262d;
-  padding: 4px 12px; display: flex; align-items: center;
-  gap: 8px; flex-shrink: 0; font-size: 11px; flex-wrap: wrap;
+/* ── App Bar ── */
+#app-bar {
+  position: sticky; top: 0; z-index: 50;
+  background: linear-gradient(180deg,#0f1626,#0b101b);
+  border-bottom: 1px solid #20283a;
+  padding: 9px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
 }
-#status-bar .title { color: #FFD700; font-weight: bold; font-size: 12px; letter-spacing: 1px; }
+.ab-brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  background: linear-gradient(135deg,#FFD700,#f0883e); color: #0a0a0f;
+  font-weight: bold; font-size: 15px; letter-spacing: 1px;
+  padding: 4px 9px; border-radius: 7px; box-shadow: 0 0 12px #FFD70055;
+}
+.brand-lines { display: flex; flex-direction: column; line-height: 1.1; }
+.brand-name { color: #FFD700; font-weight: bold; font-size: 13px; letter-spacing: 1.5px; }
+.brand-sub  { color: #6e7681; font-size: 9px; letter-spacing: 1px; }
+.ab-nav { display: flex; align-items: center; gap: 7px; margin-left: auto; flex-wrap: wrap; }
+.nav-pill {
+  text-decoration: none; font-size: 10px; font-weight: bold; letter-spacing: 0.5px;
+  padding: 5px 11px; border-radius: 6px; border: 1px solid; transition: filter 0.15s;
+}
+.nav-pill:hover { filter: brightness(1.3); }
+.nav-focus  { background: #0d1b33; border-color: #1f6feb; color: #58a6ff; }
+.nav-admin  { background: #1a1600; border-color: #FFD700; color: #FFD700; }
+.nav-client { background: #06160d; border-color: #238636; color: #3fb950; }
+
+/* ── Status / Market Strips ── */
+#status-strip, #market-strip {
+  background: #0d1117; border-bottom: 1px solid #20283a;
+  padding: 7px 16px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; font-size: 11px;
+}
+.st-item { display: inline-flex; align-items: center; gap: 5px; }
+.st-k { color: #5a6675; font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; }
+.st-v { color: #58a6ff; font-weight: bold; }
 .live  { color: #00FF00; animation: blink 2s infinite; }
 .error { color: #FF4500; }
 @keyframes blink { 50% { opacity: 0.4; } }
 .sep { color: #333; }
 .sb-val { color: #58a6ff; }
-
-/* ── BTC Sentinel Bar ── */
-#btc-bar {
-  background: #0d1117; border-bottom: 1px solid #21262d;
-  padding: 3px 12px; display: flex; gap: 12px; align-items: center;
-  flex-shrink: 0; font-size: 11px; flex-wrap: wrap;
-}
 .btc-bull { color: #3fb950; font-weight: bold; }
 .btc-bear { color: #FF4500; font-weight: bold; }
 .btc-neut { color: #58a6ff; }
-.pause-tag { background: #4a1515; color: #FF4500; padding: 1px 8px; border-radius: 3px; font-weight: bold; animation: blink 0.8s infinite; }
+.pause-tag { background: #4a1515; color: #FF4500; padding: 2px 8px; border-radius: 4px; font-weight: bold; animation: blink 0.8s infinite; }
 .tl-green  { color: #00FF00; text-shadow: 0 0 6px #00FF00; font-weight: bold; }
 .tl-yellow { color: #FFD700; text-shadow: 0 0 6px #FFD700; font-weight: bold; }
 .tl-red    { color: #FF4500; text-shadow: 0 0 6px #FF4500; font-weight: bold; }
 .regime-volatile { color: #FF4500; } .regime-trending { color: #3fb950; } .regime-ranging { color: #8b949e; }
 
-/* ── Main ── */
-#main { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-.panel { display: flex; flex-direction: column; overflow: hidden; }
-#panel-a { flex: 1.4; border-bottom: 2px solid #1a1a2e; }
-#panel-b { flex: 1.0; border-bottom: 2px solid #1a1a2e; }
-#panel-c { flex: 0.85; border-bottom: 2px solid #1a1a2e; }
-#panel-d { flex: 0.85; border-bottom: 2px solid #1a1a2e; }
-#panel-e { flex: 0.65; }
+/* ── Main (vertical scrolling card stack) ── */
+#main {
+  display: flex; flex-direction: column; gap: 14px;
+  width: 100%; max-width: 1180px; margin: 0 auto; padding: 16px 14px 44px;
+}
+.panel {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #0f1420; border: 1px solid #20283a; border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+#panel-a, #panel-b, #panel-c, #panel-d, #panel-e { flex: none; border-bottom: none; }
+.ab-reason, .hist-detail, .cc-top-coin, .s-row { unicode-bidi: plaintext; }
 
 .panel-header {
-  background: #161b22; border-bottom: 1px solid #21262d;
-  padding: 4px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+  background: #141b2b; border-bottom: 1px solid #20283a;
+  padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0; flex-wrap: wrap; border-radius: 12px 12px 0 0;
 }
 .panel-label { font-weight: bold; font-size: 11px; letter-spacing: 0.5px; }
 .panel-a-label { color: #58a6ff; } .panel-b-label { color: #bc8cff; }
 .panel-c-label { color: #3fb950; } .panel-d-label { color: #f0883e; }
 .panel-e-label { color: #da70d6; }
 
-.table-wrap { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
-table { width: 100%; border-collapse: collapse; }
-th { position: sticky; top: 0; background: #0d1117; color: #58a6ff; padding: 4px 8px;
-     text-align: left; font-size: 10px; border-bottom: 1px solid #21262d; z-index: 1; }
-td { padding: 3px 8px; border-bottom: 1px solid #111; font-size: 11px; }
+.table-wrap { flex: 1; max-height: 460px; overflow-y: auto; overflow-x: auto;
+  scrollbar-width: thin; scrollbar-color: #30363d #0d1117; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; min-width: 560px; }
+th { position: sticky; top: 0; background: #0d1117; color: #58a6ff; padding: 6px 8px;
+     text-align: left; font-size: 10px; border-bottom: 1px solid #21262d; z-index: 1; white-space: nowrap; }
+td { padding: 5px 8px; border-bottom: 1px solid #161b22; font-size: 11px; unicode-bidi: plaintext; }
 tr:hover td { background: #161b22; cursor: pointer; }
 .empty-row td { color: #444; text-align: center; padding: 10px; }
 
@@ -322,15 +348,16 @@ tr:hover td { background: #161b22; cursor: pointer; }
 
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
-  body { font-size: 11px; height: auto; overflow: auto; }
-  #main { height: auto; overflow: visible; }
-  .panel { height: auto; overflow: visible; min-height: 300px; }
-  .table-wrap { overflow-y: visible; max-height: 300px; overflow-y: auto; }
-  #panel-a,#panel-b,#panel-c,#panel-d,#panel-e { flex: none; }
-  #status-bar { font-size: 10px; padding: 4px 8px; gap: 5px; }
-  #btc-bar { font-size: 10px; padding: 3px 8px; }
+  body { font-size: 11px; }
+  #main { padding: 12px 10px 36px; gap: 12px; }
+  .panel { min-height: auto; }
+  .table-wrap { max-height: 380px; }
+  #app-bar { padding: 8px 12px; gap: 8px; }
+  .brand-sub { display: none; }
+  #status-strip, #market-strip { font-size: 10px; padding: 6px 12px; gap: 6px 10px; }
+  .cc-count { font-size: 24px; }
   .sniper-grid { grid-template-columns: 1fr 1fr; }
-  th, td { padding: 3px 5px; font-size: 10px; }
+  th, td { padding: 4px 6px; font-size: 10px; }
   #sniper-panel { width: 96%; }
 }
 @media (max-width: 480px) {
@@ -391,58 +418,50 @@ document.addEventListener('click', () => _ac(), { once: true });
 </head>
 <body>
 
-<!-- Status Bar -->
-<div id="status-bar">
-  <span class="title">V6 MASTER PRO ⚡</span>
-  <span class="sep">|</span>
-  <span style="color:#555">STATUS:</span> <span id="sb-status" class="live">init</span>
-  <span class="sep">|</span>
-  <span style="color:#555">CYCLE:</span> <span class="sb-val" id="sb-cycles">0</span>
-  <span class="sep">|</span>
-  <span style="color:#555">UPD:</span> <span class="sb-val" id="sb-update">—</span>
-  <span class="sep">|</span>
-  <span style="color:#555">EX:</span> <span class="sb-val" id="sb-exchange">BINANCE</span>
-  <span class="sep">|</span>
-  <span style="color:#555">ENTRIES:</span> <span id="sb-entries" style="color:#3fb950">ACTIVE</span>
-  <span class="sep">|</span>
-  <span style="color:#555">WIN:</span> <span class="sb-val" id="sb-winrate">—%</span>
-  <span id="sb-streak" class="streak-badge" style="display:none">🔥 0</span>
-  <span class="sep">|</span>
-  <span style="color:#555">NEXT:</span> <span id="countdown" style="color:#888">30s</span>
-  <span id="sb-hb" style="color:#00FF00;font-size:13px" title="Heartbeat">●</span>
-  <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <a href="/focus" style="background:#1f6feb;color:#fff;font-size:10px;font-weight:bold;text-decoration:none;padding:2px 10px;border-radius:4px;border:1px solid #388bfd;letter-spacing:0.5px" target="_blank">🎯 FOCUS MODE</a>
-    <span class="sep">|</span>
-    <a href="/admin" style="color:#FFD700;font-size:10px;text-decoration:none" target="_blank">🔐 ADMIN</a>
-    <span class="sep">|</span>
-    <a href="/client" style="color:#3fb950;font-size:10px;text-decoration:none" target="_blank">👤 CLIENT</a>
-  </span>
+<!-- App Bar -->
+<header id="app-bar">
+  <div class="ab-brand">
+    <span class="brand-mark">V6</span>
+    <div class="brand-lines">
+      <span class="brand-name">MASTER PRO</span>
+      <span class="brand-sub">Institutional Terminal</span>
+    </div>
+  </div>
+  <div class="ab-nav">
+    <a href="/focus"  target="_blank" class="nav-pill nav-focus">🎯 FOCUS</a>
+    <a href="/admin"  target="_blank" class="nav-pill nav-admin">🔐 ADMIN</a>
+    <a href="/client" target="_blank" class="nav-pill nav-client">👤 CLIENT</a>
+  </div>
+</header>
+
+<!-- System Status Strip -->
+<div id="status-strip">
+  <div class="st-item"><span class="st-k">Status</span><span id="sb-status" class="st-v live">init</span></div>
+  <div class="st-item"><span class="st-k">Cycle</span><span class="st-v" id="sb-cycles">0</span></div>
+  <div class="st-item"><span class="st-k">Updated</span><span class="st-v" id="sb-update">—</span></div>
+  <div class="st-item"><span class="st-k">Exchange</span><span class="st-v" id="sb-exchange">BINANCE</span></div>
+  <div class="st-item"><span class="st-k">Entries</span><span id="sb-entries" style="color:#3fb950;font-weight:bold">ACTIVE</span></div>
+  <div class="st-item"><span class="st-k">Win</span><span class="st-v" id="sb-winrate">—%</span><span id="sb-streak" class="streak-badge" style="display:none">🔥 0</span></div>
+  <div class="st-item"><span class="st-k">Next</span><span id="countdown" style="color:#888;font-weight:bold">30s</span><span id="sb-hb" style="color:#00FF00;font-size:13px" title="Heartbeat">●</span></div>
 </div>
 
-<!-- BTC Sentinel Bar -->
-<div id="btc-bar">
-  <span style="color:#555">BTC:</span>
-  <span id="btc-price" class="btc-neut">—</span>
-  <span id="btc-chg"   class="btc-neut">—%</span>
-  <span id="btc-sent"  class="btc-neut">—</span>
-  <span style="color:#555">REGIME:</span>
-  <span id="btc-regime" class="regime-ranging">RANGING</span>
+<!-- Market Strip -->
+<div id="market-strip">
+  <div class="st-item"><span class="st-k">BTC</span><span id="btc-price" class="btc-neut">—</span><span id="btc-chg" class="btc-neut">—%</span><span id="btc-sent" class="btc-neut">—</span></div>
+  <div class="st-item"><span class="st-k">Regime</span><span id="btc-regime" class="regime-ranging">RANGING</span></div>
   <span id="btc-pause" class="pause-tag" style="display:none">⛔ ENTRIES PAUSED</span>
-  <span style="margin-left:auto;color:#555">TRAFFIC LIGHT:</span>
-  <span id="global-tl" class="tl-green">● GREEN</span>
-  <span style="color:#555;margin-left:8px">INST:</span>
-  <span id="global-inst" style="color:#58a6ff">—</span>
-  <span style="color:#555;margin-left:8px">HOT COINS:</span>
-  <span id="hot-cnt" style="color:#FF6B35">0</span>
-  <span style="color:#555;margin-left:8px">W/L:</span>
-  <span id="wl-ratio" style="color:#3fb950">—</span>
-  <span style="color:#30363d;margin-left:8px">│</span>
-  <button onclick="toggleSimpleView()" id="sv-toggle-btn" title="Simple View — 5 big coins">⚡ SIMPLE</button>
-  <div class="search-wrap">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="search-input" placeholder="Search coin…" autocomplete="off"
-           oninput="searchCoins(this.value)" onblur="setTimeout(closeSearch,200)">
-    <div id="search-results"></div>
+  <div class="st-item"><span class="st-k">Traffic</span><span id="global-tl" class="tl-green">● GREEN</span></div>
+  <div class="st-item"><span class="st-k">Inst</span><span id="global-inst" style="color:#58a6ff;font-weight:bold">—</span></div>
+  <div class="st-item"><span class="st-k">Hot</span><span id="hot-cnt" style="color:#FF6B35;font-weight:bold">0</span></div>
+  <div class="st-item"><span class="st-k">W/L</span><span id="wl-ratio" style="color:#3fb950;font-weight:bold">—</span></div>
+  <div class="ab-nav" style="margin-left:auto">
+    <button onclick="toggleSimpleView()" id="sv-toggle-btn" title="Simple View — 5 big coins">⚡ SIMPLE</button>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Search coin…" autocomplete="off"
+             oninput="searchCoins(this.value)" onblur="setTimeout(closeSearch,200)">
+      <div id="search-results"></div>
+    </div>
   </div>
 </div>
 
