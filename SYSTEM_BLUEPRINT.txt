@@ -1,0 +1,150 @@
+==============================================================================
+ V6 MASTER PRO — SYSTEM BLUEPRINT FILE
+ Generated: June 27, 2026  |  Source: live code audit (main.py, logic.py,
+ config.json, config.js, requirements.txt)
+==============================================================================
+
+------------------------------------------------------------------------------
+ 1. ENVIRONMENT VARIABLES  (Replit -> Tools -> Secrets)
+------------------------------------------------------------------------------
+ Add these as Secrets. Never paste real values into code or this file.
+
+ REQUIRED (app runs without them, but key features stay off):
+   BOT_TOKEN          Telegram bot token from @BotFather.
+                      >> Currently INVALID (Telegram returns 404). Replace it
+                         or all Telegram alerts stay offline.
+   SECRET_KEY         API access key for /get_data and admin API auth.
+                      Code default is "786" — CHANGE THIS for production.
+   SESSION_SECRET     Flask session signing secret.
+                      If unset, it is auto-derived from SECRET_KEY (stable
+                      across restarts). Set explicitly for best security.
+
+ RECOMMENDED:
+   ADMIN_PASSWORD     Password for the Admin Portal (/admin).
+                      Code default is "786" — CHANGE THIS for production.
+   CHAT_ID            Telegram chat/channel ID for alerts.
+                      Default fallback in code: 8743601537.
+
+ OPTIONAL:
+   TELEGRAM_PROXY     SOCKS5/HTTP proxy if Telegram is blocked in your region.
+                      Format: socks5://user:pass@host:1080  or  http://host:8080
+   GOOGLE_CREDENTIALS Google service-account JSON (only if using Google Sheets).
+   GOOGLE_SHEET_ID    Target Google Sheet ID (only if using Google Sheets).
+
+ PROVIDED AUTOMATICALLY BY REPLIT (do not set manually):
+   PORT               Server port. Defaults to 8080 if absent.
+   REPLIT_DOMAINS     Your public domain(s), injected by Replit at runtime.
+
+------------------------------------------------------------------------------
+ 2. REQUIRED DEPENDENCIES  (backend — Python)
+------------------------------------------------------------------------------
+ From requirements.txt. Install with:
+
+   pip install flask requests PySocks gspread oauth2client
+
+ Breakdown:
+   flask          Web server + routing (the entire backend).
+   requests       HTTP calls to Binance + Telegram APIs.
+   PySocks        SOCKS proxy support (used when TELEGRAM_PROXY is set).
+   gspread        Google Sheets client (optional logging/export).
+   oauth2client   Google auth for gspread (optional).
+
+ NOTE: The frontend (V6_Master_Pro_UI) has NO build step and NO npm packages.
+       It is plain HTML/CSS/JS served directly by Flask.
+
+------------------------------------------------------------------------------
+ 3. CONFIG SUMMARY
+------------------------------------------------------------------------------
+
+ NOTE: There is NO constants.py in this project. Python tuning constants live
+ in config.json. UI constants live in V6_Master_Pro_UI/config.js.
+
+ --- 3A. config.json  (backend constants) ---
+ vmc:
+   score_threshold 55 | rsi_oversold 38 | rsi_overbought 62 | rsi_golden_max 60
+   volatility_stuck_max 0.5 | volatility_max 20.0 | volume_boom_multiplier 2.0
+   pump_change_min 4.0 | golden_score_min 75 | vip_score_min 88
+   entry_rsi_max 42 | exit_rsi_min 62 | rsi_top_n 100
+   favorite_coins: BTC, ETH, BNB, SOL, XRP, ADA, DOGE, AVAX (USDT pairs)
+ whale:
+   wall_proximity_pct 3.0 | min_wall_size_usdt 80000 | spoofing_ratio 2.5
+   blink_push_proximity_pct 1.5 | alert_cooldown_s 300 | order_book_depth 20
+   top_coins_for_whale 50 | critical_whale_power_pct 85 | min_txn_usdt 500000
+ scanner:
+   coins_limit 500 | cache_clear_interval_s 60 | heartbeat_interval_s 300
+   quote_asset USDT | min_quote_volume_24h 500000 | btc_monitor_interval_s 30
+   midnight_report_hour_utc 0
+ telegram:
+   vip_alert_min_score 85 | vip_alert_cooldown_s 600 | whale_alert_min_proximity 1.0
+   alert_cooldown_s 300 | critical_whale_cooldown_s 120
+ institutional:
+   whale_power_weight 0.4 | vmc_score_weight 0.3 | ofi_weight 0.3
+   wall_proximity_bonus_pct 0.1 | wall_proximity_bonus_threshold 0.5
+   spike_confirm_threshold 2 | yellow_light_whale_power 50 | btc_bearish_drop_pct 2.0
+   atr_stop_loss_multiplier 1.5 | tp1_atr 1.5 | tp2_atr 3.0 | tp3_atr 5.0
+   slippage_min_pct 0.1 | slippage_max_pct 0.3 | consecutive_loss_cooldown_min 30
+   obi_spike_threshold 2.5 | obi_history_size 20
+ risk:
+   account_balance_usdt 1000 | green_signal_max_pct 5.0
+   yellow_signal_max_pct 1.25 | red_signal_max_pct 0.0
+ trade_management:
+   green_only_entries true | trailing_stop_enabled true | breakeven_on_tp1 true
+   trail_to_tp1_on_tp2 true | daily_max_losses 5 | daily_max_drawdown_pct 10.0
+ security:
+   max_login_attempts 3 | lockout_minutes 30 | session_timeout_minutes 15
+ audit:
+   log_file system_audit.log | max_bytes 10485760 (10MB) | backup_count 5
+   retention_days 90
+ bot_fund_limit_usdt: 10.0
+
+ --- 3B. V6_Master_Pro_UI/config.js  (dashboard UI constants) ---
+ api.base: ""  (same-origin; UI is served by Flask)
+ api.endpoints:
+   dashboard /dashboard_data | systemHealth /system_health
+   chart /chart_data | sniper /sniper_data
+ refresh.intervalSec: 30
+ chart: interval "1h", limit 60
+ profileSymbol: "auto"  (use highest-scoring signal; or hard-code e.g. "SOLUSDT")
+ layout: maxWidthPx 1280 | tableMaxRows 25
+ watchCards: HIFIUSDT (HIFI/USDT), DOGEUSDT (DOGE/USDT)
+ clients (display): Client A (APA/USDT, Binance, Synced),
+                    Client X (XPL/USDT, Binance, Synced)
+
+------------------------------------------------------------------------------
+ 4. DEPLOYMENT INSTRUCTIONS
+------------------------------------------------------------------------------
+ START COMMAND:   python3 main.py
+ ENTRY FILE:      main.py
+ BIND:            host 0.0.0.0, port = $PORT (default 8080)
+ RELOADER:        off (use_reloader=False), debug off
+
+ URLs once running:
+   /            Legacy main dashboard
+   /v6/         NEW modular dashboard  (note the trailing slash)
+   /focus       Focus mode
+   /admin       Admin Portal (manual BUY/SELL, settings) — needs ADMIN_PASSWORD
+   /client      Client Portal
+
+ To run in Replit:        press Run (executes python3 main.py)
+ To deploy permanently:   Deploy tab -> Reserved VM or Autoscale
+                          (NOT Static — this app runs Python)
+                          Start command: python3 main.py
+
+------------------------------------------------------------------------------
+ 5. LOG FILE LOCATIONS  (project root)
+------------------------------------------------------------------------------
+   error.log          App errors + general logging.
+                      Rotating: 5 MB per file, 2 backups (error.log.1, .2).
+   system_audit.log   Security/audit trail (logins, trades, system events).
+                      Rotating: 10 MB per file, 5 backups. 90-day retention.
+
+ How to check when the system goes offline:
+   - In the Replit Shell:   tail -n 50 error.log
+                            tail -n 50 system_audit.log
+   - In the app (logged in as admin):  /admin/audit_log  (last lines of audit)
+   - Live console: the workflow "Start application" console shows real-time logs.
+
+==============================================================================
+ OUTSTANDING ACTION: Replace BOT_TOKEN with a valid @BotFather token to bring
+ Telegram alert delivery online. Everything else is operational.
+==============================================================================

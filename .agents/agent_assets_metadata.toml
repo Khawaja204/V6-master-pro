@@ -6,3 +6,9 @@ id = "f__nCqmh622zCUsNIH6Sq"
 uri = "file://attached_assets/screenshots/96e45e93-5690-48cf-b9a9-a27b3c00e2b2-00-2mrafy3bsp01g_pike_replit_dev.png"
 type = "image"
 title = "Live dashboard — captured from the public URL just now"
+
+[[outputs]]
+id = "xT72OkVrIY_txEVXp7eBB"
+uri = "file://SYSTEM_BLUEPRINT.txt"
+type = "text"
+title = "V6 Master Pro — System Blueprint"
