@@ -1261,7 +1261,12 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 @app.route("/")
 def index():
     with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
+        html = f.read()
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.route("/dashboard_data")
