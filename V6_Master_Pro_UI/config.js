@@ -21,7 +21,7 @@ window.V6_CONFIG = {
 
   /* ---- Refresh / polling ------------------------------------------------ */
   refresh: {
-    intervalSec: 30, // how often live data is pulled from the backend
+    intervalSec: 8, // how often live data is pulled from the backend (5-10s live cadence)
   },
 
   /* ---- Coin profile chart ---------------------------------------------- */

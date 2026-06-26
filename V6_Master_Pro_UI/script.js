@@ -240,6 +240,19 @@
     const sz = (c && c.sizing) || {};
     set("tde-position", sz.alloc_usdt ? "$" + sz.alloc_usdt.toFixed(2) + " (" + (sz.alloc_pct || 0).toFixed(1) + "%)" : (sz.note || "No allocation"));
 
+    const v6 = (c && c.v6) || null;
+    if (v6) {
+      set("tde-v6", v6.score);
+      const vn = $("tde-v6");
+      if (vn) vn.className = "v6-num " + (v6.label === "BUY" ? "up" : v6.label === "SELL" ? "down" : "gold");
+      const bd = $("tde-badge");
+      if (bd) { bd.className = "badge " + (v6.badge || "badge-wait"); bd.textContent = v6.label || "—"; }
+    } else {
+      set("tde-v6", "—");
+      const bd = $("tde-badge");
+      if (bd) { bd.className = "badge badge-wait"; bd.textContent = "—"; }
+    }
+
     const exec = $("btn-execute");
     if (exec) {
       exec.disabled = traffic !== "GREEN";
@@ -292,12 +305,13 @@
     const rows = (d.inst_signals || []).slice(0, (CFG.layout && CFG.layout.tableMaxRows) || 25);
     set("inst-count", (d.inst_signals || []).length + " signals");
     if (!rows.length) {
-      html("inst-body", '<tr class="empty-row"><td colspan="11">Computing institutional signals…</td></tr>');
+      html("inst-body", '<tr class="empty-row"><td colspan="13">Computing institutional signals…</td></tr>');
       return;
     }
     html("inst-body", rows.map((c, i) => {
       const inst = c.inst || {};
       const z = c.tp_zones || {};
+      const v6 = c.v6 || null;
       const tr = ({ GREEN: "GREEN", YELLOW: "YELLOW", RED: "RED" }[inst.traffic]) || "RED";
       return "<tr>" +
         "<td class='dim'>" + (i + 1) + "</td>" +
@@ -311,6 +325,8 @@
         "<td>" + fmtPrice(c.price) + "</td>" +
         "<td class='down'>" + (z.stop_loss ? fmtPrice(z.stop_loss) : "—") + "</td>" +
         "<td class='up'>" + (z.tp1 ? fmtPrice(z.tp1) : "—") + "</td>" +
+        "<td class='" + (v6 ? (v6.label === "BUY" ? "up" : v6.label === "SELL" ? "down" : "gold") : "dim") + "'>" + (v6 ? v6.score : "—") + "</td>" +
+        "<td><span class='badge " + (v6 ? v6.badge : "badge-wait") + "'>" + (v6 ? v6.label : "—") + "</span></td>" +
         "</tr>";
     }).join(""));
   }

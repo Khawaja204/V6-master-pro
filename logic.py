@@ -235,6 +235,148 @@ def compute_vwap(symbol: str, interval: str = "1h", limit: int = 24) -> float:
         return 0.0
 
 
+def _ema(values: list, period: int) -> list:
+    """Exponential moving average series."""
+    if not values:
+        return []
+    k = 2.0 / (period + 1)
+    out = [values[0]]
+    for v in values[1:]:
+        out.append(v * k + out[-1] * (1 - k))
+    return out
+
+
+def calculate_macd(closes: list, fast: int = 12, slow: int = 26,
+                   signal: int = 9) -> dict:
+    """Standard MACD(12,26,9). Returns macd line, signal line, histogram."""
+    if len(closes) < slow + signal:
+        return {"macd": 0.0, "signal": 0.0, "hist": 0.0}
+    ema_fast = _ema(closes, fast)
+    ema_slow = _ema(closes, slow)
+    macd_line = [f - s for f, s in zip(ema_fast, ema_slow)]
+    signal_line = _ema(macd_line, signal)
+    hist = macd_line[-1] - signal_line[-1]
+    return {"macd": round(macd_line[-1], 8),
+            "signal": round(signal_line[-1], 8),
+            "hist": round(hist, 8)}
+
+
+def fetch_macd_for_symbol(symbol: str, interval: str = "1h",
+                          limit: int = 60) -> dict:
+    klines = fetch_klines(symbol, interval, limit)
+    if not klines:
+        return {"macd": 0.0, "signal": 0.0, "hist": 0.0}
+    return calculate_macd([float(k[4]) for k in klines])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# V6 FINAL SCORE — 54-POINT INSTITUTIONAL SCORING ENGINE
+# Market Regime 10 + Institutional/Whale 12 + Technical 12 +
+# Smart-Money Divergence 10 + Trade Engine 10 = 54 raw points, scaled to 0-100.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def compute_v6_final_score(signal: dict, regime: str, btc_volatility_pct: float,
+                           divergence_signal: str, in_volume_surge: bool) -> dict:
+    inst  = signal.get("inst", {}) or {}
+    tp    = signal.get("tp_zones", {}) or {}
+    rsi   = signal.get("rsi", 50) or 50
+    chg   = signal.get("change_pct", 0) or 0
+    price = signal.get("price", 0) or 0
+    macd_hist = signal.get("macd_hist", 0) or 0
+
+    # 1 ── MARKET REGIME (10): trend (5) + volatility quality (5)
+    reg_trend = {"TRENDING": 3, "RANGING": 2, "VOLATILE": 1}.get(regime, 2)
+    reg_trend += 2 if chg > 0.5 else 1 if chg >= -0.5 else 0
+    reg_trend = min(5, reg_trend)
+    v = abs(btc_volatility_pct or 0)
+    reg_vol = 5 if v < 2 else 3 if v < 4 else 2 if v < 6 else 1
+    market_regime = reg_trend + reg_vol
+
+    # 2 ── INSTITUTIONAL / WHALE (12): accumulation (6) + wall support (6)
+    inst_score  = inst.get("inst_score", 0) or 0
+    whale_power = inst.get("whale_power", 0) or 0
+    inst_whale  = (inst_score / 100 * 6) + (whale_power / 100 * 6)
+
+    # 3 ── TECHNICAL (12): RSI (4) + MACD (4) + Volume surge (4)
+    if 40 <= rsi <= 55:
+        rsi_pts = 4
+    elif 55 < rsi <= 62 or 35 <= rsi < 40:
+        rsi_pts = 3
+    elif 30 <= rsi < 35:
+        rsi_pts = 2
+    elif rsi > 70 or rsi < 25:
+        rsi_pts = 0
+    else:
+        rsi_pts = 1
+    macd_rel = (macd_hist / price * 100) if price else 0
+    if macd_rel > 0.05:
+        macd_pts = 4
+    elif macd_rel > 0:
+        macd_pts = 3
+    elif macd_rel == 0:
+        macd_pts = 2
+    elif macd_rel > -0.05:
+        macd_pts = 1
+    else:
+        macd_pts = 0
+    vol_pts   = 4 if in_volume_surge else 1
+    technical = rsi_pts + macd_pts + vol_pts
+
+    # 4 ── SMART-MONEY DIVERGENCE (10): order-flow (6) + price/volume div (4)
+    ofi = inst.get("ofi_score", 50) or 50
+    if divergence_signal == "ACCUMULATION":
+        div_pts = 4
+    elif divergence_signal == "DISTRIBUTION":
+        div_pts = 0
+    else:
+        div_pts = 2
+    smart_divergence = (ofi / 100 * 6) + div_pts
+
+    # 5 ── TRADE ENGINE (10): R/R ratio (5) + execution traffic light (5)
+    entry  = tp.get("entry_low") or price
+    sl     = tp.get("stop_loss") or 0
+    tp1    = tp.get("tp1") or 0
+    risk   = entry - sl
+    reward = tp1 - entry
+    rr     = reward / risk if risk > 0 else 0
+    if rr >= 2:
+        rr_pts = 5
+    elif rr >= 1.5:
+        rr_pts = 4
+    elif rr >= 1:
+        rr_pts = 3
+    elif rr > 0:
+        rr_pts = 1
+    else:
+        rr_pts = 0
+    traffic = inst.get("traffic", "RED")
+    tr_pts  = 5 if traffic == "GREEN" else 2 if traffic == "YELLOW" else 0
+    trade_engine = rr_pts + tr_pts
+
+    raw   = market_regime + inst_whale + technical + smart_divergence + trade_engine
+    score = max(0, min(100, round(raw / 54 * 100)))
+    if score >= 68:
+        label, badge = "BUY", "badge-buy"
+    elif score >= 45:
+        label, badge = "WAIT", "badge-wait"
+    else:
+        label, badge = "SELL", "badge-sell"
+    return {
+        "score": score,
+        "raw":   round(raw, 1),
+        "rr":    round(rr, 2),
+        "label": label,
+        "badge": badge,
+        "breakdown": {
+            "market_regime":    round(market_regime, 1),
+            "inst_whale":       round(inst_whale, 1),
+            "technical":        round(technical, 1),
+            "smart_divergence": round(smart_divergence, 1),
+            "trade_engine":     round(trade_engine, 1),
+        },
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HISTORICAL BACKTESTER (Binance /api/v3/klines — no external data source needed)
 # ══════════════════════════════════════════════════════════════════════════════
