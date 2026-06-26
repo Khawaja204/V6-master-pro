@@ -14,7 +14,8 @@ from logic import (
     compute_institutional_score, compute_tp_levels, compute_position_size,
     compute_whale_power, calculate_atr, fetch_order_book, calculate_obi,
     detect_obi_spike, compute_confidence_score, fetch_ticker_price,
-    detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines
+    detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines,
+    fetch_macd_for_symbol, compute_v6_final_score,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -865,6 +866,7 @@ def data_refresh_loop():
                     w_pow  = whale_match.get("whale_power", 0) if whale_match else 0
                     obi_r  = whale_match.get("obi", {"obi": 0}) if whale_match else {"obi": 0}
                     atr    = calculate_atr(sym)
+                    macd_d = fetch_macd_for_symbol(sym)
                     tp     = compute_tp_levels(coin["price"], atr, CONFIG)
                     inst   = compute_institutional_score(coin["score"], w_pow, obi_r, walls, CONFIG)
                     conf   = compute_confidence_score(inst, obi_r, coin["score"])
@@ -873,6 +875,8 @@ def data_refresh_loop():
                         **coin,
                         "folder":     folder,
                         "atr":        atr,
+                        "macd":        macd_d,
+                        "macd_hist":   macd_d.get("hist", 0.0),
                         "tp_zones":   tp,
                         "inst":       inst,
                         "sizing":     sizing,
@@ -883,15 +887,15 @@ def data_refresh_loop():
 
             # ── Agent Self-Upgrade: Volume Surge Detection ─────────────────────
             all_coins = vmc_data.get("ALL", [])
-            volumes   = [c.get("volume", 0) for c in all_coins if c.get("volume", 0) > 0]
+            volumes   = [c.get("volume_usdt", 0) for c in all_coins if c.get("volume_usdt", 0) > 0]
             if volumes:
                 vols_sorted  = sorted(volumes)
                 median_vol   = vols_sorted[len(vols_sorted)//2] if vols_sorted else 1
                 vol_surge_coins = [
-                    {"symbol": c["symbol"], "volume": c.get("volume",0),
-                     "surge_ratio": round(c.get("volume",0) / (median_vol or 1), 2)}
+                    {"symbol": c["symbol"], "volume": c.get("volume_usdt",0),
+                     "surge_ratio": round(c.get("volume_usdt",0) / (median_vol or 1), 2)}
                     for c in all_coins
-                    if c.get("volume", 0) >= median_vol * 2.5 and c.get("volume",0) > 0
+                    if c.get("volume_usdt", 0) >= median_vol * 2.5 and c.get("volume_usdt",0) > 0
                 ]
                 vol_surge_coins.sort(key=lambda x: x["surge_ratio"], reverse=True)
                 GLOBAL_DATA["volume_surge"] = vol_surge_coins[:10]
@@ -938,6 +942,18 @@ def data_refresh_loop():
                 _strat, _sreason = determine_trading_strategy(s, whale_data, _mkt_reg)
                 s["trading_strategy"]        = _strat
                 s["trading_strategy_reason"] = _sreason
+
+            # ── V6 FINAL SCORE: 54-point institutional scoring per coin ───────
+            _btc_now   = GLOBAL_DATA.get("btc", {}) or {}
+            _btc_vol   = _btc_now.get("volatility_pct", 0) or 0
+            _div_map   = {d["symbol"]: d["signal"] for d in smart_div}
+            _surge_set = {v["symbol"] for v in GLOBAL_DATA.get("volume_surge", [])}
+            for s in inst_signals:
+                s["v6"] = compute_v6_final_score(
+                    s, _mkt_reg, _btc_vol,
+                    _div_map.get(s["symbol"], "NONE"),
+                    s["symbol"] in _surge_set,
+                )
 
             GLOBAL_DATA["vmc"]          = vmc_data
             GLOBAL_DATA["whale"]        = whale_data

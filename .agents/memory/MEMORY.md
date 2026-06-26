@@ -5,3 +5,4 @@
 - [Backtest & trade resolution](backtest-and-trade-resolution.md) — conservative intrabar SL-at-open; classify WIN/LOSS by realized PnL; no historical order-book; favorite_coins under vmc section.
 - [Dashboard UI structure](dashboard-ui-structure.md) — index.html JS is ID-only (safe to restructure HTML); Simple View is the default landing overlay; restore #simple-view active after verifying.
 - [V6 modular UI](v6-modular-ui.md) — clean modular rebuild in V6_Master_Pro_UI/ (html/css/js/config split); served NON-destructively at /v6 (legacy / untouched); must use trailing slash /v6/.
+- [V6 Final Score + volume key gotcha](v6-final-score.md) — 54-pt engine (compute_v6_final_score) → BUY/WAIT/SELL; coin volume lives under `volume_usdt` not `volume`.
