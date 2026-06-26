@@ -3,3 +3,4 @@
 - [Binance connectivity resilience](binance-connectivity.md) — transient DNS to api.binance.com; multi-host failover + retry session + background health probe; report real reachability, not key presence.
 - [Telegram alerts & secrets](telegram-and-secrets.md) — send_telegram returns bool; HTTP 404 = invalid/revoked BOT_TOKEN (user must fix), not a code bug; tokens .strip()-ed at load.
 - [Backtest & trade resolution](backtest-and-trade-resolution.md) — conservative intrabar SL-at-open; classify WIN/LOSS by realized PnL; no historical order-book; favorite_coins under vmc section.
+- [Dashboard UI structure](dashboard-ui-structure.md) — index.html JS is ID-only (safe to restructure HTML); Simple View is the default landing overlay; restore #simple-view active after verifying.
