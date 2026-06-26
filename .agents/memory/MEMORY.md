@@ -4,3 +4,4 @@
 - [Telegram alerts & secrets](telegram-and-secrets.md) — send_telegram returns bool; HTTP 404 = invalid/revoked BOT_TOKEN (user must fix), not a code bug; tokens .strip()-ed at load.
 - [Backtest & trade resolution](backtest-and-trade-resolution.md) — conservative intrabar SL-at-open; classify WIN/LOSS by realized PnL; no historical order-book; favorite_coins under vmc section.
 - [Dashboard UI structure](dashboard-ui-structure.md) — index.html JS is ID-only (safe to restructure HTML); Simple View is the default landing overlay; restore #simple-view active after verifying.
+- [V6 modular UI](v6-modular-ui.md) — clean modular rebuild in V6_Master_Pro_UI/ (html/css/js/config split); served NON-destructively at /v6 (legacy / untouched); must use trailing slash /v6/.

@@ -6,7 +6,7 @@ All secrets in Replit Secrets. No hardcoded values.
 import os, json, time, threading, logging, secrets as _secrets
 from collections import defaultdict
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, session, redirect, render_template_string, Response
+from flask import Flask, request, jsonify, session, redirect, render_template_string, Response, send_from_directory
 
 from logic import (
     process_vmc_signals, process_whale_walls, push_to_google_sheets,
@@ -1266,6 +1266,26 @@ def index():
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
+    return resp
+
+
+@app.route("/v6")
+def v6_redirect():
+    # Trailing slash so relative asset URLs (style.css, script.js) resolve under /v6/
+    return redirect("/v6/", code=302)
+
+
+@app.route("/v6/")
+def v6_ui():
+    resp = send_from_directory("V6_Master_Pro_UI", "index.html")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
+@app.route("/v6/<path:fname>")
+def v6_assets(fname):
+    resp = send_from_directory("V6_Master_Pro_UI", fname)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
 
 

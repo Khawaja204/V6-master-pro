@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>V6 Master Pro — Institutional Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- ============================ APP BAR ============================ -->
+    <header class="appbar">
+      <div class="brand">
+        <div class="logo">V6</div>
+        <div>
+          <h1>MASTER PRO</h1>
+          <div class="sub">Institutional Crypto Intelligence</div>
+        </div>
+      </div>
+      <div class="appbar-right">
+        <div class="search">
+          <input id="search-input" type="text" placeholder="Search coin…" autocomplete="off" />
+          <div id="search-results" class="search-results"></div>
+        </div>
+        <div class="conn">
+          <span id="conn-dot" class="dot"></span>
+          <span id="conn-text">LIVE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================ STATUS STRIP ============================ -->
+    <section class="strip">
+      <div class="chip"><div class="k">Status</div><div class="v up" id="st-status">—</div></div>
+      <div class="chip"><div class="k">Cycle</div><div class="v" id="st-cycle">—</div></div>
+      <div class="chip"><div class="k">Last Update</div><div class="v" id="st-update">—</div></div>
+      <div class="chip"><div class="k">Exchange</div><div class="v" id="st-exchange">—</div></div>
+      <div class="chip"><div class="k">Regime</div><div class="v" id="st-regime">—</div></div>
+      <div class="chip"><div class="k">Win Rate</div><div class="v gold" id="st-winrate">—</div></div>
+      <div class="chip"><div class="k">Next Refresh</div><div class="v muted" id="st-countdown">—</div></div>
+    </section>
+
+    <!-- ============================ MARKET STRIP ============================ -->
+    <section class="strip">
+      <div class="chip"><div class="k">BTC Price</div><div class="v" id="mk-btc-price">—</div></div>
+      <div class="chip"><div class="k">BTC 24h</div><div class="v" id="mk-btc-chg">—</div></div>
+      <div class="chip"><div class="k">Sentiment</div><div class="v" id="mk-sentiment">—</div></div>
+      <div class="chip"><div class="k">Volatility</div><div class="v" id="mk-vol">—</div></div>
+      <div class="chip"><div class="k">BTC Regime</div><div class="v" id="mk-btc-regime">—</div></div>
+      <div class="chip"><div class="k">Entries</div><div class="v" id="mk-entries">—</div></div>
+    </section>
+
+    <!-- ============================ PAPER BANNER ============================ -->
+    <div id="paper-banner" class="paper-banner"></div>
+
+    <!-- ============================ PROFILE + TDE ============================ -->
+    <section class="grid-2">
+
+      <!-- Coin profile -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="bar"></span>Coin Profile</div>
+          <span class="panel-badge" id="pf-folder"></span>
+        </div>
+        <div class="panel-body">
+          <div class="profile-top">
+            <div>
+              <div class="pf-sym" id="pf-symbol">—</div>
+              <div class="pf-price" id="pf-price">—</div>
+            </div>
+            <div class="right">
+              <div class="pf-change" id="pf-change">—</div>
+            </div>
+          </div>
+          <div class="chart-box" id="pf-chart"></div>
+          <div class="stat-grid">
+            <div class="stat"><div class="k">RSI</div><div class="v" id="pf-rsi">—</div></div>
+            <div class="stat"><div class="k">VMC Score</div><div class="v gold" id="pf-score">—</div></div>
+            <div class="stat"><div class="k">Whale Power</div><div class="v blue" id="pf-whale">—</div></div>
+            <div class="stat"><div class="k">24h High</div><div class="v" id="pf-high">—</div></div>
+            <div class="stat"><div class="k">24h Low</div><div class="v" id="pf-low">—</div></div>
+            <div class="stat"><div class="k">Range Pos</div><div class="v" id="pf-pos">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade decision engine -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="bar"></span>Trade Decision Engine</div>
+          <span class="panel-badge" id="tde-symbol">—</span>
+        </div>
+        <div class="panel-body">
+          <div class="tde-head">
+            <div class="light red" id="tde-light">✕</div>
+            <div class="tde-verdict">
+              <div class="lbl" id="tde-verdict">—</div>
+              <div class="sub">Institutional confirmation engine</div>
+            </div>
+          </div>
+          <div class="tde-metrics">
+            <div class="stat"><div class="k">Inst Score</div><div class="v" id="tde-inst">—</div></div>
+            <div class="stat"><div class="k">OFI</div><div class="v" id="tde-ofi">—</div></div>
+            <div class="stat"><div class="k">Whale</div><div class="v" id="tde-whale">—</div></div>
+            <div class="stat"><div class="k">Confidence</div><div class="v" id="tde-conf">—</div></div>
+          </div>
+          <div class="tde-reason" id="tde-reason">—</div>
+          <div class="zones">
+            <div class="zone"><div class="k">Entry</div><div class="v" id="tde-entry">—</div></div>
+            <div class="zone sl"><div class="k">Stop Loss</div><div class="v" id="tde-sl">—</div></div>
+            <div class="zone"><div class="k">Position</div><div class="v" id="tde-position">—</div></div>
+            <div class="zone tp"><div class="k">TP1</div><div class="v" id="tde-tp1">—</div></div>
+            <div class="zone tp"><div class="k">TP2</div><div class="v" id="tde-tp2">—</div></div>
+            <div class="zone tp"><div class="k">TP3</div><div class="v" id="tde-tp3">—</div></div>
+          </div>
+          <div class="tde-actions">
+            <button class="btn btn-execute" id="btn-execute" disabled>ENTRY LOCKED</button>
+            <button class="btn btn-panic" id="btn-panic">PANIC CLOSE</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ SENTIMENT & WHALE ============================ -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="bar"></span>Sentiment &amp; Whale Data</div>
+      </div>
+      <div class="panel-body">
+        <div class="sent-grid">
+          <div>
+            <div class="gauge">
+              <div class="gauge-top"><span class="muted">Whale Power (avg)</span><span id="sn-whale-val">—</span></div>
+              <div class="gauge-track"><div class="gauge-fill blue" id="sn-whale-gauge"></div></div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-top"><span class="muted">Buy Pressure</span><span id="sn-buy-val">—</span></div>
+              <div class="gauge-track"><div class="gauge-fill green" id="sn-buy-gauge"></div></div>
+            </div>
+            <div class="gauge">
+              <div class="gauge-top"><span class="muted">Sell Pressure</span><span id="sn-sell-val">—</span></div>
+              <div class="gauge-track"><div class="gauge-fill red" id="sn-sell-gauge"></div></div>
+            </div>
+            <div class="stat-grid">
+              <div class="stat"><div class="k">BTC Sentiment</div><div class="v" id="sn-sentiment">—</div></div>
+              <div class="stat"><div class="k">Market Regime</div><div class="v" id="sn-regime">—</div></div>
+            </div>
+          </div>
+          <div>
+            <div class="panel-title u-mb-10"><span class="bar"></span>Top Whale Wallets</div>
+            <div class="wallets" id="sn-wallets"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ INSTITUTIONAL TABLE ============================ -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="bar"></span>Institutional &amp; Wall Scanner</div>
+        <span class="panel-badge" id="inst-count">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>#</th><th>Symbol</th><th>Folder</th><th>Light</th><th>Inst</th>
+                <th>Conf</th><th>Whale</th><th>24h</th><th>Price</th><th>Stop</th><th>TP1</th>
+              </tr>
+            </thead>
+            <tbody id="inst-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ SMART MONEY ============================ -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="bar"></span>Smart Money Divergence</div>
+        <span class="panel-badge" id="smart-count">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="sm-list" id="smart-body"></div>
+        <div class="watch-row u-mt-12"><span class="muted">Volume Surge</span><span class="gold" id="vol-surge">—</span></div>
+      </div>
+    </div>
+
+    <!-- ============================ WATCH CARDS ============================ -->
+    <section class="watch-grid" id="watch-grid"></section>
+
+    <!-- ============================ BACKTESTING ============================ -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="bar"></span>Live Backtesting</div>
+      </div>
+      <div class="panel-body">
+        <div class="bt-summary">
+          <div class="bt-card"><div class="k">Wins</div><div class="v up" id="bt-wins">0</div></div>
+          <div class="bt-card"><div class="k">Losses</div><div class="v down" id="bt-losses">0</div></div>
+          <div class="bt-card"><div class="k">Total</div><div class="v" id="bt-total">0</div></div>
+          <div class="bt-card"><div class="k">Win Rate</div><div class="v gold" id="bt-winrate">0.0%</div></div>
+        </div>
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Result</th><th>PnL</th><th>Time</th></tr>
+            </thead>
+            <tbody id="bt-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ ALERT HISTORY ============================ -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="bar"></span>Alert History</div>
+        <span class="panel-badge" id="hist-count">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr><th>Time</th><th>Type</th><th>Symbol</th><th>Label</th><th>Price</th><th>Detail</th></tr>
+            </thead>
+            <tbody id="hist-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ CLIENT & API ============================ -->
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="bar"></span>Client &amp; API Management</div>
+      </div>
+      <div class="panel-body">
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr><th>Client</th><th>Pair</th><th>Exchange</th><th>Status</th></tr>
+            </thead>
+            <tbody id="client-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ FOOTER ============================ -->
+    <footer class="foot">
+      <span id="foot-update">Last data: —</span>
+      <span>V6 Master Pro · Institutional Crypto Intelligence</span>
+    </footer>
+
+  </div>
+
+  <!-- Config first, then logic. No embedded scripts. -->
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

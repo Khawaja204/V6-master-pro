@@ -1,0 +1,68 @@
+==============================================================================
+ V6 MASTER PRO — DEPLOYMENT GUIDE  (V6_Master_Pro_UI modular dashboard)
+==============================================================================
+
+This folder is the FRONT-END (UI) only. It reads live data from the existing
+Flask backend (main.py) over HTTP. The backend must be running for data to load.
+
+------------------------------------------------------------------------------
+ 1. START COMMAND  (Replit Deployments → "Run command")
+------------------------------------------------------------------------------
+    python3 main.py
+
+    The server listens on port 8080 and serves both the API and this UI.
+
+------------------------------------------------------------------------------
+ 2. ENTRY FILE PATH  (Replit Deployments → entry / build)
+------------------------------------------------------------------------------
+    main.py            <- backend entry point (project root)
+
+    This modular UI is served by main.py at the path:  /v6
+    (The original dashboard remains untouched at:       /  )
+
+    So after deployment:
+      https://<your-app>.replit.app/v6      <- THIS modular dashboard
+      https://<your-app>.replit.app/        <- original dashboard
+      https://<your-app>.replit.app/dashboard_data   <- live JSON API
+
+------------------------------------------------------------------------------
+ 3. ENVIRONMENT VARIABLES  (Replit Deployments → Secrets)
+------------------------------------------------------------------------------
+    BOT_TOKEN        Telegram bot token from @BotFather (for trade alerts)
+    SECRET_KEY       API access key guarding /get_data
+    SESSION_SECRET   Flask session signing secret (admin login)
+
+    NOTE: If BOT_TOKEN is missing/invalid, the dashboard still works fully;
+    only Telegram alert delivery is affected.
+
+------------------------------------------------------------------------------
+ 4. DEPLOYMENT TYPE
+------------------------------------------------------------------------------
+    Use a RESERVED VM / Autoscale deployment (NOT a Static deployment).
+    The backend is a long-running Python process that scans markets on a
+    background thread, so it cannot run as a static site.
+
+------------------------------------------------------------------------------
+ 5. CHANGING SETTINGS WITHOUT TOUCHING CODE
+------------------------------------------------------------------------------
+    Edit V6_Master_Pro_UI/config.js only:
+      - api.base / api.endpoints   -> point the UI at a different backend/URL
+      - refresh.intervalSec        -> how often live data refreshes (default 30s)
+      - chart.interval / chart.limit -> candlestick timeframe & candle count
+      - profileSymbol              -> "auto" or a fixed symbol (e.g. "SOLUSDT")
+      - watchCards                 -> the HIFI/DOGE-style strategy cards
+      - clients                    -> Client & API Management table rows
+      - layout.maxWidthPx / tableMaxRows
+
+    If you host this UI on a SEPARATE origin from the backend, set
+    api.base to the backend URL AND enable CORS on the backend.
+
+------------------------------------------------------------------------------
+ 6. FILE MAP
+------------------------------------------------------------------------------
+    index.html     structure only (no inline styles, no embedded scripts)
+    style.css      all design, grid, layout
+    script.js      all data fetching, rendering, interaction
+    config.js      editable settings (endpoints, refresh, layout, watch coins)
+    deployment.txt this file
+==============================================================================
