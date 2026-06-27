@@ -34,10 +34,31 @@ on `#profile-badge`) WIPES Tailwind layout utilities baked into the HTML
 (`ml-auto`, etc.) on the first data refresh. Re-append those utilities in the JS
 assignment, or use `classList` to toggle only the variant class.
 
-## How it is served — `/v6`, NOT `/`
-Flask (`main.py`) serves it NON-destructively at `/v6` via `send_from_directory`
+## Mobile fidelity: viewport is intentionally `width=1200` (NOT device-width)
+The target mockups are the DENSE DESKTOP layout shown on a phone (zoomed out).
+With `width=device-width` the Tailwind `lg:`/`md:` breakpoints collapsed everything
+to one tall single column on mobile, which the user read as "simplified / sections
+missing" (the sections were all present, just stacked + below the fold). Fix:
+`<meta name="viewport" content="width=1200">` forces phones to render the full
+desktop canvas scaled to fit = matches the reference. This is a deliberate
+compatibility override, not responsive best practice — do NOT "fix" it back to
+device-width without the user asking. The chart carries an always-visible
+Buy/Sell/Hold signal badge (`#chart-signal`/`#chart-signal-text`) set in
+`updateCoinProfile` from the top coin `v6.label` (BUY=green / WAIT→"HOLD"=amber /
+SELL+AVOID=red); it is independent of the timing-fragile `setMarkers` path.
+
+## How it is served — root `/` now REDIRECTS to `/v6/`
+Flask (`main.py`) serves it at `/v6` via `send_from_directory`
 (routes: `/v6` 302→`/v6/`, `/v6/` → index.html, `/v6/<path>` → assets, both
-no-store). The legacy monolithic `index.html` is untouched at `/`.
+no-store). Root `/` now 302-redirects to `/v6/` (the user wanted the new UI as the
+default, because the Replit preview pane always opens `/` and they kept seeing the
+old page). The legacy monolithic `index.html` is PRESERVED, moved to route
+`/legacy` (still no-store) — it was not deleted.
+**Why:** user repeatedly reported "stuck on old version" — the cause was the
+preview opening `/`. Confirm route confusion before assuming a cache/build problem;
+this is a pure-Python Flask app with NO build step, and `/v6/` already sends
+`no-store`, so there is never a server-side stale cache. Only `.pythonlibs`
+`__pycache__` exists (third-party, irrelevant).
 **Why:** the new UI needs the Python backend for live data, and a static-only
 deploy can't run it. Same-origin serving avoids CORS. `config.api.base=""` keeps
 fetches root-relative (`/dashboard_data`, `/chart_data`) so it works behind the
