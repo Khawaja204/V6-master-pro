@@ -257,7 +257,7 @@ function updateScannerTable(d) {
     const tp = c.tp_zones || {};
     const v6 = c.v6 || {};
     const tl = (inst.traffic || 'red').toLowerCase();
-    const tlDot = `<span class="traffic-dot ${tl==='green'?'traffic-green':tl==='yellow'?'traffic-yellow':'traffic-red'}"></span>`;
+    const tlDot = `<span class="tl-sq ${tl==='green'?'traffic-green':tl==='yellow'?'traffic-yellow':'traffic-red'}"></span>`;
     const instScore = parseFloat(inst.inst_score || 0);
     const conf = parseFloat(c.confidence || 0);
     const wp   = parseFloat(inst.whale_power || 0);

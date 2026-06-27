@@ -26,9 +26,9 @@
 
   /* ---- generic data tables (rows injected by script.js) ---- */
   table.dtable{ width:100%; border-collapse:collapse; }
-  table.dtable th{ text-align:left; padding:8px 10px; font-size:10px; text-transform:uppercase;
+  table.dtable th{ text-align:left; padding:6px 8px; font-size:9px; text-transform:uppercase;
     letter-spacing:.5px; color:#64748b; border-bottom:1px solid #1e293b; background:#0b111e; white-space:nowrap; }
-  table.dtable td{ padding:7px 10px; font-size:11px; border-bottom:1px solid #1e293b;
+  table.dtable td{ padding:5px 8px; font-size:10px; border-bottom:1px solid #1e293b;
     font-family:ui-monospace,Menlo,Consolas,monospace; white-space:nowrap; }
   .dtable tbody tr:hover{ background:rgba(255,255,255,.02); }
   .dtable tr.avoid-row td{ background:rgba(255,51,68,.05); }
@@ -42,7 +42,8 @@
   .action-SELL,.action-AVOID{ background:rgba(255,59,48,.12); color:#ff3b30; border:1px solid rgba(255,59,48,.4); }
   .action-WAIT,.action-HOLD{ background:rgba(255,213,0,.12); color:#ffd700; border:1px solid rgba(255,213,0,.35); }
   .strat-badge{ display:inline-block; padding:2px 7px; border-radius:4px; font-size:9px; font-weight:700;
-    letter-spacing:.5px; background:rgba(56,189,248,.12); color:#38bdf8; border:1px solid rgba(56,189,248,.35); }
+    letter-spacing:.5px; background:#0891b2; color:#ecfeff; border:1px solid #22d3ee; }
+  .tl-sq{ width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:5px; vertical-align:middle; }
 
   /* ---- traffic light dot ---- */
   .traffic-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:5px; vertical-align:middle; }
@@ -97,12 +98,27 @@
 </header>
 
 <!-- ============ STATUS BAR ============ -->
-<div class="bg-slate-900/60 border-x border-b border-panelb px-3 py-2 flex flex-wrap items-center gap-y-1 text-[11px] font-mono">
-  <div class="pr-3 mr-3 border-r border-slate-700/50">STATUS <span class="sb-value sb-live">LIVE</span></div>
-  <div class="pr-3 mr-3 border-r border-slate-700/50">CYCLE <span class="sb-value sb-white text-white" id="sb-cycle">—</span></div>
-  <div class="pr-3 mr-3 border-r border-slate-700/50">REGIME <span class="sb-value sb-volatile" id="sb-regime">—</span></div>
-  <div class="pr-3 mr-3 border-r border-slate-700/50">BTC PRICE <span class="sb-value text-emerald-400" id="sb-btcprice">—</span></div>
-  <div>RTG BIAS <span class="sb-value sb-bearish" id="sb-rias">—</span></div>
+<div class="bg-slate-900/60 border-x border-b border-panelb px-3 py-1.5 flex flex-wrap items-center gap-y-1 text-[11px] font-mono">
+  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
+    <div class="text-[8px] text-slate-500 tracking-widest mb-1">STATUS</div>
+    <div class="text-[12px]"><span class="sb-value sb-live">LIVE</span></div>
+  </div>
+  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
+    <div class="text-[8px] text-slate-500 tracking-widest mb-1">CYCLE</div>
+    <div class="text-[12px]"><span class="sb-value text-white" id="sb-cycle">—</span></div>
+  </div>
+  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
+    <div class="text-[8px] text-slate-500 tracking-widest mb-1">REGIME</div>
+    <div class="text-[12px]"><span class="sb-value sb-volatile" id="sb-regime">—</span></div>
+  </div>
+  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
+    <div class="text-[8px] text-slate-500 tracking-widest mb-1">BTC PRICE</div>
+    <div class="text-[12px]"><span class="sb-value text-emerald-400" id="sb-btcprice">—</span></div>
+  </div>
+  <div class="leading-none">
+    <div class="text-[8px] text-slate-500 tracking-widest mb-1">RTG BIAS</div>
+    <div class="text-[12px]"><span class="sb-value sb-bearish" id="sb-rias">—</span></div>
+  </div>
   <div class="ml-auto flex items-center gap-3">
     <span class="text-slate-500">next <span id="next-count" class="text-slate-300">30</span>s</span>
     <span class="bg-blue-900/40 text-blue-300 px-2 py-0.5 rounded border border-blue-800 flex items-center gap-1">
@@ -112,7 +128,7 @@
 </div>
 
 <!-- ============ MAIN 2-COLUMN ============ -->
-<main class="grid grid-cols-1 lg:grid-cols-12 gap-3 mt-3">
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-3 mt-2">
 
   <!-- LEFT: COIN PROFILE & CHART -->
   <section class="lg:col-span-7">
@@ -133,7 +149,7 @@
 
         <div id="chart-container" class="rounded border border-panelb bg-[#060610]"></div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-3 text-[11px] bg-slate-950/50 p-3 rounded border border-panelb/50">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-2 text-[11px] bg-slate-950/50 p-3 rounded border border-panelb/50">
           <div class="flex justify-between gap-2"><span class="text-slate-500">Whale Bag Size:</span><span class="dg-value" id="whale-bag">—</span></div>
           <div class="flex justify-between gap-2"><span class="text-slate-500">Buy Price Est:</span><span class="dg-value green" id="buy-price-est">—</span></div>
           <div class="flex justify-between gap-2"><span class="text-slate-500">Buy Price Ext:</span><span class="dg-value" id="buy-price-ext">—</span></div>
@@ -161,9 +177,9 @@
           <li class="flex justify-between border-b border-panelb pb-1.5"><span>ATR Zones:</span><span id="atr-zones">Scoped</span></li>
         </ul>
 
-        <div class="warning-box mt-3 p-2 rounded bg-red-950/30 border border-red-900 text-red-400 text-[11px] font-mono" id="warning-box" style="display:none"></div>
+        <div class="warning-box mt-2 p-2 rounded bg-red-950/30 border border-red-900 text-red-400 text-[11px] font-mono" id="warning-box" style="display:none"></div>
 
-        <div class="mt-3 p-3 bg-red-950/20 border border-red-950 rounded">
+        <div class="mt-2 p-3 bg-red-950/20 border border-red-950 rounded">
           <span class="text-slate-400 text-[10px] block uppercase font-semibold tracking-wider mb-1">Reason</span>
           <p class="text-red-400 text-[11px] font-semibold uppercase tracking-wide" id="reason-text">DUMP_PREPARATION (ISY) → AVOID</p>
         </div>
@@ -178,7 +194,7 @@
 </main>
 
 <!-- ============ SENTIMENT & WHALE DATA ============ -->
-<section class="bg-panel border border-panelb rounded p-3 mt-3 shadow">
+<section class="bg-panel border border-panelb rounded p-3 mt-2 shadow">
   <h2 class="text-slate-300 font-semibold text-[12px] mb-3 flex items-center gap-1.5"><i class="fa-solid fa-heart text-pink-400"></i> Sentiment &amp; Whale Data</h2>
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 items-center">
     <!-- Whale Power gauge -->
@@ -221,12 +237,12 @@
 </section>
 
 <!-- ============ PAPER MODE BANNER ============ -->
-<div class="bg-amber-500/15 border border-amber-600/40 text-amber-300 text-center text-[11px] font-semibold rounded py-1.5 mt-3" id="paper-strip" style="display:none">
+<div class="bg-amber-500/15 border border-amber-600/40 text-amber-300 text-center text-[11px] font-semibold rounded py-1.5 mt-2" id="paper-strip" style="display:none">
   📋 PAPER MODE: Simulated – Safe for testing
 </div>
 
 <!-- ============ SCANNER TABLE ============ -->
-<section class="bg-panel border border-panelb rounded mt-3 shadow-lg overflow-hidden">
+<section class="bg-panel border border-panelb rounded mt-2 shadow-lg overflow-hidden">
   <div class="p-3 border-b border-panelb bg-slate-900/50 flex justify-between items-center gap-2 flex-wrap">
     <h2 class="text-[12px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
       <i class="fa-solid fa-table-list text-cyan-400"></i> Institutional &amp; Wall Scanner Table
@@ -304,7 +320,7 @@
 </div>
 
 <!-- ============ BOTTOM PANELS ============ -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
 
   <!-- SMD 2 + volume surge -->
   <div class="bg-panel border border-panelb rounded p-3">
@@ -313,7 +329,7 @@
       <svg id="smd-gauge-2" width="140" height="80" viewBox="0 0 140 80"></svg>
       <div class="flex justify-between w-full text-[9px] text-slate-500 mt-1"><span>Distribution</span><span>Volume Surge</span></div>
     </div>
-    <div class="mt-3">
+    <div class="mt-2">
       <div class="text-[9px] text-orange-400 font-bold mb-1">🚀 VOLUME SURGE — &gt;2.5x Median Volume</div>
       <div id="vol-surge-list"></div>
     </div>
@@ -338,7 +354,7 @@
 </div>
 
 <!-- ============ CLIENT & API MANAGEMENT ============ -->
-<section class="bg-panel border border-panelb rounded mt-3 overflow-hidden">
+<section class="bg-panel border border-panelb rounded mt-2 overflow-hidden">
   <div class="p-3 border-b border-panelb bg-slate-900/50 text-[12px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
     <i class="fa-solid fa-gear text-cyan-400"></i> Client &amp; API Management
   </div>
@@ -370,6 +386,6 @@
   <span>Version: v0.0.20</span>
 </footer>
 
-<script src="script.js?v=6"></script>
+<script src="script.js?v=7"></script>
 </body>
 </html>
