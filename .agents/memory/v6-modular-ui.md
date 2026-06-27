@@ -34,18 +34,30 @@ on `#profile-badge`) WIPES Tailwind layout utilities baked into the HTML
 (`ml-auto`, etc.) on the first data refresh. Re-append those utilities in the JS
 assignment, or use `classList` to toggle only the variant class.
 
-## Mobile fidelity: viewport is intentionally `width=1200` (NOT device-width)
-The target mockups are the DENSE DESKTOP layout shown on a phone (zoomed out).
-With `width=device-width` the Tailwind `lg:`/`md:` breakpoints collapsed everything
-to one tall single column on mobile, which the user read as "simplified / sections
-missing" (the sections were all present, just stacked + below the fold). Fix:
-`<meta name="viewport" content="width=1200">` forces phones to render the full
-desktop canvas scaled to fit = matches the reference. This is a deliberate
-compatibility override, not responsive best practice — do NOT "fix" it back to
-device-width without the user asking. The chart carries an always-visible
-Buy/Sell/Hold signal badge (`#chart-signal`/`#chart-signal-text`) set in
-`updateCoinProfile` from the top coin `v6.label` (BUY=green / WAIT→"HOLD"=amber /
-SELL+AVOID=red); it is independent of the timing-fragile `setMarkers` path.
+## Mobile fidelity: viewport `width=760` + FORCED multi-column (no collapse)
+The reference mockups are an IDEALIZED dense, readable, multi-column phone dashboard
+(they even contain chart annotations like "SlowRise SellZone"/"VSAP" that exist
+NOWHERE in this codebase — do NOT chase a literal pixel-match; they are concept art).
+Two failure modes to avoid, both of which the user rejected:
+  - `width=device-width`: Tailwind `lg:`/`md:` breakpoints collapse everything into
+    one tall SINGLE column → user reads it as "simplified / sections missing".
+  - `width=1200`: phone scales the desktop canvas to ~38% → TINY / unreadable →
+    user reads it as "stripped down".
+The sweet spot: `<meta name="viewport" content="width=760">` (dense but readable,
+~60% scale on a ~454px device) AND remove the responsive-collapse breakpoints so the
+layout NEVER stacks on mobile — `main` is `grid-cols-12` (not `grid-cols-1
+lg:grid-cols-12`), the two top sections are `col-span-7`/`col-span-5` (drop the `lg:`),
+sentiment is `grid-cols-4`, the two panel rows are `grid-cols-3` (drop `md:`).
+**Keep `sm:` utilities** — `sm`(640) IS active at viewport 760, so `sm:grid-cols-2/3`
+inside cards still work. Scanner table stays `overflow-x-auto` (9 cols scroll on phone).
+Desktop is unaffected: desktop ignores the viewport `width=`, and the layout was
+already multi-col at `lg`. **Why:** picking the viewport is a 3-way tradeoff —
+device-width=collapsed, too-wide=tiny, ~760=balanced; tune the number, don't revert
+to either extreme without the user asking.
+The chart carries an always-visible Buy/Sell/Hold badge (`#chart-signal`/
+`#chart-signal-text`) set in `updateCoinProfile` from top coin `v6.label`
+(BUY=green / WAIT→"HOLD"=amber / SELL+AVOID=red); independent of the fragile
+`setMarkers` path.
 
 ## How it is served — root `/` now REDIRECTS to `/v6/`
 Flask (`main.py`) serves it at `/v6` via `send_from_directory`
