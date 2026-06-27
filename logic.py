@@ -14,6 +14,8 @@ try:
 except Exception:  # pragma: no cover - fallback for older urllib3 layouts
     from requests.packages.urllib3.util.retry import Retry  # type: ignore
 
+from scoring_engine import calculate_54_point_score
+
 log = logging.getLogger(__name__)
 
 # Binance hosts in priority order. If the primary fails (e.g. transient DNS
@@ -747,6 +749,29 @@ def compute_institutional_score(vmc_score: int, whale_power: float, ofi_result: 
         light, reason, spike = "GREEN",  f"ALL_CRITERIA_MET: score={final}", False
     else:
         light, reason, spike = "RED",    f"INSUFFICIENT: score={final}", False
+
+    score_result = calculate_54_point_score(
+        symbol=symbol if 'symbol' in dir() else '',
+        klines=klines if 'klines' in dir() else [],
+        order_book=order_book if 'order_book' in dir() else {},
+        ticker=ticker if 'ticker' in dir() else {},
+        extra={
+            'whale_power': whale_power if 'whale_power' in dir() else 0,
+            'vmc_score': vmc_score if 'vmc_score' in dir() else 0,
+            'obi': obi if 'obi' in dir() else 0,
+            'btc_regime': btc_regime if 'btc_regime' in dir() else '',
+            'whale_trap': whale_trap if 'whale_trap' in dir() else False,
+            'whale_cluster': cluster_status if 'cluster_status' in dir() else '',
+            'institutional_score': institutional_score if 'institutional_score' in dir() else 0,
+            'paper_mode': paper_mode if 'paper_mode' in dir() else True,
+            'paper_win_rate': win_rate if 'win_rate' in dir() else 0,
+            'consecutive_losses': consecutive_losses if 'consecutive_losses' in dir() else 0,
+            'cooldown_active': cooldown_active if 'cooldown_active' in dir() else False,
+            'traffic_light': traffic_light if 'traffic_light' in dir() else 'red',
+        }
+    )
+    institutional_score = score_result['score']
+    signal = score_result['signal']
     return {
         "inst_score": final, "whale_power": whale_power, "ofi_score": round(ofi_score, 1),
         "vmc_score": vmc_score, "traffic": light, "spike": spike, "confirms": confirms, "reason": reason,
