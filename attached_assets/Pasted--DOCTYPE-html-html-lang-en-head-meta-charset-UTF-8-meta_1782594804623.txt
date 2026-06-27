@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading Dashboard</title>
+    <!-- Tailwind CSS CDN for quick, structured styling -->
+    <script src="https://tailwindcss.com"></script>
+    <!-- FontAwesome CDN for visual indicators and icons -->
+    <link rel="stylesheet" href="https://cloudflare.com">
+    <style>
+        body {
+            background-color: #0b111e;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .panel-bg { background-color: #131a26; }
+        .border-panel { border-color: #1e293b; }
+        .text-neon-green { color: #00ffcc; }
+        .text-neon-red { color: #ff3b30; }
+        .bg-neon-red { background-color: #ff3b30; }
+    </style>
+</head>
+<body class="p-3 text-xs md:text-sm selection:bg-slate-700">
+
+    <!-- TOP CONTROL BAR -->
+    <header class="panel-bg border border-panel rounded-t p-3 flex flex-wrap justify-between items-center gap-2 mb-2 shadow-lg">
+        <div class="flex items-center gap-4 flex-wrap">
+            <span class="font-bold text-base text-cyan-400 tracking-wider">V6 MASTER PRO</span>
+            <div class="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-panel text-green-400">
+                <span class="h-2 w-2 rounded-full bg-green-500 animate-ping"></span>
+                <span>STATUS: LIVE</span>
+            </div>
+            <div>CYCLE: <span class="font-semibold">14</span></div>
+            <div class="text-yellow-400">RECIME: VOLATILE</div>
+            <div>BTC PRICE: <span class="text-neon-green font-mono">$59,911M</span></div>
+            <div class="text-neon-red">RTG RIAS: BEARISH</div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="bg-blue-900/40 text-blue-400 px-2 py-1 rounded text-xs border border-blue-800">Connected: Binance</span>
+            <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-panel flex items-center gap-1">
+                <span>Profile</span> <i class="fa-solid fa-chevron-down text-xxs"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN TWO-COLUMN SPLIT -->
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        
+        <!-- LEFT COLUMN: CHART & COIN SELECTOR (7 Cols) -->
+        <section class="lg:col-span-7 flex flex-col gap-3">
+            <div class="panel-bg border border-panel rounded p-4 flex-1">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-orange-400 font-semibold uppercase tracking-wider text-xs">Selected Coin Profile // AVOID - DUMP PREP</h2>
+                    <div class="flex gap-1">
+                        <input type="text" value="XPL / USDT" class="bg-slate-900 border border-panel rounded-l px-2 py-1 text-center w-24 text-xs font-mono tracking-tight text-white focus:outline-none focus:border-cyan-500">
+                        <button class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1 rounded-r text-xs">Search</button>
+                    </div>
+                </div>
+                
+                <!-- Placeholder for Chart Canvas -->
+                <div class="h-56 bg-slate-950 rounded border border-panel flex flex-col items-center justify-center relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-t from-red-950/20 to-transparent"></div>
+                    <i class="fa-solid fa-chart-line text-slate-700 text-4xl mb-2 group-hover:scale-110 transition-transform"></i>
+                    <span class="text-slate-500 text-xs font-mono">Candlestick Chart Visualization Area</span>
+                    <span class="absolute bottom-2 right-2 text-xxs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">VSAP & 39</span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 mt-3 text-xxs bg-slate-950/50 p-2 rounded border border-panel/50">
+                    <div>Whale Bag Size: <span class="text-slate-400 font-mono">SI.VK</span></div>
+                    <div>Buy Price Est: <span class="text-neon-green font-mono">D.SS6</span></div>
+                    <div>Sell Price Est: <span class="text-slate-400 font-mono">0.165122</span></div>
+                    <div>VMC Score: <span class="text-slate-400">--</span></div>
+                    <div>Buy Price Est: <span class="text-slate-400 font-mono">--</span></div>
+                    <div>Trend: <span class="text-yellow-500 font-semibold uppercase">Accumulation</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: DECISION ENGINE (5 Cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-3">
+            <div class="panel-bg border border-panel rounded p-4 flex flex-col justify-between h-full">
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-slate-300 font-semibold flex items-center gap-1.5"><i class="fa-solid fa-brain text-purple-400"></i> Trade Decision Engine</h2>
+                        <span class="bg-red-900/40 border border-red-900 text-neon-red text-xxs px-2 py-0.5 rounded uppercase font-bold tracking-widest">Avoid</span>
+                    </div>
+                    
+                    <ul class="space-y-2.5 font-mono text-xs text-slate-400">
+                        <li class="flex justify-between border-b border-panel pb-1.5"><span>Traffic Light:</span> <span class="text-red-500"><i class="fa-solid fa-circle-exclamation"></i></span></li>
+                        <li class="flex justify-between border-b border-panel pb-1.5"><span>Inst Score:</span> <span class="text-neon-green">$ 86</span></li>
+                        <li class="flex justify-between border-b border-panel pb-1.5"><span>Whale Trap:</span> <span class="text-slate-300">0 VES</span></li>
+                        <li class="flex justify-between border-b border-panel pb-1.5 text-neon-red"><span>(WARNING) 11:44.55 XPL/USDT</span> <span>ATR zones: Socted</span></li>
+                    </ul>
+
+                    <div class="mt-4 p-3 bg-red-950/20 border border-red-950 rounded">
+                        <span class="text-slate-400 text-xxs block uppercase font-semibold tracking-wider mb-1">Reason:</span>
+                        <p class="text-neon-red text-xs font-semibold uppercase tracking-wide">DUMP_PREPARATION (ISX) - AVOID</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+                    <button class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded text-center transition-all shadow-md tracking-wider uppercase text-xs">Execute Trade Now</button>
+                    <button class="bg-neon-red hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-center transition-all shadow-md tracking-wider uppercase text-xs">Panic - Cancel All</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- WHALE SENTIMENT SUMMARY STRIP -->
+    <section class="panel-bg border border-panel rounded p-3 mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4 text-center items-center shadow-md">
+        <div class="flex flex-col items-center">
+            <span class="text-xxs uppercase tracking-wider text-slate-500 mb-1">Whale Power</span>
+            <div class="relative flex items-center justify-center h-12 w-12 rounded-full border-4 border-red-500/20 border-t-red-500">
+                <span class="text-neon-red font-bold font-mono text-xs">0%</span>
+            </div>
+        </div>
+        <div class="border-y sm:border-y-0 sm:border-x border-panel py-2 sm:py-0">
+            <span class="text-xxs uppercase tracking-wider text-slate-500 block mb-1">Buy/Sell Pressure</span>
+            <span class="text-emerald-400 font-black text-xl tracking-widest block animate-pulse">YES</span>
+        </div>
+        <div class="flex flex-col gap-1 text-left text-xxs font-mono text-slate-400 max-w-xs mx-auto">
+            <div>Top 3 Whales Wallet Cluster: <span class="text-emerald-400 font-semibold">Moves 98%</span></div>
+            <div>Cluster stability status: <span class="text-cyan-400 font-semibold font-sans text-xs">PAPER MODE</span></div>
+        </div>
+    </section>
+
+    <!-- INSTITUTIONAL & WALL SCANNER TABLE -->
+    <section class="panel-bg border border-panel rounded mt-3 shadow-lg overflow-hidden">
+        <div class="p-3 border-b border-panel bg-slate-900/50 flex justify-between items-center">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-table-list text-cyan-400"></i> Institutional & Wall Scanner Table</h2>
+            <div class="flex items-center gap-2 text-xxs">
+                <span class="text-slate-500">Sorting: Default</span>
+                <button class="bg-slate-800 border border-panel px-2 py-0.5 rounded text-slate-300 hover:bg-slate-700"><i class="fa-solid fa-filter text-xxs"></i> Filter</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse font-mono text-xxs sm:text-xs">
+                <thead>
+                    <tr class="bg-slate-950 text-slate-500 border-b border-panel uppercase text-xxs tracking-wider">
+                        <th class="p-2.5">Coin</th>
+                        <th class="p-2.5">Inst</th>
+                        <th class="p-2.5">Conf%</th>
+                        <th class="p-2.5">WhalePow</th>
+                        <th class="p-2.5">SL</th>
+                        <th class="p-2.5">TP1</th>
+                        <th class="p-2.5 font-sans">Action</th>
+                    </tr>
+                </thead>
