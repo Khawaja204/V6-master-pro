@@ -148,6 +148,21 @@ function updateCoinProfile(d) {
   setText('buy-price-ext', fmt6(tp.entry_low || 0));
   setText('sell-price-ext', fmt6(tp.tp2 || 0));
 
+  const csig = document.getElementById('chart-signal');
+  const csigT = document.getElementById('chart-signal-text');
+  if (csig && csigT) {
+    let txt, bg, icon;
+    if (sig === 'BUY') { txt = 'BUY'; bg = 'rgba(0,204,102,.92)'; icon = 'fa-circle-arrow-up'; }
+    else if (sig === 'WAIT' || sig === 'HOLD') { txt = 'HOLD'; bg = 'rgba(255,213,0,.92)'; icon = 'fa-circle-pause'; }
+    else if (sig === 'SELL') { txt = 'SELL'; bg = 'rgba(255,51,68,.92)'; icon = 'fa-circle-arrow-down'; }
+    else { txt = 'AVOID'; bg = 'rgba(255,59,48,.92)'; icon = 'fa-circle-arrow-down'; }
+    csigT.textContent = txt;
+    csig.style.background = bg;
+    csig.style.color = (txt === 'HOLD') ? '#1a1300' : '#fff';
+    const ic = csig.querySelector('i');
+    if (ic) ic.className = 'fa-solid ' + icon;
+  }
+
   const trend = sig === 'BUY' ? 'ACCUMULATION' : sig === 'WAIT' ? 'NEUTRAL' : 'DISTRIBUTION';
   const tEl = document.getElementById('coin-trend');
   if (tEl) {
