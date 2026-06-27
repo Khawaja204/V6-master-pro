@@ -1,34 +1,47 @@
 ---
-name: Verifying async-fetch SPA rendering
-description: Why external_url screenshots mislead on JS dashboards, and the jsdom sandbox technique that gives a definitive answer.
+name: Verifying async-fetch SPA rendering + init-order traps
+description: Why a dashboard can be stuck on "Loading...", how an early throw blocks all data, the unpinned-CDN trap, and how to verify with jsdom.
 ---
 
-## Rule
-Do NOT trust `screenshot type=external_url` (Firecrawl) to verify a page whose
-content arrives via an async `fetch()` after load. It frequently captures BEFORE
-the fetch resolves, so a working dashboard looks stuck on its "Loading..."
-placeholder. It also hard-caches JS/CSS assets across a session (query strings
-like `?v=N` don't reliably bust it).
+## The real failure mode (V6 /v6/ dashboard)
+Whole dashboard stuck on "Loading..."/dashes in a REAL browser. Cause was an
+ordering trap, not data: `DOMContentLoaded` called `initChart()` BEFORE
+`fetchAll()`. `initChart()` threw, so `fetchAll()` never ran and no panel ever
+populated. **Lesson:** never let a non-critical init step (chart, widget) run
+before — and unguarded in front of — the data fetch. Wrap each init step in its
+own try/catch so one failure can't block the rest.
 
-**Why:** Cost real time on the V6 `/v6/` dashboard — two external screenshots
-showed "Loading scanner data..." while the render logic was actually correct.
+## Why initChart threw — unpinned CDN
+`index.html` loaded `unpkg.com/lightweight-charts/...` with NO version pin, so it
+pulled the latest major (v5). v5 REMOVED `chart.addCandlestickSeries()` (now
+`addSeries(CandlestickSeries,...)`) and `series.setMarkers()` (now
+`createSeriesMarkers(series, markers)`). The v4-era code threw on load.
+**Fix:** pin the CDN to a major (`lightweight-charts@4`) so the API the code
+targets stays stable. **Lesson:** always pin third-party CDN libs to a major
+version; an unpinned lib silently upgrades and breaks at runtime, not build time.
 
-## How to verify instead
-Run the real HTML + script.js against the real endpoint inside the JS
-code-execution sandbox with jsdom (install via `installLanguagePackages` if
-absent). Mock `window.fetch` to return the actual `/dashboard_data` JSON, exec
-script.js with `new window.Function(src).call(window)`, dispatch a
-`DOMContentLoaded` Event, wait ~500ms, then assert on
-`document.getElementById('scanner-tbody').querySelectorAll('tr').length` and key
-field text. Zero errors + populated rows = the logic works; any remaining blank
-render in Firecrawl is a capture-timing artifact, not a bug.
+## Verifying — jsdom in the code-execution sandbox
+Run the real `index.html` + `script.js` against the real `/dashboard_data` JSON
+inside jsdom (install via `installLanguagePackages` if missing). Mock
+`window.fetch`, exec script with `new window.Function(src).call(window)`,
+dispatch `DOMContentLoaded`, wait ~400ms, assert on
+`#scanner-tbody tr` count and field text.
 
-Alternative when an artifact exists: `screenshot type=app_preview` returns
-browser logs too. The V6 app is not a registered artifact, so jsdom was the path.
+PITFALLS that gave false confidence:
+- Stubbing `window.LightweightCharts = undefined` makes `initChart` early-return,
+  so it HIDES an initChart-throws bug. To test resilience, mock it to THROW and
+  confirm data still renders.
+- Functions declared in `script.js` are NOT on `window` when run via
+  `new window.Function(src)`. To exercise a code path (e.g. switch the charted
+  coin then re-run `fetchChart`), set inputs BEFORE dispatching `DOMContentLoaded`
+  and let the natural init call chain run it.
+- `screenshot type=external_url` (Firecrawl) loads the real (v5) CDN too, so it
+  reproduced the real bug — but it ALSO captures before async fetch resolves and
+  caches JS assets, so it can't distinguish "still loading" from "broken". Use
+  jsdom for a definitive answer; use `app_preview` (returns browser logs) when an
+  artifact exists.
 
-## Related gotcha (V6 /v6/ route)
-`/v6/` must serve `V6_Master_Pro_UI/index.html` (the modular file that references
-relative `script.js`/`style.css`), NOT root `index.html` (a self-contained
-monolith with no external asset refs). Serving the wrong one makes all
-script.js edits silently no-op while the page still appears to "work" from the
-monolith's inline JS.
+## /v6/ route reminder
+`/v6/` must serve `V6_Master_Pro_UI/index.html` (modular, references relative
+script.js/style.css), NOT root `index.html` (self-contained monolith). Wrong one
+makes script.js edits silently no-op.

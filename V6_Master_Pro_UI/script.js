@@ -3,9 +3,10 @@ let countdown = 30;
 let countdownTimer = null;
 let chart = null;
 let candleSeries = null;
+let lastSignals = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-  initChart();
+  try { initChart(); } catch (e) { console.error('initChart failed:', e); }
   fetchAll();
   startCountdown();
 });
@@ -25,6 +26,8 @@ function fetchAll() {
   fetch('/dashboard_data')
     .then(r => r.json())
     .then(d => {
+      console.log("inst_signals count:", (d.inst_signals || []).length);
+      lastSignals = d.inst_signals || [];
       updateStatusBar(d);
       updateCoinProfile(d);
       updateTradeEngine(d);
@@ -74,7 +77,26 @@ function fetchChart() {
         high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close),
       }));
       candleSeries.setData(candles);
+      updateChartMarkers(sym, candles);
     }).catch(() => {});
+}
+
+// ── CHART BUY/SELL MARKERS ──
+function updateChartMarkers(sym, candles) {
+  if (!candleSeries || !candles.length) return;
+  const t = candles[candles.length - 1].time;
+  const markers = [];
+  const symU = String(sym).toUpperCase();
+  lastSignals.forEach(s => {
+    if (String(s.symbol || '').toUpperCase() !== symU) return;
+    const label = ((s.v6 && s.v6.label) || '').toUpperCase();
+    if (label === 'BUY') {
+      markers.push({ time: t, position: 'belowBar', color: '#00cc66', shape: 'arrowUp', text: 'BUY' });
+    } else if (label === 'SELL' || label === 'AVOID') {
+      markers.push({ time: t, position: 'aboveBar', color: '#ff3344', shape: 'arrowDown', text: label });
+    }
+  });
+  try { candleSeries.setMarkers(markers); } catch (e) { console.error('setMarkers failed:', e); }
 }
 
 function doSearch() { fetchChart(); fetchAll(); }
@@ -348,7 +370,7 @@ function updateClientAPI(d) {
       </tr>`;
   }
   const tgRow = document.getElementById('tg-row');
-  if (tgRow) {
+  if (tgRow && tgRow.cells[3]) {
     tgRow.cells[3].innerHTML = `<span class="ca-synced">Sync... ${now}</span>`;
   }
 }
