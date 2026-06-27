@@ -4,407 +4,366 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>V6 Master Pro</title>
-<link rel="stylesheet" href="style.css?v=3"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { colors: {
+      base: '#0b111e', panel: '#131a26', panelb: '#1e293b',
+      neong: '#00ffcc', neonr: '#ff3b30'
+    }}}
+  };
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
 <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{ --green:#00cc66; --red:#ff3344; --orange:#ff9500; --yellow:#ffd700; --grey:#64748b; }
+  body{ background:#0b111e; color:#e2e8f0; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; }
+  ::-webkit-scrollbar{ height:6px; width:6px; }
+  ::-webkit-scrollbar-thumb{ background:#1e293b; border-radius:3px; }
+
+  /* ---- chart ---- */
+  #chart-container{ height:200px; width:100%; }
+
+  /* ---- generic data tables (rows injected by script.js) ---- */
+  table.dtable{ width:100%; border-collapse:collapse; }
+  table.dtable th{ text-align:left; padding:8px 10px; font-size:10px; text-transform:uppercase;
+    letter-spacing:.5px; color:#64748b; border-bottom:1px solid #1e293b; background:#0b111e; white-space:nowrap; }
+  table.dtable td{ padding:7px 10px; font-size:11px; border-bottom:1px solid #1e293b;
+    font-family:ui-monospace,Menlo,Consolas,monospace; white-space:nowrap; }
+  .dtable tbody tr:hover{ background:rgba(255,255,255,.02); }
+  .dtable tr.avoid-row td{ background:rgba(255,51,68,.05); }
+  .dtable tr.hot td{ background:rgba(0,204,102,.06); }
+
+  /* ---- action badges ---- */
+  .action-badge{ display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px;
+    font-weight:700; letter-spacing:.5px;
+    background:rgba(148,163,184,.12); color:#94a3b8; border:1px solid rgba(148,163,184,.3); }
+  .action-BUY{ background:rgba(0,204,102,.15); color:#00ffcc; border:1px solid rgba(0,204,102,.4); }
+  .action-SELL,.action-AVOID{ background:rgba(255,59,48,.12); color:#ff3b30; border:1px solid rgba(255,59,48,.4); }
+  .action-WAIT,.action-HOLD{ background:rgba(255,213,0,.12); color:#ffd700; border:1px solid rgba(255,213,0,.35); }
+
+  /* ---- traffic light dot ---- */
+  .traffic-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:5px; vertical-align:middle; }
+  .traffic-green{ background:#00cc66; box-shadow:0 0 6px #00cc66; }
+  .traffic-yellow{ background:#ffd700; box-shadow:0 0 6px #ffd700; }
+  .traffic-red{ background:#ff3344; box-shadow:0 0 6px #ff3344; }
+
+  /* ---- mini bars / coin circle ---- */
+  .mini-bar-wrap{ width:100%; min-width:46px; height:4px; background:#1e293b; border-radius:2px; margin-top:3px; overflow:hidden; }
+  .mini-bar{ height:100%; border-radius:2px; }
+  .coin-circle{ width:14px; height:14px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+
+  /* ---- volume surge / alerts ---- */
+  .vol-item{ display:flex; justify-content:space-between; gap:6px; font-size:10px; padding:3px 0; border-bottom:1px solid #1e293b; }
+  .vol-coin{ color:#e2e8f0; font-weight:600; } .vol-mult{ color:#ff9500; } .vol-amount{ color:#64748b; }
+  .alert-item{ font-size:10px; padding:4px 0; border-bottom:1px solid #1e293b; color:#cbd5e1; }
+
+  /* ---- client api ---- */
+  .ca-connected{ color:#22c55e; } .ca-synced{ color:#00cc66; } .ca-syncing{ color:#ffd700; }
+
+  /* ---- status bar value colors (className set in JS) ---- */
+  .sb-value{ font-weight:700; }
+  .sb-live{ color:#00cc66; } .sb-bearish{ color:#ff3344; } .sb-volatile{ color:#ffd700; }
+
+  /* ---- coin profile badge + data grid ---- */
+  .buy-badge{ background:rgba(0,204,102,.15); color:#00ffcc; border:1px solid rgba(0,204,102,.4);
+    padding:2px 9px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+  .avoid-badge{ background:rgba(255,59,48,.12); color:#ff3b30; border:1px solid rgba(255,59,48,.4);
+    padding:2px 9px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+  .dg-value{ color:#e2e8f0; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .green{ color:#00cc66 !important; } .red{ color:#ff3344 !important; } .orange{ color:#ff9500 !important; }
+</style>
 </head>
-<body>
+<body class="p-2 sm:p-3 text-xs sm:text-sm">
 
-<!-- ══════════════════════════════════════
-     HEADER
-══════════════════════════════════════ -->
-<div id="header">
-  <div class="logo-area">
-    <span class="v6-badge">V6</span>
-    <span class="master-text">V6 MASTER</span>
-    <span class="pro-badge">PRO</span>
-    <span class="sync-dot">●</span>
-    <span class="sync-label">Sreen Syne</span>
+<!-- ============ HEADER ============ -->
+<header class="bg-panel border border-panelb rounded-t p-3 flex flex-wrap justify-between items-center gap-2 shadow-lg">
+  <div class="flex items-center gap-3 flex-wrap">
+    <span class="bg-cyan-500/20 text-cyan-300 font-extrabold px-2 py-0.5 rounded border border-cyan-700 tracking-wider">V6</span>
+    <span class="font-bold text-cyan-400 tracking-wider">V6 MASTER</span>
+    <span class="bg-amber-500/20 text-amber-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-700">PRO</span>
+    <span class="flex items-center gap-1 text-green-400 text-[11px]">
+      <span class="h-2 w-2 rounded-full bg-green-500 animate-ping"></span> Green Sync
+    </span>
   </div>
-  <div class="header-btns">
-    <button class="hbtn focus" onclick="location.href='/focus'">FOCUS NODE</button>
-    <button class="hbtn" onclick="location.href='/v6/'">SIMPLE NODE</button>
-    <button class="hbtn admin" onclick="location.href='/admin'">ADMRU/OUERT</button>
-    <button class="hbtn client" onclick="location.href='/client'">profile ▾</button>
+  <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-cyan-800 text-cyan-300" onclick="location.href='/focus'">FOCUS NODE</button>
+    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-panelb" onclick="location.href='/v6/'">SIMPLE NODE</button>
+    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-amber-800 text-amber-400" onclick="location.href='/admin'">ADMIN/QUEST</button>
+    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-panelb flex items-center gap-1" onclick="location.href='/client'">profile <i class="fa-solid fa-chevron-down text-[8px]"></i></button>
+  </div>
+</header>
+
+<!-- ============ STATUS BAR ============ -->
+<div class="bg-slate-900/60 border-x border-b border-panelb px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-mono">
+  <div>STATUS <span class="sb-value sb-live">LIVE</span></div>
+  <div>CYCLE <span class="sb-value sb-white text-white" id="sb-cycle">—</span></div>
+  <div>REGIME <span class="sb-value sb-volatile" id="sb-regime">—</span></div>
+  <div>BTC PRICE <span class="sb-value text-emerald-400" id="sb-btcprice">—</span></div>
+  <div>RTG BIAS <span class="sb-value sb-bearish" id="sb-rias">—</span></div>
+  <div class="ml-auto flex items-center gap-3">
+    <span class="text-slate-500">next <span id="next-count" class="text-slate-300">30</span>s</span>
+    <span class="bg-blue-900/40 text-blue-300 px-2 py-0.5 rounded border border-blue-800 flex items-center gap-1">
+      <span class="text-green-400">●</span> connected: <span class="text-orange-400" id="sb-exchange">Binance</span>
+    </span>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════
-     STATUS BAR
-══════════════════════════════════════ -->
-<div id="statusbar">
-  <div class="sb-item">
-    <span class="sb-label">STATUS</span>
-    <span class="sb-value sb-live">LIVE</span>
-  </div>
-  <div class="sb-item">
-    <span class="sb-label">CYCLE</span>
-    <span class="sb-value sb-white" id="sb-cycle">—</span>
-  </div>
-  <div class="sb-item">
-    <span class="sb-label">REGIME</span>
-    <span class="sb-value sb-volatile" id="sb-regime">—</span>
-  </div>
-  <div class="sb-item">
-    <span class="sb-label">BTC PRICE</span>
-    <span class="sb-value sb-white" id="sb-btcprice">—</span>
-  </div>
-  <div class="sb-item">
-    <span class="sb-label">RTC RIAS</span>
-    <span class="sb-value sb-bearish" id="sb-rias">—</span>
-  </div>
-  <div class="sb-exchange">
-    <span style="color:var(--green)">●</span>
-    connected:
-    <span style="color:var(--orange)" id="sb-exchange">Binance</span>
-  </div>
-</div>
+<!-- ============ MAIN 2-COLUMN ============ -->
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-3 mt-3">
 
-<!-- ══════════════════════════════════════
-     PAPER MODE BANNER
-══════════════════════════════════════ -->
-<div class="paper-mode-strip" id="paper-strip" style="display:none">
-  📋 PAPER MODE: Simulated – Safe for testing
-  <span style="color:var(--grey);font-size:10px;float:right">Toggle in Admin Portal → Mode Settings</span>
-</div>
-
-<!-- ══════════════════════════════════════
-     MAIN 2-COL ROW
-══════════════════════════════════════ -->
-<div id="main-row">
-
-  <!-- LEFT — COIN PROFILE -->
-  <div>
-    <div class="card" id="coin-profile">
-      <div class="card-header">
-        <span class="profile-title">Selected Coin Profil. /.</span>
-        <span id="profile-badge" class="avoid-badge">AVOID – DUMP PREP</span>
+  <!-- LEFT: COIN PROFILE & CHART -->
+  <section class="lg:col-span-7">
+    <div class="bg-panel border border-panelb rounded p-4 h-full">
+      <div class="flex items-center justify-between mb-3 gap-2">
+        <h2 class="text-orange-400 font-semibold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+          <i class="fa-solid fa-chart-line"></i> Selected Coin Profile
+          <span id="profile-badge" class="avoid-badge">AVOID – DUMP PREP</span>
+        </h2>
+        <div class="flex">
+          <input id="coin-search" value="XPL / USDT" placeholder="🔍 Enter coin pair"
+            class="bg-slate-900 border border-panelb rounded-l px-2 py-1 w-28 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"/>
+          <button onclick="doSearch()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1 rounded-r text-xs">Search</button>
+        </div>
       </div>
-      <div class="card-body">
-        <div class="search-row">
-          <input class="search-input" id="coin-search" value="XPL / USDT" placeholder="🔍 Enter coin pair"/>
-          <button class="search-btn" onclick="doSearch()">Search</button>
-        </div>
-        <div id="chart-container"></div>
-        <div class="data-grid" style="margin-top:6px">
-          <span class="dg-label">Whale Bag Size:</span>
-          <span class="dg-value" id="whale-bag">—</span>
-          <span class="dg-label">Buy Price Est:</span>
-          <span class="dg-value" id="buy-price-est">—</span>
-          <span class="dg-label">Buy Price Est:</span>
-          <span class="dg-value" id="buy-price-ext">—</span>
-          <span class="dg-label">VMC Score</span>
-          <span class="dg-value" id="vmc-score">—</span>
-          <span class="dg-label">Sell Price Est:</span>
-          <span class="dg-value red" id="sell-price-est">—</span>
-          <span class="dg-label">Sell Price Ext:</span>
-          <span class="dg-value red" id="sell-price-ext">—</span>
-          <span class="dg-label">Trend:</span>
-          <span class="dg-value green" id="coin-trend">ACCUMULATION</span>
-        </div>
+
+      <div id="chart-container" class="rounded border border-panelb bg-[#060610]"></div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-3 text-[11px] bg-slate-950/50 p-3 rounded border border-panelb/50">
+        <div class="flex justify-between gap-2"><span class="text-slate-500">Whale Bag Size:</span><span class="dg-value" id="whale-bag">—</span></div>
+        <div class="flex justify-between gap-2"><span class="text-slate-500">Buy Price Est:</span><span class="dg-value green" id="buy-price-est">—</span></div>
+        <div class="flex justify-between gap-2"><span class="text-slate-500">Buy Price Ext:</span><span class="dg-value" id="buy-price-ext">—</span></div>
+        <div class="flex justify-between gap-2"><span class="text-slate-500">VMC Score:</span><span class="dg-value" id="vmc-score">—</span></div>
+        <div class="flex justify-between gap-2"><span class="text-slate-500">Sell Price Est:</span><span class="dg-value red" id="sell-price-est">—</span></div>
+        <div class="flex justify-between gap-2"><span class="text-slate-500">Sell Price Ext:</span><span class="dg-value red" id="sell-price-ext">—</span></div>
+        <div class="flex justify-between gap-2"><span class="text-slate-500">Trend:</span><span class="dg-value green" id="coin-trend">ACCUMULATION</span></div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- RIGHT — TRADE DECISION ENGINE -->
-  <div>
-    <div class="card" id="trade-engine">
-      <div class="card-header">
-        <span>⚡ Trade Decision Engine</span>
+  <!-- RIGHT: TRADE DECISION ENGINE -->
+  <section class="lg:col-span-5">
+    <div class="bg-panel border border-panelb rounded p-4 h-full flex flex-col">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-slate-200 font-semibold flex items-center gap-1.5"><i class="fa-solid fa-brain text-purple-400"></i> Trade Decision Engine</h2>
         <span class="action-badge action-AVOID" id="action-badge">AVOID</span>
       </div>
-      <div class="card-body">
-        <div class="engine-row">
-          <span class="engine-label">Traffic Light</span>
-          <span><span class="traffic-dot traffic-red" id="traffic-dot"></span></span>
-        </div>
-        <div class="engine-row">
-          <span class="engine-label">Inst Score</span>
-          <span class="engine-value" id="inst-score">—</span>
-        </div>
-        <div class="engine-row">
-          <span class="engine-label">Whale Trap</span>
-          <span class="engine-value" id="whale-trap">0&nbsp;&nbsp;NO</span>
-        </div>
-        <div class="engine-row">
-          <span class="engine-label">ATR Zones</span>
-          <span class="engine-value" id="atr-zones">Scoped</span>
-        </div>
 
-        <div class="warning-box" id="warning-box" style="display:none"></div>
+      <ul class="space-y-2 font-mono text-[11px] text-slate-400">
+        <li class="flex justify-between border-b border-panelb pb-1.5"><span>Traffic Light:</span><span><span class="traffic-dot traffic-red" id="traffic-dot"></span></span></li>
+        <li class="flex justify-between border-b border-panelb pb-1.5"><span>Inst Score:</span><span class="text-emerald-400" id="inst-score">—</span></li>
+        <li class="flex justify-between border-b border-panelb pb-1.5"><span>Whale Trap:</span><span id="whale-trap">0&nbsp;&nbsp;NO</span></li>
+        <li class="flex justify-between border-b border-panelb pb-1.5"><span>ATR Zones:</span><span id="atr-zones">Scoped</span></li>
+      </ul>
 
-        <div class="reason-box">
-          <div class="reason-label">Reason</div>
-          <div class="reason-text" id="reason-text">DUMP_PREPARATION (ISY) → AVOID</div>
-        </div>
+      <div class="warning-box mt-3 p-2 rounded bg-red-950/30 border border-red-900 text-red-400 text-[11px] font-mono" id="warning-box" style="display:none"></div>
 
-        <button class="exec-btn green-btn pulse-g">EXECUTE TRADE NOW</button>
-        <button class="exec-btn red-btn">PANIC – CANCEL ALL</button>
+      <div class="mt-3 p-3 bg-red-950/20 border border-red-950 rounded">
+        <span class="text-slate-400 text-[10px] block uppercase font-semibold tracking-wider mb-1">Reason</span>
+        <p class="text-red-400 text-[11px] font-semibold uppercase tracking-wide" id="reason-text">DUMP_PREPARATION (ISY) → AVOID</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-auto pt-4">
+        <button class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded text-center shadow tracking-wider uppercase text-[11px] animate-pulse">Execute Trade Now</button>
+        <button class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded text-center shadow tracking-wider uppercase text-[11px]">Panic – Cancel All</button>
       </div>
     </div>
-  </div>
+  </section>
+</main>
 
-</div><!-- /main-row -->
-
-<!-- ══════════════════════════════════════
-     SENTIMENT & WHALE DATA
-══════════════════════════════════════ -->
-<div class="card" style="margin:6px">
-  <div class="card-header">
-    <span>💜 Sentiment &amp; Whale Data</span>
-  </div>
-  <div id="sentiment">
-
-    <!-- Whale Power Gauge -->
-    <div class="sentiment-col">
-      <div class="sentiment-title">Whale Power</div>
-      <div class="gauge-wrap">
+<!-- ============ SENTIMENT & WHALE DATA ============ -->
+<section class="bg-panel border border-panelb rounded p-3 mt-3 shadow">
+  <h2 class="text-slate-300 font-semibold text-[12px] mb-3 flex items-center gap-1.5"><i class="fa-solid fa-heart text-pink-400"></i> Sentiment &amp; Whale Data</h2>
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+    <!-- Whale Power gauge -->
+    <div class="flex flex-col items-center">
+      <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Whale Power</div>
+      <div class="relative w-[110px] h-[110px]">
         <svg id="gauge-whale" width="110" height="110" viewBox="0 0 110 110"></svg>
-        <div class="gauge-center">
-          <div class="gauge-pct" id="gauge-whale-label">0%</div>
-          <div class="gauge-sub">power</div>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <div class="font-bold font-mono text-sm" id="gauge-whale-label">0%</div>
+          <div class="text-[9px] text-slate-500">power</div>
         </div>
       </div>
     </div>
-
-    <!-- Buy/Sell Pressure Gauge -->
-    <div class="sentiment-col">
-      <div class="sentiment-title">Buy/Sell Pressure</div>
-      <div class="gauge-wrap">
+    <!-- Buy/Sell Pressure gauge -->
+    <div class="flex flex-col items-center">
+      <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Buy/Sell Pressure</div>
+      <div class="relative w-[110px] h-[110px]">
         <svg id="gauge-bsp" width="110" height="110" viewBox="0 0 110 110"></svg>
-        <div class="gauge-center">
-          <div class="gauge-pct" id="gauge-bsp-label">YES</div>
-          <div class="gauge-sub">buy</div>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <div class="font-bold font-mono text-sm text-emerald-400" id="gauge-bsp-label">YES</div>
+          <div class="text-[9px] text-slate-500">buy</div>
         </div>
       </div>
     </div>
-
     <!-- Whale Wallet 1 -->
-    <div class="sentiment-col">
-      <div class="whale-info">
-        <div class="wi-title">Top 3 Whales Wallet</div>
-        <div class="wi-row">
-          <span class="wi-label">Pattern tag:</span>
-          <span class="wi-val" id="w1-pattern">(Pattern)</span>
-        </div>
-        <div class="wi-row">
-          <span class="wi-label">Cluster status:</span>
-          <span class="wi-val" id="w1-cluster">Stable</span>
-        </div>
-        <div class="wi-row">
-          <span class="wi-label">Moves:</span>
-          <span class="wi-val green" id="w1-moves">98%</span>
-        </div>
-      </div>
+    <div class="text-[10px] font-mono text-slate-400 space-y-1">
+      <div class="text-slate-300 font-sans font-semibold text-[11px] mb-1">Top 3 Whales Wallet</div>
+      <div class="flex justify-between"><span class="text-slate-500">Pattern tag:</span><span id="w1-pattern">(Pattern)</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Cluster status:</span><span id="w1-cluster">Stable</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Moves:</span><span class="green" id="w1-moves">98%</span></div>
     </div>
-
     <!-- Whale Wallet 2 -->
-    <div class="sentiment-col">
-      <div class="whale-info">
-        <div class="wi-title">Top 3 Whales Wallet</div>
-        <div class="wi-row">
-          <span class="wi-label">Pattern tag:</span>
-          <span class="wi-val" id="w2-pattern">Pattern tag</span>
-        </div>
-        <div class="wi-row">
-          <span class="wi-label">Cluster status:</span>
-          <span class="wi-val" id="w2-cluster">Cluster</span>
-        </div>
-        <div class="wi-row">
-          <span class="wi-label">Moves:</span>
-          <span class="wi-val green" id="w2-moves">96%</span>
-        </div>
-      </div>
+    <div class="text-[10px] font-mono text-slate-400 space-y-1">
+      <div class="text-slate-300 font-sans font-semibold text-[11px] mb-1">Top 3 Whales Wallet</div>
+      <div class="flex justify-between"><span class="text-slate-500">Pattern tag:</span><span id="w2-pattern">Pattern tag</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Cluster status:</span><span id="w2-cluster">Cluster</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Moves:</span><span class="green" id="w2-moves">96%</span></div>
     </div>
-
   </div>
+</section>
+
+<!-- ============ PAPER MODE BANNER ============ -->
+<div class="bg-amber-500/15 border border-amber-600/40 text-amber-300 text-center text-[11px] font-semibold rounded py-1.5 mt-3" id="paper-strip" style="display:none">
+  📋 PAPER MODE: Simulated – Safe for testing
 </div>
 
-<!-- ══════════════════════════════════════
-     SCANNER TABLE
-══════════════════════════════════════ -->
-<div id="scanner">
-  <div class="scanner-header">
-    <div>
-      <span class="scanner-title">⚡ INSTITUTIONAL &amp; WALL SCANNER TABLE</span>
-      <span class="scanner-meta" id="scanner-meta" style="margin-left:10px;color:var(--grey);font-size:10px"></span>
-    </div>
-    <div class="scanner-controls">
-      <button class="sort-btn">Sorting Sorting</button>
-      <button class="sort-btn">Filter 🔽</button>
+<!-- ============ SCANNER TABLE ============ -->
+<section class="bg-panel border border-panelb rounded mt-3 shadow-lg overflow-hidden">
+  <div class="p-3 border-b border-panelb bg-slate-900/50 flex justify-between items-center gap-2 flex-wrap">
+    <h2 class="text-[12px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+      <i class="fa-solid fa-table-list text-cyan-400"></i> Institutional &amp; Wall Scanner Table
+      <span class="scanner-meta text-slate-500 font-normal normal-case text-[10px]" id="scanner-meta"></span>
+    </h2>
+    <div class="flex items-center gap-2 text-[10px]">
+      <span class="text-slate-500">Sorting: Default</span>
+      <button class="bg-slate-800 border border-panelb px-2 py-0.5 rounded text-slate-300 hover:bg-slate-700"><i class="fa-solid fa-filter"></i> Filter</button>
     </div>
   </div>
-  <table class="scanner-table">
-    <thead>
-      <tr>
-        <th>#</th><th>Coin</th><th>Folder</th><th>Light</th>
-        <th>Inst%</th><th>Conf%</th><th>WhalePow</th><th>OFI</th>
-        <th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="scanner-tbody">
-      <tr><td colspan="13" style="text-align:center;color:var(--grey);padding:20px">Loading scanner data...</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<!-- ══════════════════════════════════════
-     PANELS BELOW TABLE
-══════════════════════════════════════ -->
-<div class="panels-label">PANELS BELOW TABLE</div>
-
-<div class="panels-grid">
-
-  <!-- SMD Gauge -->
-  <div class="smd-card">
-    <div class="smd-title">🧠 SMART MONEY DIVERGENCE</div>
-    <div class="smd-gauge-wrap">
-      <svg id="smd-gauge" width="140" height="80" viewBox="0 0 140 80"></svg>
-      <div class="smd-labels">
-        <span>Distribution</span>
-        <span>Volume Surge</span>
-      </div>
-      <div style="text-align:center;font-size:8px;color:var(--grey)">Accumulation</div>
-    </div>
-  </div>
-
-  <!-- HIFI / ADA Watch Card -->
-  <div class="watch-card">
-    <div class="watch-header">
-      <span class="watch-coin" id="wc1-coin">HIFI / ADA</span>
-      <div class="watch-badges">
-        <span class="action-tag at-spot">SPOT</span>
-        <span class="action-tag" style="background:#005500;color:var(--green)" id="wc1-badge">ADA</span>
-      </div>
-    </div>
-    <div class="watch-row">
-      <span class="watch-label">Expected Profit</span>
-      <span class="watch-value pos" id="wc1-profit">—</span>
-    </div>
-    <div class="watch-row" style="font-size:9px;color:var(--grey)">
-      <span>BnR Ratio)</span><span>:</span>
-    </div>
-    <div class="watch-row">
-      <span class="watch-label">R/R Ratio</span>
-      <span class="watch-value" id="wc1-rr">—</span>
-    </div>
-    <div style="display:flex;gap:4px;margin-top:4px">
-      <span class="action-tag at-spot">SPOT</span>
-      <span class="action-tag at-grid" id="wc1-mode-badge">GRID</span>
-    </div>
-  </div>
-
-  <!-- DOGE Watch Card -->
-  <div class="watch-card">
-    <div class="watch-header">
-      <span class="watch-coin" id="wc2-coin">DOGE</span>
-      <div class="watch-badges">
-        <span class="action-tag" style="background:#004400;color:var(--green)">Action</span>
-        <span class="action-tag at-spot">SPOT</span>
-      </div>
-    </div>
-    <div class="watch-row">
-      <span class="watch-label">Expected Profit</span>
-      <span class="watch-value pos" id="wc2-profit">—</span>
-    </div>
-    <div class="watch-row" style="font-size:9px;color:var(--grey)">
-      <span>R/R Ratio)</span><span>:</span>
-    </div>
-    <div class="watch-row">
-      <span class="watch-label">R/R Ratio</span>
-      <span class="watch-value" id="wc2-rr">—</span>
-    </div>
-    <div style="display:flex;gap:4px;margin-top:4px">
-      <span class="action-tag at-spot">SPOT</span>
-      <span class="action-tag at-grid">GRID</span>
-    </div>
-  </div>
-
-</div><!-- /panels-grid -->
-
-<!-- ══════════════════════════════════════
-     BOTTOM PANELS ROW
-══════════════════════════════════════ -->
-<div class="bottom-panels">
-
-  <!-- Second SMD -->
-  <div class="smd-card">
-    <div class="smd-title">🧠 SMART MONEY DIVERGENCE</div>
-    <div class="smd-gauge-wrap">
-      <svg id="smd-gauge-2" width="140" height="80" viewBox="0 0 140 80"></svg>
-      <div class="smd-labels">
-        <span>Distribution</span>
-        <span>Volume Surge</span>
-      </div>
-    </div>
-    <!-- Volume Surge List -->
-    <div style="margin-top:8px">
-      <div style="font-size:9px;color:var(--orange);font-weight:bold;margin-bottom:4px">🚀 VOLUME SURGE — &gt;2.5x Median Volume</div>
-      <div id="vol-surge-list" class="vol-surge-list"></div>
-    </div>
-  </div>
-
-  <!-- Live Backtesting -->
-  <div class="bt-card">
-    <div class="bt-title">⚡ LIVE BACKTESTING</div>
-    <table class="backtest-table">
+  <div class="overflow-x-auto">
+    <table class="dtable">
       <thead>
-        <tr><th>Entry</th><th>TP HIT</th><th>Win/Loss</th></tr>
+        <tr>
+          <th>Coin</th><th>Inst</th><th>Conf%</th><th>WhalePow</th>
+          <th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Action</th>
+        </tr>
       </thead>
+      <tbody id="scanner-tbody">
+        <tr><td colspan="9" style="text-align:center;color:var(--grey);padding:20px">Loading scanner data...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ PANELS BELOW TABLE ============ -->
+<div class="text-[10px] uppercase tracking-widest text-slate-600 mt-4 mb-2">Panels Below Table</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+  <!-- SMD gauge -->
+  <div class="bg-panel border border-panelb rounded p-3">
+    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-gauge-high text-cyan-400"></i> Smart Money Divergence</div>
+    <div class="flex flex-col items-center">
+      <svg id="smd-gauge" width="140" height="80" viewBox="0 0 140 80"></svg>
+      <div class="flex justify-between w-full text-[9px] text-slate-500 mt-1"><span>Distribution</span><span>Volume Surge</span></div>
+      <div class="text-[8px] text-slate-600 mt-0.5">Accumulation</div>
+    </div>
+  </div>
+
+  <!-- HIFI / ADA watch -->
+  <div class="bg-panel border border-panelb rounded p-3">
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-bold text-slate-200 text-[12px]" id="wc1-coin">HIFI / ADA</span>
+      <div class="flex gap-1">
+        <span class="action-badge action-WAIT">SPOT</span>
+        <span class="action-badge action-BUY" id="wc1-badge">ADA</span>
+      </div>
+    </div>
+    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">Expected Profit</span><span class="green" id="wc1-profit">—</span></div>
+    <div class="flex justify-between text-[10px] py-0.5 text-slate-600"><span>BnR Ratio</span><span>:</span></div>
+    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">R/R Ratio</span><span id="wc1-rr">—</span></div>
+    <div class="flex gap-1 mt-2">
+      <span class="action-badge action-WAIT">SPOT</span>
+      <span class="action-badge action-AVOID" id="wc1-mode-badge">GRID</span>
+    </div>
+  </div>
+
+  <!-- DOGE watch -->
+  <div class="bg-panel border border-panelb rounded p-3">
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-bold text-slate-200 text-[12px]" id="wc2-coin">DOGE</span>
+      <div class="flex gap-1">
+        <span class="action-badge action-BUY">Action</span>
+        <span class="action-badge action-WAIT">SPOT</span>
+      </div>
+    </div>
+    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">Expected Profit</span><span class="green" id="wc2-profit">—</span></div>
+    <div class="flex justify-between text-[10px] py-0.5 text-slate-600"><span>R/R Ratio</span><span>:</span></div>
+    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">R/R Ratio</span><span id="wc2-rr">—</span></div>
+    <div class="flex gap-1 mt-2">
+      <span class="action-badge action-WAIT">SPOT</span>
+      <span class="action-badge action-AVOID">GRID</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BOTTOM PANELS ============ -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+
+  <!-- SMD 2 + volume surge -->
+  <div class="bg-panel border border-panelb rounded p-3">
+    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-gauge-high text-cyan-400"></i> Smart Money Divergence</div>
+    <div class="flex flex-col items-center">
+      <svg id="smd-gauge-2" width="140" height="80" viewBox="0 0 140 80"></svg>
+      <div class="flex justify-between w-full text-[9px] text-slate-500 mt-1"><span>Distribution</span><span>Volume Surge</span></div>
+    </div>
+    <div class="mt-3">
+      <div class="text-[9px] text-orange-400 font-bold mb-1">🚀 VOLUME SURGE — &gt;2.5x Median Volume</div>
+      <div id="vol-surge-list"></div>
+    </div>
+  </div>
+
+  <!-- Live backtesting -->
+  <div class="bg-panel border border-panelb rounded p-3">
+    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-flask text-cyan-400"></i> Live Backtesting</div>
+    <table class="dtable">
+      <thead><tr><th>Entry</th><th>TP HIT</th><th>Win/Loss</th></tr></thead>
       <tbody id="bt-tbody">
-        <tr><td colspan="3" style="color:var(--grey)">Loading...</td></tr>
+        <tr><td colspan="3" style="color:var(--grey);text-align:center">Loading...</td></tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Alert History -->
-  <div class="bt-card">
-    <div class="bt-title">🔔 ALERT HISTORY</div>
+  <!-- Alert history -->
+  <div class="bg-panel border border-panelb rounded p-3">
+    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-bell text-amber-400"></i> Alert History</div>
     <div id="alert-list"></div>
   </div>
-
-</div><!-- /bottom-panels -->
-
-<!-- ══════════════════════════════════════
-     CLIENT & API MANAGEMENT
-══════════════════════════════════════ -->
-<div id="client-api">
-  <div class="ca-header">🔧 CLIENT &amp; API MANAGEMENT</div>
-  <table class="ca-table">
-    <thead>
-      <tr><th>API</th><th>Exchange</th><th>Client</th><th>Sheets Sync</th></tr>
-    </thead>
-    <tbody id="ca-tbody">
-      <tr>
-        <td>🔸 APA / USDT</td>
-        <td class="ca-connected">Connected APIs</td>
-        <td>binanc@Binance</td>
-        <td class="ca-synced">Synced — ✓</td>
-      </tr>
-      <tr>
-        <td>🔸 XPL / USDT</td>
-        <td class="ca-connected">Connected APIs</td>
-        <td>masserjae</td>
-        <td class="ca-syncing">⟳ Syncing...</td>
-      </tr>
-    </tbody>
-    <tfoot>
-      <tr class="tg-row" id="tg-row">
-        <td colspan="3">Telegram Proxy: <span style="color:var(--green)">ACTIVE (Pakistan)</span></td>
-        <td class="ca-synced">Sync... —</td>
-      </tr>
-    </tfoot>
-  </table>
 </div>
 
-<!-- ══════════════════════════════════════
-     FOOTER
-══════════════════════════════════════ -->
-<div id="footer">
+<!-- ============ CLIENT & API MANAGEMENT ============ -->
+<section class="bg-panel border border-panelb rounded mt-3 overflow-hidden">
+  <div class="p-3 border-b border-panelb bg-slate-900/50 text-[12px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+    <i class="fa-solid fa-gear text-cyan-400"></i> Client &amp; API Management
+  </div>
+  <div class="overflow-x-auto">
+    <table class="dtable">
+      <thead><tr><th>API</th><th>Exchange</th><th>Client</th><th>Sheets Sync</th></tr></thead>
+      <tbody id="ca-tbody">
+        <tr>
+          <td>🔸 APA / USDT</td><td class="ca-connected">Connected APIs</td><td>binanc@Binance</td><td class="ca-synced">Synced — ✓</td>
+        </tr>
+        <tr>
+          <td>🔸 XPL / USDT</td><td class="ca-connected">Connected APIs</td><td>masserjae</td><td class="ca-syncing">⟳ Syncing...</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr id="tg-row">
+          <td colspan="3">Telegram Proxy: <span class="green">ACTIVE (Pakistan)</span></td>
+          <td class="ca-synced">Sync... —</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="flex justify-between items-center text-[10px] text-slate-600 px-2 py-3 mt-2">
   <span>Version: 1.2.2.0</span>
-  <span class="footer-mid">▶ replit</span>
+  <span class="text-slate-500">▶ replit</span>
   <span>Version: v0.0.20</span>
-</div>
+</footer>
 
-<script src="script.js?v=3"></script>
+<script src="script.js?v=5"></script>
 </body>
 </html>
