@@ -131,13 +131,13 @@ function updateCoinProfile(d) {
   if (badge) {
     if (sig === 'BUY') {
       badge.textContent = 'BUY – ACCUMULATION';
-      badge.className = 'buy-badge';
+      badge.className = 'buy-badge ml-auto';
     } else if (sig === 'WAIT') {
       badge.textContent = 'WAIT – MONITOR';
-      badge.className = 'avoid-badge';
+      badge.className = 'avoid-badge ml-auto';
     } else {
       badge.textContent = 'AVOID – DUMP PREP';
-      badge.className = 'avoid-badge';
+      badge.className = 'avoid-badge ml-auto';
     }
   }
 
@@ -264,6 +264,7 @@ function updateScannerTable(d) {
     const barColor = conf > 60 ? '#00cc66' : conf > 30 ? '#ffd700' : '#ff3344';
     const wpColor  = wp > 60 ? '#00cc66' : wp > 30 ? '#ffd700' : '#ff3344';
     const act = (v6.label || 'WAIT').toUpperCase();
+    const strat = (c.trading_strategy || 'SPOT').toUpperCase().includes('GRID') ? 'GRID' : 'SPOT';
     const sym = (c.symbol || '').replace('USDT','');
     const rowClass = wp > 70 ? 'hot' : (act === 'AVOID' || act === 'SELL') ? 'avoid-row' : '';
 
@@ -276,7 +277,7 @@ function updateScannerTable(d) {
       <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>
       <td style="color:var(--green)">${tp.tp3?'▲'+fmt6(tp.tp3):'—'}</td>
-      <td><span class="action-badge action-${act}">${act}</span></td>
+      <td><span class="strat-badge">${strat}</span> <span class="action-badge action-${act}">${act}</span></td>
     </tr>`;
   }).join('');
 }

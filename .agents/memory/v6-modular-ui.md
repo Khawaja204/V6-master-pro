@@ -27,7 +27,12 @@ columns (Coin, Inst, Conf%, WhalePow, SL, TP1, TP2, TP3, Action) — thead,
 empty-state colspan, and `updateScannerTable` row template must all stay at 9.
 `fetchChart` normalizes the search input with `replace(/[^A-Z0-9]/g,'')` (strips
 ALL slashes/spaces) before appending USDT — a single-`.replace` left a space and
-blanked the chart.
+blanked the chart. Scanner Action cell renders TWO badges: a `.strat-badge`
+(SPOT/GRID from `c.trading_strategy`) plus the existing action badge.
+**Gotcha:** any handler that resets `element.className` (e.g. `updateCoinProfile`
+on `#profile-badge`) WIPES Tailwind layout utilities baked into the HTML
+(`ml-auto`, etc.) on the first data refresh. Re-append those utilities in the JS
+assignment, or use `classList` to toggle only the variant class.
 
 ## How it is served — `/v6`, NOT `/`
 Flask (`main.py`) serves it NON-destructively at `/v6` via `send_from_directory`
