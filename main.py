@@ -1276,6 +1276,12 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 @app.route("/")
 def index():
+    # New finalized UI is the default. Legacy dashboard preserved at /legacy.
+    return redirect("/v6/", code=302)
+
+
+@app.route("/legacy")
+def legacy_index():
     with open("index.html", "r", encoding="utf-8") as f:
         html = f.read()
     resp = Response(html, mimetype="text/html")
