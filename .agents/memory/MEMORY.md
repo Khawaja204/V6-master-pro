@@ -4,6 +4,6 @@
 - [Telegram alerts & secrets](telegram-and-secrets.md) — send_telegram returns bool; HTTP 404 = invalid/revoked BOT_TOKEN (user must fix), not a code bug; tokens .strip()-ed at load.
 - [Backtest & trade resolution](backtest-and-trade-resolution.md) — conservative intrabar SL-at-open; classify WIN/LOSS by realized PnL; no historical order-book; favorite_coins under vmc section.
 - [Dashboard UI structure](dashboard-ui-structure.md) — index.html JS is ID-only (safe to restructure HTML); Simple View is the default landing overlay; restore #simple-view active after verifying.
-- [V6 modular UI](v6-modular-ui.md) — clean modular rebuild in V6_Master_Pro_UI/ (html/css/js/config split); served NON-destructively at /v6 (legacy / untouched); must use trailing slash /v6/.
+- [V6 modular UI](v6-modular-ui.md) — V6_Master_Pro_UI/ dashboard, served NON-destructively at /v6/ (trailing slash; legacy / untouched). NOW Tailwind single-file: CDN + embedded <style> defining injected classes; style.css unused; preserve ~43 IDs; scanner=9 cols.
 - [V6 Final Score + volume key gotcha](v6-final-score.md) — 54-pt engine (compute_v6_final_score) → BUY/WAIT/SELL; coin volume lives under `volume_usdt` not `volume`.
 - [Verifying async-SPA render](verifying-async-spa-render.md) — external_url screenshots capture before fetch resolves & cache JS; verify with jsdom-in-sandbox against the real endpoint instead.

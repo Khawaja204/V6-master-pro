@@ -67,7 +67,8 @@ function initChart() {
 
 function fetchChart() {
   const raw = document.getElementById('coin-search')?.value?.trim() || 'XPLUSDT';
-  const sym = raw.replace('/','').replace(' ','') + (raw.includes('USDT') ? '' : 'USDT');
+  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const sym = clean.endsWith('USDT') ? clean : clean + 'USDT';
   fetch(`/chart_data?symbol=${sym}&interval=15m&limit=60`)
     .then(r => r.json())
     .then(d => {
@@ -247,22 +248,19 @@ function updateScannerTable(d) {
   }
 
   if (!coins.length) {
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--grey);padding:16px">Waiting for scanner data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">Waiting for scanner data...</td></tr>';
     return;
   }
 
-  tbody.innerHTML = coins.slice(0, 25).map((c, i) => {
+  tbody.innerHTML = coins.slice(0, 25).map((c) => {
     const inst = c.inst || {};
     const tp = c.tp_zones || {};
     const v6 = c.v6 || {};
     const tl = (inst.traffic || 'red').toLowerCase();
-    const tlDot = `<span class="traffic-dot ${tl==='green'?'traffic-green':tl==='yellow'?'traffic-yellow':'traffic-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;"></span>`;
-    const folder = c.folder || '';
-    const folderBadge = folder ? `<span class="folder-badge f-${folder.toLowerCase()}">${folder}</span>` : '';
+    const tlDot = `<span class="traffic-dot ${tl==='green'?'traffic-green':tl==='yellow'?'traffic-yellow':'traffic-red'}"></span>`;
     const instScore = parseFloat(inst.inst_score || 0);
     const conf = parseFloat(c.confidence || 0);
     const wp   = parseFloat(inst.whale_power || 0);
-    const ofi  = inst.ofi_score;
     const barColor = conf > 60 ? '#00cc66' : conf > 30 ? '#ffd700' : '#ff3344';
     const wpColor  = wp > 60 ? '#00cc66' : wp > 30 ? '#ffd700' : '#ff3344';
     const act = (v6.label || 'WAIT').toUpperCase();
@@ -270,14 +268,10 @@ function updateScannerTable(d) {
     const rowClass = wp > 70 ? 'hot' : (act === 'AVOID' || act === 'SELL') ? 'avoid-row' : '';
 
     return `<tr class="${rowClass}">
-      <td style="color:var(--grey)">#${i+1}</td>
       <td><span class="coin-circle" style="background:${coinColor(sym)}"></span>${sym}</td>
-      <td>${folderBadge}</td>
-      <td>${tlDot}${tl[0]?.toUpperCase()}</td>
-      <td>${instScore.toFixed(1)}</td>
+      <td>${tlDot}${instScore.toFixed(1)}</td>
       <td>${conf.toFixed(0)}%<div class="mini-bar-wrap"><div class="mini-bar" style="width:${Math.min(conf,100)}%;background:${barColor}"></div></div></td>
       <td><div class="mini-bar-wrap"><div class="mini-bar" style="width:${Math.min(wp,100)}%;background:${wpColor}"></div></div></td>
-      <td style="color:var(--grey)">${ofi != null ? parseFloat(ofi).toFixed(1) : '—'}</td>
       <td style="color:var(--red)">▼${fmt6(tp.stop_loss||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>

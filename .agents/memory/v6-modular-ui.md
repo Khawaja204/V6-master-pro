@@ -4,12 +4,30 @@ description: The clean modular dashboard rebuild — where it lives, how it is s
 ---
 
 ## What it is
-`V6_Master_Pro_UI/` is a from-scratch, fully modular dashboard: `index.html`
-(structure only), `style.css` (all design), `script.js` (all fetch/render),
+`V6_Master_Pro_UI/` is the dashboard: `index.html`, `script.js` (all fetch/render),
 `config.js` (editable endpoints / refresh / layout / watch coins / clients),
-`deployment.txt`. Hard rule the user set: NO inline `style=` in markup and NO
-embedded `<style>`/`<script>` blocks. Gauge widths / config maxWidth are the only
-JS-set styles (legitimately dynamic).
+`deployment.txt`. `style.css` is now UNUSED — superseded by a Tailwind redesign.
+
+## Styling: Tailwind redesign (supersedes the old "no embedded style" rule)
+The user explicitly requested a full Tailwind redesign of `/v6/` to match an
+attached mockup, as a single cohesive `index.html`. So index.html now loads the
+Tailwind CDN + FontAwesome + lightweight-charts@4, and carries an embedded
+`<style>` block. That `<style>` defines `:root` CSS vars (`--green/--red/--orange/
+--yellow/--grey`) AND every component class that `script.js` injects via innerHTML
+(`action-*`, `traffic-*`, `mini-bar*`, `coin-circle`, `vol-*`, `alert-item`,
+`ca-*`, `sb-*` color classes, `buy-badge`/`avoid-badge`, `dg-value`/`.green/.red/
+.orange`, row `hot`/`avoid-row`, `dtable` table styling).
+**Why:** redesign request beats the older modular "NO embedded `<style>`" rule —
+do NOT re-split CSS back out or strip the inline styles. `script.js` stays
+external (it is the data engine).
+**How to apply:** when rebuilding index.html, you MUST preserve all ~43 IDs
+script.js reads/writes AND keep every injected component class defined in the
+`<style>` block, or dynamic content renders unstyled. Scanner table is now 9
+columns (Coin, Inst, Conf%, WhalePow, SL, TP1, TP2, TP3, Action) — thead,
+empty-state colspan, and `updateScannerTable` row template must all stay at 9.
+`fetchChart` normalizes the search input with `replace(/[^A-Z0-9]/g,'')` (strips
+ALL slashes/spaces) before appending USDT — a single-`.replace` left a space and
+blanked the chart.
 
 ## How it is served — `/v6`, NOT `/`
 Flask (`main.py`) serves it NON-destructively at `/v6` via `send_from_directory`
