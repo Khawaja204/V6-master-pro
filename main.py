@@ -1293,7 +1293,9 @@ def v6_redirect():
 
 @app.route("/v6/")
 def v6_ui():
-    resp = send_from_directory("V6_Master_Pro_UI", "index.html")
+    with open("V6_Master_Pro_UI/index.html", "r", encoding="utf-8") as f:
+        html = f.read()
+    resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
 
