@@ -1,3 +1,7 @@
+import shutil,os
+def sync_ui():
+    [shutil.copy2(f"V6_Master_Pro_UI/{f}",f) for f in ["index.html","script.js","style.css"] if os.path.exists(f"V6_Master_Pro_UI/{f}")]
+sync_ui()
 """
 main.py — V6 Master Pro Institutional | Entry Point
 Run: python3 main.py
