@@ -2,396 +2,873 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=760"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>V6 Master Pro</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: { extend: { colors: {
-      base: '#0b111e', panel: '#131a26', panelb: '#1e293b',
-      neong: '#00ffcc', neonr: '#ff3b30'
-    }}}
-  };
-</script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
-<script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-  :root{ --green:#00cc66; --red:#ff3344; --orange:#ff9500; --yellow:#ffd700; --grey:#64748b; }
-  body{ background:#0b111e; color:#e2e8f0; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; }
-  ::-webkit-scrollbar{ height:6px; width:6px; }
-  ::-webkit-scrollbar-thumb{ background:#1e293b; border-radius:3px; }
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#060608;--card:#0e0e14;--card2:#111118;
+  --border:#1e1e2e;--green:#00ff88;--red:#ff2244;
+  --orange:#ff8800;--gold:#ffd700;--blue:#00aaff;
+  --white:#f0f0ff;--grey:#55556a;--grey2:#33334a;
+  --font:'Courier New',monospace;
+}
+body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:12px;overflow-x:hidden}
 
-  /* ---- chart ---- */
-  #chart-container{ height:200px; width:100%; }
+/* HEADER */
+#hdr{background:#08080f;border-bottom:1px solid var(--border);padding:6px 10px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.v6b{background:#ff6600;color:#fff;font-weight:bold;font-size:15px;padding:2px 8px;border-radius:3px;margin-right:6px}
+.prb{background:var(--gold);color:#000;font-size:9px;font-weight:bold;padding:1px 5px;border-radius:2px;margin-right:8px}
+.sync{color:var(--green);font-size:9px}
+.hbtns{display:flex;gap:4px}
+.hbtn{background:transparent;border:1px solid #333;color:#aaa;font-size:9px;padding:3px 7px;cursor:pointer;font-family:var(--font);border-radius:2px}
+.hbtn:hover{border-color:#666}
+.hbtn.focus{border-color:var(--red);color:var(--red)}
+.hbtn.admin{border-color:var(--gold);color:var(--gold)}
+.hbtn.client{border-color:var(--blue);color:var(--blue)}
 
-  /* ---- generic data tables (rows injected by script.js) ---- */
-  table.dtable{ width:100%; border-collapse:collapse; }
-  table.dtable th{ text-align:left; padding:6px 8px; font-size:9px; text-transform:uppercase;
-    letter-spacing:.5px; color:#64748b; border-bottom:1px solid #1e293b; background:#0b111e; white-space:nowrap; }
-  table.dtable td{ padding:5px 8px; font-size:10px; border-bottom:1px solid #1e293b;
-    font-family:ui-monospace,Menlo,Consolas,monospace; white-space:nowrap; }
-  .dtable tbody tr:hover{ background:rgba(255,255,255,.02); }
-  .dtable tr.avoid-row td{ background:rgba(255,51,68,.05); }
-  .dtable tr.hot td{ background:rgba(0,204,102,.06); }
+/* STATUS BAR */
+#sb{background:#0a0a12;border-bottom:1px solid var(--border);padding:4px 10px;display:flex;align-items:center;flex-wrap:wrap;gap:0}
+.sbi{display:flex;flex-direction:column;align-items:center;padding:0 10px;border-right:1px solid var(--border);min-width:60px}
+.sbl{color:var(--grey);font-size:8px;text-transform:uppercase;letter-spacing:.5px}
+.sbv{font-size:11px;font-weight:bold;margin-top:1px}
+.sbv.live{color:var(--green)}
+.sbv.rng{color:var(--orange)}
+.sbv.bear{color:var(--red)}
+.sbv.bull{color:var(--green)}
+.sbv.neu{color:var(--gold)}
+.sb-right{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:10px}
+.next-pill{background:#1a1a2e;border:1px solid var(--border);padding:2px 8px;border-radius:10px;font-size:10px}
+.conn-dot{color:var(--green)}
 
-  /* ---- action badges ---- */
-  .action-badge{ display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px;
-    font-weight:700; letter-spacing:.5px;
-    background:rgba(148,163,184,.12); color:#94a3b8; border:1px solid rgba(148,163,184,.3); }
-  .action-BUY{ background:rgba(0,204,102,.15); color:#00ffcc; border:1px solid rgba(0,204,102,.4); }
-  .action-SELL,.action-AVOID{ background:rgba(255,59,48,.12); color:#ff3b30; border:1px solid rgba(255,59,48,.4); }
-  .action-WAIT,.action-HOLD{ background:rgba(255,213,0,.12); color:#ffd700; border:1px solid rgba(255,213,0,.35); }
-  .strat-badge{ display:inline-block; padding:2px 7px; border-radius:4px; font-size:9px; font-weight:700;
-    letter-spacing:.5px; background:#0891b2; color:#ecfeff; border:1px solid #22d3ee; }
-  .tl-sq{ width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:5px; vertical-align:middle; }
+/* PAPER BANNER */
+#paper{background:#1a1400;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);color:var(--gold);font-size:11px;font-weight:bold;text-align:center;padding:7px;display:none}
+#paper.show{display:block}
 
-  /* ---- traffic light dot ---- */
-  .traffic-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:5px; vertical-align:middle; }
-  .traffic-green{ background:#00cc66; box-shadow:0 0 6px #00cc66; }
-  .traffic-yellow{ background:#ffd700; box-shadow:0 0 6px #ffd700; }
-  .traffic-red{ background:#ff3344; box-shadow:0 0 6px #ff3344; }
+/* TABS */
+#tabs{display:flex;background:#08080f;border-bottom:2px solid var(--border);padding:0 10px}
+.tab{padding:8px 16px;cursor:pointer;font-size:11px;font-weight:bold;color:var(--grey);border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--font);background:transparent;border-left:none;border-right:none;border-top:none}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+.tab:hover{color:var(--white)}
 
-  /* ---- mini bars / coin circle ---- */
-  .mini-bar-wrap{ width:100%; min-width:46px; height:4px; background:#1e293b; border-radius:2px; margin-top:3px; overflow:hidden; }
-  .mini-bar{ height:100%; border-radius:2px; }
-  .coin-circle{ width:14px; height:14px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+/* TAB PANELS */
+.panel{display:none;padding:8px}
+.panel.active{display:block}
 
-  /* ---- volume surge / alerts ---- */
-  .vol-item{ display:flex; justify-content:space-between; gap:6px; font-size:10px; padding:3px 0; border-bottom:1px solid #1e293b; }
-  .vol-coin{ color:#e2e8f0; font-weight:600; } .vol-mult{ color:#ff9500; } .vol-amount{ color:#64748b; }
-  .alert-item{ font-size:10px; padding:4px 0; border-bottom:1px solid #1e293b; color:#cbd5e1; }
+/* ═══ TAB 1: SNIPER ═══ */
+#sniper-grid{display:grid;grid-template-columns:55% 45%;gap:6px}
 
-  /* ---- client api ---- */
-  .ca-connected{ color:#22c55e; } .ca-synced{ color:#00cc66; } .ca-syncing{ color:#ffd700; }
+/* BIG SIGNAL BADGE */
+#big-signal{text-align:center;padding:12px;border-radius:4px;margin-bottom:8px;font-size:22px;font-weight:bold;letter-spacing:2px;border:2px solid}
+#big-signal.BUY{background:#003311;border-color:var(--green);color:var(--green)}
+#big-signal.SELL{background:#330011;border-color:var(--red);color:var(--red)}
+#big-signal.WAIT{background:#1a1a1a;border-color:#555;color:#aaa}
+#big-signal.HOLD{background:#332200;border-color:var(--gold);color:var(--gold)}
+#big-signal.AVOID{background:#220011;border-color:var(--red);color:var(--orange)}
 
-  /* ---- status bar value colors (className set in JS) ---- */
-  .sb-value{ font-weight:700; }
-  .sb-live{ color:#00cc66; } .sb-bearish{ color:#ff3344; } .sb-volatile{ color:#ffd700; }
+.card{background:var(--card);border:1px solid var(--border);border-radius:3px;overflow:hidden}
+.ch{padding:7px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:bold}
+.cb{padding:8px 10px}
 
-  /* ---- coin profile badge + data grid ---- */
-  .buy-badge{ background:rgba(0,204,102,.15); color:#00ffcc; border:1px solid rgba(0,204,102,.4);
-    padding:2px 9px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
-  .avoid-badge{ background:rgba(255,59,48,.12); color:#ff3b30; border:1px solid rgba(255,59,48,.4);
-    padding:2px 9px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
-  .dg-value{ color:#e2e8f0; font-family:ui-monospace,Menlo,Consolas,monospace; }
-  .green{ color:#00cc66 !important; } .red{ color:#ff3344 !important; } .orange{ color:#ff9500 !important; }
+/* SCORE RING */
+.score-ring-wrap{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 0}
+.score-ring{position:relative;width:100px;height:100px}
+.score-ring svg{width:100px;height:100px}
+.score-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.score-num{font-size:24px;font-weight:bold}
+.score-lbl{font-size:9px;color:var(--grey)}
+.score-cats{font-size:9px;line-height:1.8}
+.cat-row{display:flex;justify-content:space-between;gap:20px;padding:1px 0;border-bottom:1px solid #111}
+.cat-lbl{color:var(--grey)}
+.cat-val{font-weight:bold}
+
+/* ENGINE ROWS */
+.eng-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #111;font-size:11px}
+.eng-lbl{color:var(--grey)}
+.tl-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.tl-red{background:var(--red);box-shadow:0 0 6px var(--red)}
+.tl-yellow{background:var(--gold);box-shadow:0 0 6px var(--gold)}
+.tl-green{background:var(--green);box-shadow:0 0 6px var(--green)}
+
+.warn{background:#1a0a00;border:1px solid var(--orange);border-radius:2px;padding:6px 8px;margin:6px 0;font-size:9px;color:var(--orange)}
+.rsn{background:#0a0a14;border:1px solid var(--border);border-radius:2px;padding:6px 8px;margin:6px 0;font-size:10px}
+.rsn-lbl{color:var(--grey);font-size:9px;margin-bottom:2px}
+
+.exec-btn{width:100%;padding:10px;font-family:var(--font);font-size:12px;font-weight:bold;border:none;cursor:pointer;border-radius:2px;margin-bottom:5px;letter-spacing:.5px}
+.exec-btn.go{background:#004400;color:var(--green)}
+.exec-btn.go:hover{background:#006600}
+.exec-btn.panic{background:#440000;color:var(--red)}
+.exec-btn.panic:hover{background:#660000}
+
+/* PROFILE */
+.search-row{display:flex;gap:5px;margin-bottom:6px}
+.s-inp{flex:1;background:#080810;border:1px solid var(--border);color:var(--white);padding:6px 8px;font-family:var(--font);font-size:11px;border-radius:2px}
+.s-btn{background:#0044aa;color:#fff;border:none;padding:6px 12px;cursor:pointer;font-family:var(--font);font-size:11px;border-radius:2px}
+#chart-box{background:#040408;height:180px;border:1px solid var(--border);border-radius:2px;margin-bottom:6px;overflow:hidden}
+.dg{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px}
+.dg-l{color:var(--grey)}
+.dg-v{color:var(--white)}
+.dg-v.g{color:var(--green)}
+.dg-v.r{color:var(--red)}
+.dg-v.o{color:var(--orange)}
+
+/* GAUGES */
+.gauge-sec{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;padding:8px 10px}
+.g-col{text-align:center}
+.g-title{font-size:8px;color:var(--grey);text-transform:uppercase;margin-bottom:4px}
+.g-wrap{position:relative;display:inline-block}
+.g-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.g-val{font-size:14px;font-weight:bold}
+.g-sub{font-size:8px;color:var(--grey)}
+.whale-info{text-align:left;font-size:9px;padding:2px 0}
+.wi-title{color:var(--gold);font-size:8px;margin-bottom:3px}
+.wi-r{display:flex;justify-content:space-between;padding:1px 0;border-bottom:1px solid #111}
+.wi-l{color:var(--grey)}
+.wi-v{color:var(--white)}
+.wi-v.g{color:var(--green)}
+
+/* ═══ TAB 2: SCANNER ═══ */
+.scan-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.scan-title{font-size:12px;font-weight:bold}
+.scan-meta{color:var(--grey);font-size:9px}
+.scan-tbl{width:100%;border-collapse:collapse;font-size:10px}
+.scan-tbl th{background:#12121e;color:var(--grey);font-size:8px;text-transform:uppercase;padding:5px 4px;text-align:left;border-bottom:1px solid var(--border);letter-spacing:.3px}
+.scan-tbl td{padding:4px 4px;border-bottom:1px solid #111;vertical-align:middle}
+.scan-tbl tr:hover td{background:#1a1a2e}
+.scan-tbl tr.hot td:first-child{color:var(--orange)}
+.scan-tbl tr.avoid td{background:#120808}
+.cc{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+.fb{font-size:7px;padding:1px 3px;border-radius:2px;margin-right:1px}
+.f-vip{background:#220033;color:#cc88ff}
+.f-golden{background:#332200;color:var(--gold)}
+.f-boom{background:#002211;color:var(--green)}
+.f-entry{background:#001133;color:var(--blue)}
+.mb-wrap{width:40px;height:5px;background:#1a1a2e;border-radius:3px;overflow:hidden;display:inline-block}
+.mb{height:100%;border-radius:3px}
+.at{font-size:7px;font-weight:bold;padding:2px 4px;border-radius:2px}
+.at-spot{background:#001155;color:var(--blue)}
+.at-avoid{background:#330000;color:var(--red)}
+.at-grid{background:#332200;color:var(--orange)}
+.at-sell{background:#440000;color:var(--red)}
+.at-wait{background:#1a1a1a;color:#aaa}
+.at-buy{background:#003311;color:var(--green)}
+
+/* ═══ TAB 3: TRAFFIC LIGHT ═══ */
+#tl-big{text-align:center;padding:20px 10px}
+.tl-circle{width:140px;height:140px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;letter-spacing:2px}
+.tl-circle.GREEN{background:#003311;border:4px solid var(--green);color:var(--green);box-shadow:0 0 30px rgba(0,255,136,.3)}
+.tl-circle.RED{background:#330011;border:4px solid var(--red);color:var(--red);box-shadow:0 0 30px rgba(255,34,68,.3)}
+.tl-circle.YELLOW{background:#332200;border:4px solid var(--gold);color:var(--gold);box-shadow:0 0 30px rgba(255,215,0,.3)}
+.tl-score{font-size:48px;font-weight:bold;margin-bottom:4px}
+.tl-label{font-size:16px;color:var(--grey);margin-bottom:16px}
+.tl-bars{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:400px;margin:0 auto 16px;text-align:left}
+.tl-bar-row{background:var(--card);border:1px solid var(--border);border-radius:3px;padding:8px}
+.tl-bar-title{font-size:9px;color:var(--grey);margin-bottom:4px;text-transform:uppercase}
+.tl-bar-track{background:#1a1a2e;height:8px;border-radius:4px;overflow:hidden}
+.tl-bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.tl-bar-val{font-size:11px;font-weight:bold;margin-top:3px}
+.coin-spotlight{background:var(--card);border:1px solid var(--border);border-radius:3px;padding:12px;max-width:400px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px}
+.cs-item{padding:4px 0;border-bottom:1px solid #111}
+.cs-lbl{color:var(--grey);font-size:9px}
+.cs-val{font-weight:bold}
+
+/* BOTTOM PANELS */
+.bot-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+.vol-item{background:#0e0e18;border:1px solid var(--border);padding:3px 6px;font-size:9px;display:flex;justify-content:space-between;border-radius:2px;margin-bottom:2px}
+.vi-coin{color:var(--white);font-weight:bold}
+.vi-mult{color:var(--orange)}
+.vi-vol{color:var(--grey)}
+.bt-tbl{width:100%;font-size:9px}
+.bt-tbl th{color:var(--grey);padding:2px 3px;text-align:center}
+.bt-tbl td{color:var(--white);padding:2px 3px;text-align:center;border-bottom:1px solid #111}
+.alt-item{font-size:9px;padding:3px 0;border-bottom:1px solid #111;color:var(--grey);line-height:1.4}
+.alt-item span{color:var(--green)}
+
+/* CLIENT API */
+.ca-tbl{width:100%;font-size:10px}
+.ca-tbl th{color:var(--grey);padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);font-size:8px;text-transform:uppercase}
+.ca-tbl td{padding:4px 6px;border-bottom:1px solid #111}
+.ca-ok{color:var(--green)}
+.ca-sync{color:var(--gold)}
+.ca-fail{color:var(--red)}
+
+/* FOOTER */
+#ftr{background:#050508;border-top:1px solid var(--border);display:flex;justify-content:space-between;padding:5px 10px;font-size:8px;color:var(--grey)}
+.ftr-mid{color:var(--blue)}
+
+/* WATCH CARDS */
+.wc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.wc{background:var(--card);border:1px solid var(--border);border-radius:3px;padding:8px}
+.wc-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px;font-weight:bold}
+.wc-row{display:flex;justify-content:space-between;padding:3px 0;font-size:10px;border-bottom:1px solid #111}
+.wc-lbl{color:var(--grey)}
+.wc-val{color:var(--white)}
+.wc-val.pos{color:var(--green)}
+
+/* SMD */
+.smd-wrap{text-align:center;padding:8px}
+.smd-lbl-row{display:flex;justify-content:space-between;font-size:8px;color:var(--grey);margin-top:2px}
+
+/* ANIM */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.blink{animation:pulse 1.2s infinite}
+@keyframes pgreen{0%,100%{box-shadow:0 0 4px var(--green)}50%{box-shadow:0 0 16px var(--green)}}
+.pg{animation:pgreen 2s infinite}
+
+/* MOBILE */
+@media(max-width:600px){
+  #sniper-grid{grid-template-columns:1fr}
+  .gauge-sec{grid-template-columns:1fr 1fr}
+  .bot-grid{grid-template-columns:1fr}
+  .tl-bars{grid-template-columns:1fr}
+}
 </style>
 </head>
-<body class="p-2 sm:p-3 text-xs sm:text-sm">
+<body>
 
-<!-- ============ HEADER ============ -->
-<header class="bg-panel border border-panelb rounded-t p-3 flex flex-wrap justify-between items-center gap-2 shadow-lg">
-  <div class="flex items-center gap-3 flex-wrap">
-    <span class="bg-cyan-500/20 text-cyan-300 font-extrabold px-2 py-0.5 rounded border border-cyan-700 tracking-wider">V6</span>
-    <span class="font-bold text-cyan-400 tracking-wider">V6 MASTER</span>
-    <span class="bg-amber-500/20 text-amber-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-700">PRO</span>
-    <span class="flex items-center gap-1 text-green-400 text-[11px]">
-      <span class="h-2 w-2 rounded-full bg-green-500 animate-ping"></span> Green Sync
-    </span>
+<!-- HEADER -->
+<div id="hdr">
+  <div style="display:flex;align-items:center">
+    <span class="v6b">V6</span>
+    <span style="font-size:14px;font-weight:bold;margin-right:6px">V6 MASTER</span>
+    <span class="prb">PRO</span>
+    <span class="sync blink">● </span>
+    <span style="color:var(--grey);font-size:9px">Green Sync</span>
   </div>
-  <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
-    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-cyan-800 text-cyan-300" onclick="location.href='/focus'">FOCUS NODE</button>
-    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-panelb" onclick="location.href='/v6/'">SIMPLE NODE</button>
-    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-amber-800 text-amber-400" onclick="location.href='/admin'">ADMIN/QUEST</button>
-    <button class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-panelb flex items-center gap-1" onclick="location.href='/client'">profile <i class="fa-solid fa-chevron-down text-[8px]"></i></button>
-  </div>
-</header>
-
-<!-- ============ STATUS BAR ============ -->
-<div class="bg-slate-900/60 border-x border-b border-panelb px-3 py-1.5 flex flex-wrap items-center gap-y-1 text-[11px] font-mono">
-  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
-    <div class="text-[8px] text-slate-500 tracking-widest mb-1">STATUS</div>
-    <div class="text-[12px]"><span class="sb-value sb-live">LIVE</span></div>
-  </div>
-  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
-    <div class="text-[8px] text-slate-500 tracking-widest mb-1">CYCLE</div>
-    <div class="text-[12px]"><span class="sb-value text-white" id="sb-cycle">—</span></div>
-  </div>
-  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
-    <div class="text-[8px] text-slate-500 tracking-widest mb-1">REGIME</div>
-    <div class="text-[12px]"><span class="sb-value sb-volatile" id="sb-regime">—</span></div>
-  </div>
-  <div class="pr-4 mr-4 border-r border-slate-700/50 leading-none">
-    <div class="text-[8px] text-slate-500 tracking-widest mb-1">BTC PRICE</div>
-    <div class="text-[12px]"><span class="sb-value text-emerald-400" id="sb-btcprice">—</span></div>
-  </div>
-  <div class="leading-none">
-    <div class="text-[8px] text-slate-500 tracking-widest mb-1">RTG BIAS</div>
-    <div class="text-[12px]"><span class="sb-value sb-bearish" id="sb-rias">—</span></div>
-  </div>
-  <div class="ml-auto flex items-center gap-3">
-    <span class="text-slate-500">next <span id="next-count" class="text-slate-300">30</span>s</span>
-    <span class="bg-blue-900/40 text-blue-300 px-2 py-0.5 rounded border border-blue-800 flex items-center gap-1">
-      <span class="text-green-400">●</span> connected: <span class="text-orange-400" id="sb-exchange">Binance</span>
-    </span>
+  <div class="hbtns">
+    <button class="hbtn focus" onclick="location.href='/focus'">FOCUS NODE</button>
+    <button class="hbtn" onclick="location.href='/v6/'">SIMPLE NODE</button>
+    <button class="hbtn admin" onclick="location.href='/admin'">ADMIN/QUEST</button>
+    <button class="hbtn client" onclick="location.href='/client'">profile ▾</button>
   </div>
 </div>
 
-<!-- ============ MAIN 2-COLUMN ============ -->
-<main class="grid grid-cols-12 gap-3 mt-2">
+<!-- STATUS BAR -->
+<div id="sb">
+  <div class="sbi"><span class="sbl">STATUS</span><span class="sbv live">LIVE</span></div>
+  <div class="sbi"><span class="sbl">CYCLE</span><span class="sbv" id="sb-cycle">—</span></div>
+  <div class="sbi"><span class="sbl">REGIME</span><span class="sbv rng" id="sb-regime">—</span></div>
+  <div class="sbi"><span class="sbl">BTC PRICE</span><span class="sbv" id="sb-btc">—</span></div>
+  <div class="sbi"><span class="sbl">BTC BIAS</span><span class="sbv neu" id="sb-bias">—</span></div>
+  <div class="sb-right">
+    <span class="next-pill">next <span id="next-cnt">30</span>s <span class="blink" style="color:var(--green)">●</span></span>
+    <span><span class="conn-dot">●</span> connected: <span style="color:var(--orange)" id="sb-exch">BINANCE</span></span>
+  </div>
+</div>
 
-  <!-- LEFT: COIN PROFILE & CHART -->
-  <section class="col-span-7">
-    <div class="bg-panel border border-panelb rounded h-full overflow-hidden flex flex-col">
-      <div class="flex items-center gap-2 px-3 py-2 bg-orange-500/10 border-b border-orange-700/30">
-        <h2 class="text-orange-400 font-semibold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-          <i class="fa-solid fa-chart-line"></i> Selected Coin Profile
-        </h2>
-        <span id="profile-badge" class="avoid-badge ml-auto">AVOID – DUMP PREP</span>
-      </div>
-      <div class="p-3 flex-1">
-        <div class="flex mb-3">
-          <span class="flex items-center px-2 bg-slate-900 border border-r-0 border-panelb rounded-l text-slate-500"><i class="fa-solid fa-magnifying-glass text-[10px]"></i></span>
-          <input id="coin-search" value="XPL / USDT" placeholder="Enter coin pair"
-            class="bg-slate-900 border-y border-panelb px-2 py-1 flex-1 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"/>
-          <button onclick="doSearch()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-1 rounded-r text-xs">Search</button>
+<!-- PAPER BANNER -->
+<div id="paper">📋 PAPER MODE — Simulated. Safe for testing & monitoring.</div>
+
+<!-- TABS -->
+<div id="tabs">
+  <button class="tab active" onclick="switchTab('sniper',this)">⚡ SNIPER</button>
+  <button class="tab" onclick="switchTab('scanner',this)">📊 SCANNER</button>
+  <button class="tab" onclick="switchTab('traffic',this)">🚦 SIGNAL</button>
+</div>
+
+<!-- ═══════════════════════════════
+     TAB 1: SNIPER
+═══════════════════════════════ -->
+<div class="panel active" id="tab-sniper">
+
+  <!-- Big signal -->
+  <div id="big-signal" class="WAIT">⏳ WAIT — SCORE: <span id="big-score">—</span>/100</div>
+
+  <div id="sniper-grid">
+
+    <!-- LEFT: COIN PROFILE -->
+    <div>
+      <div class="card">
+        <div class="ch">
+          <span style="color:var(--grey);font-size:10px">Selected Coin Profile</span>
+          <span id="profile-badge" style="background:#440000;color:var(--red);font-size:9px;padding:2px 7px;border-radius:2px;font-weight:bold">AVOID – DUMP PREP</span>
         </div>
-
-        <div class="relative">
-          <div id="chart-container" class="rounded border border-panelb bg-[#060610]"></div>
-          <div id="chart-signal" class="absolute top-2 left-2 z-10 px-2.5 py-1 rounded text-[11px] font-bold tracking-wider shadow-lg flex items-center gap-1.5"
-               style="background:rgba(255,59,48,.92);color:#fff;border:1px solid rgba(255,255,255,.25);">
-            <i class="fa-solid fa-circle-arrow-down"></i><span id="chart-signal-text">AVOID</span>
+        <div class="cb">
+          <div class="search-row">
+            <input class="s-inp" id="coin-inp" value="XPL / USDT" placeholder="🔍 Coin pair"/>
+            <button class="s-btn" onclick="doSearch()">Search</button>
+          </div>
+          <div id="chart-box"></div>
+          <div class="dg" style="margin-top:6px">
+            <span class="dg-l">Whale Bag Size:</span><span class="dg-v" id="whale-bag">—</span>
+            <span class="dg-l">VMC Score:</span><span class="dg-v" id="vmc-score">—</span>
+            <span class="dg-l">Buy Price Est:</span><span class="dg-v" id="buy-est">—</span>
+            <span class="dg-l">Sell Price Est:</span><span class="dg-v r" id="sell-est">—</span>
+            <span class="dg-l">Buy Price Ext:</span><span class="dg-v" id="buy-ext">—</span>
+            <span class="dg-l">Sell Price Ext:</span><span class="dg-v r" id="sell-ext">—</span>
+            <span class="dg-l">Trend:</span><span class="dg-v g" id="coin-trend">ACCUMULATION</span>
           </div>
         </div>
+      </div>
+    </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-2 text-[11px] bg-slate-950/50 p-3 rounded border border-panelb/50">
-          <div class="flex justify-between gap-2"><span class="text-slate-500">Whale Bag Size:</span><span class="dg-value" id="whale-bag">—</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-500">Buy Price Est:</span><span class="dg-value green" id="buy-price-est">—</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-500">Buy Price Ext:</span><span class="dg-value" id="buy-price-ext">—</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-500">VMC Score:</span><span class="dg-value" id="vmc-score">—</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-500">Sell Price Est:</span><span class="dg-value red" id="sell-price-est">—</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-500">Sell Price Ext:</span><span class="dg-value red" id="sell-price-ext">—</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-500">Trend:</span><span class="dg-value green" id="coin-trend">ACCUMULATION</span></div>
+    <!-- RIGHT: TRADE ENGINE -->
+    <div>
+      <div class="card">
+        <div class="ch">
+          <span>⚡ Trade Decision Engine</span>
+          <span id="eng-badge" style="background:#440000;color:var(--red);font-size:9px;padding:2px 8px;border-radius:2px;font-weight:bold">AVOID</span>
+        </div>
+        <div class="cb">
+          <div class="eng-row">
+            <span class="eng-lbl">Traffic Light</span>
+            <span class="tl-dot tl-red" id="tl-dot"></span>
+          </div>
+          <div class="eng-row">
+            <span class="eng-lbl">Inst Score</span>
+            <span id="inst-score">—</span>
+          </div>
+          <div class="eng-row">
+            <span class="eng-lbl">Whale Trap</span>
+            <span id="whale-trap">0 &nbsp;NO</span>
+          </div>
+          <div class="eng-row">
+            <span class="eng-lbl">ATR Zones</span>
+            <span id="atr-zones">Scoped</span>
+          </div>
+          <div class="warn" id="warn-box" style="display:none"></div>
+          <div class="rsn">
+            <div class="rsn-lbl">REASON</div>
+            <div id="reason-txt">DUMP_PREPARATION → AVOID</div>
+          </div>
+          <button class="exec-btn go pg">EXECUTE TRADE NOW</button>
+          <button class="exec-btn panic">PANIC – CANCEL ALL</button>
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- RIGHT: TRADE DECISION ENGINE -->
-  <section class="col-span-5">
-    <div class="bg-panel border border-panelb rounded h-full overflow-hidden flex flex-col">
-      <div class="flex justify-between items-center px-3 py-2 bg-purple-500/10 border-b border-purple-800/30">
-        <h2 class="text-slate-200 font-semibold flex items-center gap-1.5 text-[12px]"><i class="fa-solid fa-brain text-purple-400"></i> Trade Decision Engine</h2>
-        <span class="action-badge action-AVOID" id="action-badge">AVOID</span>
-      </div>
-      <div class="p-4 flex flex-col flex-1">
-        <ul class="space-y-2 font-mono text-[11px] text-slate-400">
-          <li class="flex justify-between border-b border-panelb pb-1.5"><span>Traffic Light:</span><span><span class="traffic-dot traffic-red" id="traffic-dot"></span></span></li>
-          <li class="flex justify-between border-b border-panelb pb-1.5"><span>Inst Score:</span><span class="text-emerald-400" id="inst-score">—</span></li>
-          <li class="flex justify-between border-b border-panelb pb-1.5"><span>Whale Trap:</span><span id="whale-trap">0&nbsp;&nbsp;NO</span></li>
-          <li class="flex justify-between border-b border-panelb pb-1.5"><span>ATR Zones:</span><span id="atr-zones">Scoped</span></li>
-        </ul>
-
-        <div class="warning-box mt-2 p-2 rounded bg-red-950/30 border border-red-900 text-red-400 text-[11px] font-mono" id="warning-box" style="display:none"></div>
-
-        <div class="mt-2 p-3 bg-red-950/20 border border-red-950 rounded">
-          <span class="text-slate-400 text-[10px] block uppercase font-semibold tracking-wider mb-1">Reason</span>
-          <p class="text-red-400 text-[11px] font-semibold uppercase tracking-wide" id="reason-text">DUMP_PREPARATION (ISY) → AVOID</p>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-auto pt-4">
-          <button class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded text-center shadow tracking-wider uppercase text-[11px] animate-pulse">Execute Trade Now</button>
-          <button class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded text-center shadow tracking-wider uppercase text-[11px]">Panic – Cancel All</button>
+  <!-- SENTIMENT -->
+  <div class="card" style="margin-top:6px">
+    <div class="ch">💜 Sentiment &amp; Whale Data</div>
+    <div class="gauge-sec">
+      <div class="g-col">
+        <div class="g-title">Whale Power</div>
+        <div class="g-wrap">
+          <svg id="g-whale" width="80" height="80" viewBox="0 0 80 80"></svg>
+          <div class="g-center"><div class="g-val" id="g-whale-val">0%</div><div class="g-sub">power</div></div>
         </div>
       </div>
-    </div>
-  </section>
-</main>
-
-<!-- ============ SENTIMENT & WHALE DATA ============ -->
-<section class="bg-panel border border-panelb rounded p-3 mt-2 shadow">
-  <h2 class="text-slate-300 font-semibold text-[12px] mb-3 flex items-center gap-1.5"><i class="fa-solid fa-heart text-pink-400"></i> Sentiment &amp; Whale Data</h2>
-  <div class="grid grid-cols-4 gap-3 items-center">
-    <!-- Whale Power gauge -->
-    <div class="flex flex-col items-center">
-      <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Whale Power</div>
-      <div class="relative w-[110px] h-[110px]">
-        <svg id="gauge-whale" width="110" height="110" viewBox="0 0 110 110"></svg>
-        <div class="absolute inset-0 flex flex-col items-center justify-center">
-          <div class="font-bold font-mono text-sm" id="gauge-whale-label">0%</div>
-          <div class="text-[9px] text-slate-500">power</div>
+      <div class="g-col">
+        <div class="g-title">Buy/Sell Pressure</div>
+        <div class="g-wrap">
+          <svg id="g-bsp" width="80" height="80" viewBox="0 0 80 80"></svg>
+          <div class="g-center"><div class="g-val" id="g-bsp-val">NO</div><div class="g-sub">buy</div></div>
+        </div>
+      </div>
+      <div class="g-col" style="text-align:left">
+        <div class="whale-info">
+          <div class="wi-title">Top 3 Whales Wallet</div>
+          <div class="wi-r"><span class="wi-l">Pattern:</span><span class="wi-v" id="w1-pat">(Pattern)</span></div>
+          <div class="wi-r"><span class="wi-l">Cluster:</span><span class="wi-v" id="w1-cls">Stable</span></div>
+          <div class="wi-r"><span class="wi-l">Moves:</span><span class="wi-v g" id="w1-mov">98%</span></div>
+        </div>
+      </div>
+      <div class="g-col" style="text-align:left">
+        <div class="whale-info">
+          <div class="wi-title">Top 3 Whales Wallet</div>
+          <div class="wi-r"><span class="wi-l">Pattern:</span><span class="wi-v" id="w2-pat">Pattern tag</span></div>
+          <div class="wi-r"><span class="wi-l">Cluster:</span><span class="wi-v" id="w2-cls">Cluster</span></div>
+          <div class="wi-r"><span class="wi-l">Moves:</span><span class="wi-v g" id="w2-mov">96%</span></div>
         </div>
       </div>
     </div>
-    <!-- Buy/Sell Pressure gauge -->
-    <div class="flex flex-col items-center">
-      <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Buy/Sell Pressure</div>
-      <div class="relative w-[110px] h-[110px]">
-        <svg id="gauge-bsp" width="110" height="110" viewBox="0 0 110 110"></svg>
-        <div class="absolute inset-0 flex flex-col items-center justify-center">
-          <div class="font-bold font-mono text-sm text-emerald-400" id="gauge-bsp-label">YES</div>
-          <div class="text-[9px] text-slate-500">buy</div>
+  </div>
+
+  <!-- BOTTOM PANELS -->
+  <div class="bot-grid">
+    <!-- SMD -->
+    <div class="card">
+      <div class="ch" style="font-size:10px">🧠 Smart Money Divergence</div>
+      <div class="smd-wrap">
+        <svg id="smd-g" width="120" height="70" viewBox="0 0 140 80"></svg>
+        <div class="smd-lbl-row"><span>Distribution</span><span>Volume Surge</span></div>
+        <div style="font-size:8px;color:var(--grey);text-align:center">Accumulation</div>
+      </div>
+      <div style="padding:0 8px 8px">
+        <div style="font-size:8px;color:var(--orange);margin-bottom:3px">🚀 VOLUME SURGE &gt;2.5x</div>
+        <div id="vol-list"></div>
+      </div>
+    </div>
+    <!-- WATCH CARDS -->
+    <div>
+      <div class="wc-grid">
+        <div class="wc">
+          <div class="wc-hdr"><span id="wc1-name">HIFI / ADA</span>
+            <div style="display:flex;gap:3px"><span class="at at-spot">SPOT</span><span class="at" style="background:#003311;color:var(--green)">ADA</span></div>
+          </div>
+          <div class="wc-row"><span class="wc-lbl">Exp. Profit</span><span class="wc-val pos" id="wc1-profit">—</span></div>
+          <div class="wc-row"><span class="wc-lbl">R/R Ratio</span><span class="wc-val" id="wc1-rr">—</span></div>
+          <div style="display:flex;gap:3px;margin-top:4px"><span class="at at-spot">SPOT</span><span class="at at-grid">GRID</span></div>
+        </div>
+        <div class="wc">
+          <div class="wc-hdr"><span id="wc2-name">DOGE</span>
+            <div style="display:flex;gap:3px"><span class="at" style="background:#004400;color:var(--green)">Action</span><span class="at at-spot">SPOT</span></div>
+          </div>
+          <div class="wc-row"><span class="wc-lbl">Exp. Profit</span><span class="wc-val pos" id="wc2-profit">—</span></div>
+          <div class="wc-row"><span class="wc-lbl">R/R Ratio</span><span class="wc-val" id="wc2-rr">—</span></div>
+          <div style="display:flex;gap:3px;margin-top:4px"><span class="at at-spot">SPOT</span><span class="at at-grid">GRID</span></div>
         </div>
       </div>
     </div>
-    <!-- Whale Wallet 1 -->
-    <div class="text-[10px] font-mono text-slate-400 space-y-1">
-      <div class="text-slate-300 font-sans font-semibold text-[11px] mb-1">Top 3 Whales Wallet</div>
-      <div class="flex justify-between"><span class="text-slate-500">Pattern tag:</span><span id="w1-pattern">(Pattern)</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Cluster status:</span><span id="w1-cluster">Stable</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Moves:</span><span class="green" id="w1-moves">98%</span></div>
-    </div>
-    <!-- Whale Wallet 2 -->
-    <div class="text-[10px] font-mono text-slate-400 space-y-1">
-      <div class="text-slate-300 font-sans font-semibold text-[11px] mb-1">Top 3 Whales Wallet</div>
-      <div class="flex justify-between"><span class="text-slate-500">Pattern tag:</span><span id="w2-pattern">Pattern tag</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Cluster status:</span><span id="w2-cluster">Cluster</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Moves:</span><span class="green" id="w2-moves">96%</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ PAPER MODE BANNER ============ -->
-<div class="bg-amber-500/15 border border-amber-600/40 text-amber-300 text-center text-[11px] font-semibold rounded py-1.5 mt-2" id="paper-strip" style="display:none">
-  📋 PAPER MODE: Simulated – Safe for testing
-</div>
-
-<!-- ============ SCANNER TABLE ============ -->
-<section class="bg-panel border border-panelb rounded mt-2 shadow-lg overflow-hidden">
-  <div class="p-3 border-b border-panelb bg-slate-900/50 flex justify-between items-center gap-2 flex-wrap">
-    <h2 class="text-[12px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-      <i class="fa-solid fa-table-list text-cyan-400"></i> Institutional &amp; Wall Scanner Table
-      <span class="scanner-meta text-slate-500 font-normal normal-case text-[10px]" id="scanner-meta"></span>
-    </h2>
-    <div class="flex items-center gap-2 text-[10px]">
-      <span class="text-slate-500">Sorting: Default</span>
-      <button class="bg-slate-800 border border-panelb px-2 py-0.5 rounded text-slate-300 hover:bg-slate-700"><i class="fa-solid fa-filter"></i> Filter</button>
-    </div>
-  </div>
-  <div class="overflow-x-auto">
-    <table class="dtable">
-      <thead>
-        <tr>
-          <th>Coin</th><th>Inst</th><th>Conf%</th><th>WhalePow</th>
-          <th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="scanner-tbody">
-        <tr><td colspan="9" style="text-align:center;color:var(--grey);padding:20px">Loading scanner data...</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ============ PANELS BELOW TABLE ============ -->
-<div class="text-[10px] uppercase tracking-widest text-slate-600 mt-4 mb-2">Panels Below Table</div>
-<div class="grid grid-cols-3 gap-3">
-
-  <!-- SMD gauge -->
-  <div class="bg-panel border border-panelb rounded p-3">
-    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-gauge-high text-cyan-400"></i> Smart Money Divergence</div>
-    <div class="flex flex-col items-center">
-      <svg id="smd-gauge" width="140" height="80" viewBox="0 0 140 80"></svg>
-      <div class="flex justify-between w-full text-[9px] text-slate-500 mt-1"><span>Distribution</span><span>Volume Surge</span></div>
-      <div class="text-[8px] text-slate-600 mt-0.5">Accumulation</div>
+    <!-- ALERTS -->
+    <div class="card">
+      <div class="ch" style="font-size:10px">🔔 Alert History</div>
+      <div class="cb" id="alert-list"></div>
     </div>
   </div>
 
-  <!-- HIFI / ADA watch -->
-  <div class="bg-panel border border-panelb rounded p-3">
-    <div class="flex items-center justify-between mb-2">
-      <span class="font-bold text-slate-200 text-[12px]" id="wc1-coin">HIFI / ADA</span>
-      <div class="flex gap-1">
-        <span class="action-badge action-WAIT">SPOT</span>
-        <span class="action-badge action-BUY" id="wc1-badge">ADA</span>
-      </div>
-    </div>
-    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">Expected Profit</span><span class="green" id="wc1-profit">—</span></div>
-    <div class="flex justify-between text-[10px] py-0.5 text-slate-600"><span>BnR Ratio</span><span>:</span></div>
-    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">R/R Ratio</span><span id="wc1-rr">—</span></div>
-    <div class="flex gap-1 mt-2">
-      <span class="action-badge action-WAIT">SPOT</span>
-      <span class="action-badge action-AVOID" id="wc1-mode-badge">GRID</span>
-    </div>
-  </div>
-
-  <!-- DOGE watch -->
-  <div class="bg-panel border border-panelb rounded p-3">
-    <div class="flex items-center justify-between mb-2">
-      <span class="font-bold text-slate-200 text-[12px]" id="wc2-coin">DOGE</span>
-      <div class="flex gap-1">
-        <span class="action-badge action-BUY">Action</span>
-        <span class="action-badge action-WAIT">SPOT</span>
-      </div>
-    </div>
-    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">Expected Profit</span><span class="green" id="wc2-profit">—</span></div>
-    <div class="flex justify-between text-[10px] py-0.5 text-slate-600"><span>R/R Ratio</span><span>:</span></div>
-    <div class="flex justify-between text-[11px] py-1"><span class="text-slate-500">R/R Ratio</span><span id="wc2-rr">—</span></div>
-    <div class="flex gap-1 mt-2">
-      <span class="action-badge action-WAIT">SPOT</span>
-      <span class="action-badge action-AVOID">GRID</span>
-    </div>
-  </div>
-</div>
-
-<!-- ============ BOTTOM PANELS ============ -->
-<div class="grid grid-cols-3 gap-3 mt-2">
-
-  <!-- SMD 2 + volume surge -->
-  <div class="bg-panel border border-panelb rounded p-3">
-    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-gauge-high text-cyan-400"></i> Smart Money Divergence</div>
-    <div class="flex flex-col items-center">
-      <svg id="smd-gauge-2" width="140" height="80" viewBox="0 0 140 80"></svg>
-      <div class="flex justify-between w-full text-[9px] text-slate-500 mt-1"><span>Distribution</span><span>Volume Surge</span></div>
-    </div>
-    <div class="mt-2">
-      <div class="text-[9px] text-orange-400 font-bold mb-1">🚀 VOLUME SURGE — &gt;2.5x Median Volume</div>
-      <div id="vol-surge-list"></div>
-    </div>
-  </div>
-
-  <!-- Live backtesting -->
-  <div class="bg-panel border border-panelb rounded p-3">
-    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-flask text-cyan-400"></i> Live Backtesting</div>
-    <table class="dtable">
-      <thead><tr><th>Entry</th><th>TP HIT</th><th>Win/Loss</th></tr></thead>
-      <tbody id="bt-tbody">
-        <tr><td colspan="3" style="color:var(--grey);text-align:center">Loading...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Alert history -->
-  <div class="bg-panel border border-panelb rounded p-3">
-    <div class="text-[11px] font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-bell text-amber-400"></i> Alert History</div>
-    <div id="alert-list"></div>
-  </div>
-</div>
-
-<!-- ============ CLIENT & API MANAGEMENT ============ -->
-<section class="bg-panel border border-panelb rounded mt-2 overflow-hidden">
-  <div class="p-3 border-b border-panelb bg-slate-900/50 text-[12px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-    <i class="fa-solid fa-gear text-cyan-400"></i> Client &amp; API Management
-  </div>
-  <div class="overflow-x-auto">
-    <table class="dtable">
+  <!-- CLIENT API -->
+  <div class="card" style="margin-top:6px">
+    <div class="ch">🔧 CLIENT &amp; API MANAGEMENT</div>
+    <table class="ca-tbl">
       <thead><tr><th>API</th><th>Exchange</th><th>Client</th><th>Sheets Sync</th></tr></thead>
       <tbody id="ca-tbody">
-        <tr>
-          <td>🔸 APA / USDT</td><td class="ca-connected">Connected APIs</td><td>binanc@Binance</td><td class="ca-synced">Synced — ✓</td>
-        </tr>
-        <tr>
-          <td>🔸 XPL / USDT</td><td class="ca-connected">Connected APIs</td><td>masserjae</td><td class="ca-syncing">⟳ Syncing...</td>
-        </tr>
+        <tr><td>🔸 APA / USDT</td><td class="ca-ok">Connected APIs</td><td>binanc@Binance</td><td class="ca-ok">Synced — ✓</td></tr>
+        <tr><td>🔸 XPL / USDT</td><td class="ca-ok">Connected APIs</td><td>masserjae</td><td class="ca-sync">⟳ Syncing...</td></tr>
+        <tr id="tg-row"><td colspan="3">Telegram Proxy: <span class="ca-ok">ACTIVE (Pakistan)</span></td><td class="ca-ok">Sync... —</td></tr>
       </tbody>
-      <tfoot>
-        <tr id="tg-row">
-          <td colspan="3">Telegram Proxy: <span class="green">ACTIVE (Pakistan)</span></td>
-          <td class="ca-synced">Sync... —</td>
-        </tr>
-      </tfoot>
     </table>
   </div>
-</section>
 
-<!-- ============ FOOTER ============ -->
-<footer class="flex justify-between items-center text-[10px] text-slate-600 px-2 py-3 mt-2">
+</div><!-- /tab-sniper -->
+
+<!-- ═══════════════════════════════
+     TAB 2: SCANNER
+═══════════════════════════════ -->
+<div class="panel" id="tab-scanner">
+  <div class="scan-hdr">
+    <span class="scan-title">⚡ INSTITUTIONAL &amp; WALL SCANNER TABLE</span>
+    <span class="scan-meta" id="scan-meta">Loading...</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="scan-tbl">
+    <thead>
+      <tr><th>#</th><th>Coin</th><th>Folder</th><th>Light</th><th>Inst%</th><th>Conf%</th><th>WhalePow</th><th>OFI</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Action</th></tr>
+    </thead>
+    <tbody id="scan-tbody">
+      <tr><td colspan="13" style="text-align:center;color:var(--grey);padding:20px">Loading scanner data...</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- Live Backtesting -->
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">⚡ LIVE BACKTESTING</div>
+    <div class="cb">
+      <table class="bt-tbl">
+        <thead><tr><th>Entry</th><th>TP HIT</th><th>Win/Loss</th></tr></thead>
+        <tbody id="bt-tbody"><tr><td colspan="3" style="color:var(--grey)">No trades yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     TAB 3: TRAFFIC LIGHT / SIGNAL
+═══════════════════════════════ -->
+<div class="panel" id="tab-traffic">
+  <div id="tl-big">
+    <div style="font-size:10px;color:var(--grey);margin-bottom:8px" id="tl-coin-name">TOP SIGNAL: —</div>
+    <div class="tl-circle YELLOW" id="tl-circle">WAIT</div>
+    <div class="tl-score" id="tl-score" style="color:var(--gold)">—</div>
+    <div class="tl-label">V6 54-POINT SCORE / 100</div>
+
+    <div class="tl-bars">
+      <div class="tl-bar-row">
+        <div class="tl-bar-title">Market Regime</div>
+        <div class="tl-bar-track"><div class="tl-bar-fill" id="bar-regime" style="width:0%;background:var(--green)"></div></div>
+        <div class="tl-bar-val" id="bv-regime">—/10</div>
+      </div>
+      <div class="tl-bar-row">
+        <div class="tl-bar-title">Whale &amp; Institutional</div>
+        <div class="tl-bar-track"><div class="tl-bar-fill" id="bar-whale" style="width:0%;background:var(--blue)"></div></div>
+        <div class="tl-bar-val" id="bv-whale">—/12</div>
+      </div>
+      <div class="tl-bar-row">
+        <div class="tl-bar-title">Technical Indicators</div>
+        <div class="tl-bar-track"><div class="tl-bar-fill" id="bar-tech" style="width:0%;background:var(--orange)"></div></div>
+        <div class="tl-bar-val" id="bv-tech">—/12</div>
+      </div>
+      <div class="tl-bar-row">
+        <div class="tl-bar-title">Smart Money</div>
+        <div class="tl-bar-track"><div class="tl-bar-fill" id="bar-smd" style="width:0%;background:var(--gold)"></div></div>
+        <div class="tl-bar-val" id="bv-smd">—/10</div>
+      </div>
+      <div class="tl-bar-row">
+        <div class="tl-bar-title">Trade Engine &amp; Risk</div>
+        <div class="tl-bar-track"><div class="tl-bar-fill" id="bar-risk" style="width:0%;background:var(--red)"></div></div>
+        <div class="tl-bar-val" id="bv-risk">—/10</div>
+      </div>
+    </div>
+
+    <div class="coin-spotlight">
+      <div class="cs-item"><div class="cs-lbl">Symbol</div><div class="cs-val" id="cs-sym">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">Price</div><div class="cs-val" id="cs-price">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">Stop Loss</div><div class="cs-val" style="color:var(--red)" id="cs-sl">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">TP1</div><div class="cs-val" style="color:var(--green)" id="cs-tp1">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">TP2</div><div class="cs-val" style="color:var(--green)" id="cs-tp2">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">TP3</div><div class="cs-val" style="color:var(--green)" id="cs-tp3">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">R/R Ratio</div><div class="cs-val" id="cs-rr">—</div></div>
+      <div class="cs-item"><div class="cs-lbl">Strategy</div><div class="cs-val" id="cs-strat">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div id="ftr">
   <span>Version: 1.2.2.0</span>
-  <span class="text-slate-500">▶ replit</span>
+  <span class="ftr-mid">▶ replit</span>
   <span>Version: v0.0.20</span>
-</footer>
+</div>
 
-<script src="script.js?v=8"></script>
+<script>
+// ── GLOBALS ──
+let chart=null, candleSeries=null, countdown=30, timer=null;
+
+// ── TABS ──
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='sniper' && !chart) initChart();
+}
+
+// ── INIT ──
+document.addEventListener('DOMContentLoaded',()=>{
+  initChart();
+  fetchAll();
+  timer=setInterval(()=>{
+    countdown--;
+    const el=document.getElementById('next-cnt');
+    if(el) el.textContent=countdown;
+    if(countdown<=0){countdown=30;fetchAll();}
+  },1000);
+});
+
+// ── CHART ──
+function initChart(){
+  const c=document.getElementById('chart-box');
+  if(!c||typeof LightweightCharts==='undefined') return;
+  try{
+    chart=LightweightCharts.createChart(c,{
+      width:c.clientWidth, height:178,
+      layout:{background:{color:'#040408'},textColor:'#666'},
+      grid:{vertLines:{color:'#0f0f18'},horzLines:{color:'#0f0f18'}},
+      rightPriceScale:{borderColor:'#1e1e2e'},
+      timeScale:{borderColor:'#1e1e2e',timeVisible:true},
+    });
+    candleSeries=chart.addCandlestickSeries({
+      upColor:'#00cc44',downColor:'#cc2200',
+      borderUpColor:'#00cc44',borderDownColor:'#cc2200',
+      wickUpColor:'#00cc44',wickDownColor:'#cc2200',
+    });
+    window.addEventListener('resize',()=>{if(chart)chart.applyOptions({width:c.clientWidth});});
+  }catch(e){console.warn('Chart init failed:',e);}
+}
+
+function fetchChart(sym){
+  const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
+    .replace('/','').replace(' ','').toUpperCase();
+  const symbol=s.includes('USDT')?s:s+'USDT';
+  fetch(`/chart_data?symbol=${symbol}&interval=15m&limit=60`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(!candleSeries||!d.candles) return;
+      const candles=d.candles.map(c=>({
+        time:c.time,open:parseFloat(c.open),
+        high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)
+      }));
+      candleSeries.setData(candles);
+    }).catch(()=>{});
+}
+
+function doSearch(){fetchChart();fetchAll();}
+
+// ── MAIN FETCH ──
+function fetchAll(){
+  fetch('/dashboard_data')
+    .then(r=>r.json())
+    .then(d=>{
+      updateSB(d);
+      updateSniper(d);
+      updateScanner(d);
+      updateTraffic(d);
+      updateBottom(d);
+      updateCA(d);
+      if(d.paper_mode) document.getElementById('paper').classList.add('show');
+      else document.getElementById('paper').classList.remove('show');
+    }).catch(e=>console.error('Fetch:',e));
+  fetchChart();
+}
+
+// ── STATUS BAR ──
+function updateSB(d){
+  const btc=d.btc||{};
+  set('sb-cycle', d.cycle_count||'—');
+  const reg=d.market_regime||'—';
+  const rEl=document.getElementById('sb-regime');
+  if(rEl){rEl.textContent=reg;rEl.className='sbv '+(reg.includes('BEAR')?'bear':reg.includes('BULL')?'bull':'rng');}
+  set('sb-btc', btc.price?'$'+parseFloat(btc.price).toLocaleString():'—');
+  const bias=btc.sentiment||'—';
+  const bEl=document.getElementById('sb-bias');
+  if(bEl){bEl.textContent=bias;bEl.className='sbv '+(bias==='BULLISH'?'bull':bias==='BEARISH'?'bear':'neu');}
+  set('sb-exch', d.active_exchange||'BINANCE');
+}
+
+// ── SNIPER TAB ──
+function updateSniper(d){
+  const sigs=d.inst_signals||[];
+  const top=sigs[0]||{};
+  const inst=top.inst||{};
+  const tp=top.tp_zones||{};
+  const v6=top.v6||{};
+  const sizing=top.sizing||{};
+
+  const label=v6.label||'WAIT';
+  const score=v6.score||0;
+
+  // Big signal
+  const bs=document.getElementById('big-signal');
+  const icons={BUY:'🟢',SELL:'🔴',WAIT:'⏳',HOLD:'🟡',AVOID:'🚫'};
+  if(bs){bs.className=label;bs.innerHTML=`${icons[label]||'⏳'} ${label} — SCORE: <span id="big-score">${Math.round(score)}</span>/100`;}
+
+  // Profile badge
+  const pb=document.getElementById('profile-badge');
+  if(pb){
+    pb.textContent=label==='BUY'?'BUY – ACCUMULATION':'AVOID – DUMP PREP';
+    pb.style.background=label==='BUY'?'#003311':'#440000';
+    pb.style.color=label==='BUY'?'var(--green)':'var(--red)';
+  }
+
+  set('whale-bag', fmtNum(inst.whale_power||0));
+  set('vmc-score', fmt6(inst.vmc_score||top.score||0));
+  set('buy-est', fmt6(tp.entry_low||top.price||0));
+  set('sell-est', fmt6(tp.tp1||0));
+  set('buy-ext', fmt6(tp.entry_high||0));
+  set('sell-ext', fmt6(tp.tp2||0));
+
+  const tEl=document.getElementById('coin-trend');
+  if(tEl){const tr=label==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}
+
+  // Engine
+  const eb=document.getElementById('eng-badge');
+  if(eb){eb.textContent=label;eb.style.background=label==='BUY'?'#003311':label==='WAIT'?'#1a1a1a':'#440000';eb.style.color=label==='BUY'?'var(--green)':label==='WAIT'?'#aaa':'var(--red)';}
+
+  const tl=(inst.traffic||sizing.light||'RED').toLowerCase();
+  const dot=document.getElementById('tl-dot');
+  if(dot) dot.className='tl-dot '+(tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red');
+
+  set('inst-score', Math.round(inst.inst_score||0));
+  set('atr-zones', 'Scoped');
+
+  const wb=document.getElementById('warn-box');
+  if(wb){if(inst.reason&&inst.reason.includes('INSUFF')){wb.style.display='block';wb.textContent='⚠ '+inst.reason;}else{wb.style.display='none';}}
+
+  set('reason-txt', (inst.reason||label)+' → '+(top.trading_strategy||label));
+
+  // Gauges
+  const wp=parseFloat(inst.whale_power||0);
+  drawGauge('g-whale',wp,wp>60?'#00ff88':wp>30?'#ffd700':'#ff2244');
+  set('g-whale-val', Math.round(wp)+'%');
+  const bp=parseFloat(inst.ofi_score||50);
+  drawGauge('g-bsp',bp,bp>50?'#00ff88':'#ff2244');
+  set('g-bsp-val', bp>50?'YES':'NO');
+
+  const wh=d.whale||{};
+  const walls=wh.top_wallets||wh.wallets||[];
+  const w1=walls[0]||{};const w2=walls[1]||{};
+  set('w1-pat',w1.pattern||w1.label||'(Pattern)');
+  set('w1-cls',w1.cluster_status||'Stable');
+  set('w1-mov',(w1.moves||w1.power||0)+'%');
+  set('w2-pat',w2.pattern||w2.label||'Pattern tag');
+  set('w2-cls',w2.cluster_status||'Cluster');
+  set('w2-mov',(w2.moves||w2.power||0)+'%');
+}
+
+// ── SCANNER TAB ──
+function updateScanner(d){
+  const coins=d.inst_signals||[];
+  const meta=document.getElementById('scan-meta');
+  if(meta) meta.textContent=`${coins.length} unique coins | top conf: ${coins[0]?.confidence||0}%`;
+
+  const tbody=document.getElementById('scan-tbody');
+  if(!tbody) return;
+
+  if(!coins.length){tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--grey);padding:16px">Waiting for data...</td></tr>';return;}
+
+  tbody.innerHTML=coins.slice(0,25).map((c,i)=>{
+    const inst=c.inst||{};
+    const tp=c.tp_zones||{};
+    const v6=c.v6||{};
+    const sizing=c.sizing||{};
+    const tl=(inst.traffic||sizing.light||'RED').toLowerCase();
+    const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
+    const folder=c.folder||'';
+    const fb=folder?`<span class="fb f-${folder.toLowerCase()}">${folder}</span>`:'';
+    const inst_s=parseFloat(inst.inst_score||0);
+    const conf=parseFloat(c.confidence||0);
+    const wp=parseFloat(inst.whale_power||0);
+    const bc=conf>60?'#00ff88':conf>30?'#ffd700':'#ff2244';
+    const wc=wp>60?'#00ff88':wp>30?'#ffd700':'#ff2244';
+    const lbl=v6.label||'WAIT';
+    const actCls=lbl==='BUY'?'at-buy':lbl==='SELL'?'at-sell':lbl==='AVOID'?'at-avoid':lbl==='WAIT'?'at-wait':'at-spot';
+    const sym=(c.symbol||'').replace('USDT','');
+    const rowCls=wp>70?'hot':lbl==='AVOID'?'avoid':'';
+    return `<tr class="${rowCls}">
+      <td style="color:var(--grey)">#${i+1}</td>
+      <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+      <td>${fb}</td>
+      <td>${tlDot}${tl[0]?.toUpperCase()}</td>
+      <td>${inst_s.toFixed(1)}</td>
+      <td>${conf}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(conf,100)}%;background:${bc}"></span></span></div></td>
+      <td>${wp}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(wp,100)}%;background:${wc}"></span></span></div></td>
+      <td style="color:var(--grey)">${inst.ofi_score?parseFloat(inst.ofi_score).toFixed(1):'—'}</td>
+      <td style="color:var(--red)">▼${fmt6(tp.stop_loss||0)}</td>
+      <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
+      <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>
+      <td style="color:var(--green)">${tp.tp3?'▲'+fmt6(tp.tp3):'—'}</td>
+      <td><span class="at ${actCls}">${lbl}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── TRAFFIC LIGHT TAB ──
+function updateTraffic(d){
+  const sigs=d.inst_signals||[];
+  const top=sigs[0]||{};
+  const v6=top.v6||{};
+  const inst=top.inst||{};
+  const tp=top.tp_zones||{};
+  const breakdown=v6.breakdown||{};
+
+  const score=Math.round(v6.score||0);
+  const label=v6.label||'WAIT';
+  const tlColor=label==='BUY'?'GREEN':label==='SELL'||label==='AVOID'?'RED':'YELLOW';
+
+  const circ=document.getElementById('tl-circle');
+  if(circ){circ.className='tl-circle '+tlColor;circ.textContent=label;}
+
+  const scoreEl=document.getElementById('tl-score');
+  if(scoreEl){scoreEl.textContent=score;scoreEl.style.color=tlColor==='GREEN'?'var(--green)':tlColor==='RED'?'var(--red)':'var(--gold)';}
+
+  set('tl-coin-name','TOP SIGNAL: '+(top.symbol||'').replace('USDT',''));
+
+  // Category bars
+  const mr=parseFloat(breakdown.market_regime||0);
+  const iw=parseFloat(breakdown.inst_whale||0);
+  const tc=parseFloat(breakdown.technical||0);
+  const sm=parseFloat(breakdown.smart_divergence||0);
+  const te=parseFloat(breakdown.trade_engine||0);
+
+  setBar('bar-regime','bv-regime',mr,10);
+  setBar('bar-whale','bv-whale',iw,12);
+  setBar('bar-tech','bv-tech',tc,12);
+  setBar('bar-smd','bv-smd',sm,10);
+  setBar('bar-risk','bv-risk',te,10);
+
+  // Spotlight
+  set('cs-sym',(top.symbol||'').replace('USDT',''));
+  set('cs-price',fmt6(top.price||0));
+  set('cs-sl',fmt6(tp.stop_loss||0));
+  set('cs-tp1',fmt6(tp.tp1||0));
+  set('cs-tp2',fmt6(tp.tp2||0));
+  set('cs-tp3',fmt6(tp.tp3||0));
+  set('cs-rr',parseFloat(tp.rr||0).toFixed(2));
+  set('cs-strat',top.trading_strategy||'—');
+}
+
+function setBar(barId,valId,val,max){
+  const pct=Math.min((val/max)*100,100);
+  const el=document.getElementById(barId);
+  if(el) el.style.width=pct+'%';
+  set(valId,val.toFixed(1)+'/'+max);
+}
+
+// ── BOTTOM PANELS ──
+function updateBottom(d){
+  // SMD gauge
+  const smd=d.smart_divergence||{};
+  drawSMD('smd-g',parseFloat(smd.score||50));
+
+  // Volume surge
+  const surges=d.volume_surge||[];
+  const vl=document.getElementById('vol-list');
+  if(vl) vl.innerHTML=surges.slice(0,8).map(s=>`
+    <div class="vol-item">
+      <span class="vi-coin">${(s.symbol||'').replace('USDT','')}</span>
+      <span class="vi-mult">🚀${parseFloat(s.multiplier||s.ratio||1).toFixed(1)}x</span>
+      <span class="vi-vol">${fmtVol(s.volume||0)}</span>
+    </div>`).join('')||'<div style="color:var(--grey);font-size:9px">No surges</div>';
+
+  // Alerts
+  const alerts=d.alert_history||[];
+  const al=document.getElementById('alert-list');
+  if(al) al.innerHTML=alerts.slice(0,6).map(a=>{
+    const em=a.type==='VIP'?'🟢':a.label?.includes('TRAP')?'🔴':'🐋';
+    return `<div class="alt-item"><span>${em}</span> ${(a.symbol||'').replace('USDT','')} ${a.label||a.type||''} → ${a.detail||a.message||''}</div>`;
+  }).join('')||'<div class="alt-item" style="color:var(--grey)">No alerts yet</div>';
+
+  // Backtest
+  const bt=d.backtest||d.paper_trades||[];
+  const btb=document.getElementById('bt-tbody');
+  if(btb) btb.innerHTML=bt.slice(0,6).map(b=>`<tr>
+    <td>${fmt6(b.entry||0)}</td>
+    <td>${fmt6(b.tp_hit||b.exit||0)}</td>
+    <td style="color:${b.win?'var(--green)':'var(--red)'}">${b.win?'WIN':'LOSS'}</td>
+  </tr>`).join('')||'<tr><td colspan="3" style="color:var(--grey)">No trades yet</td></tr>';
+}
+
+// ── CLIENT API ──
+function updateCA(d){
+  const now=new Date().toTimeString().slice(0,8);
+  const tb=document.getElementById('ca-tbody');
+  if(tb) tb.innerHTML=`
+    <tr><td>🔸 APA / USDT</td><td class="ca-ok">Connected APIs</td><td>binanc@Binance</td><td class="ca-ok">Synced ${now} ✓</td></tr>
+    <tr><td>🔸 XPL / USDT</td><td class="ca-ok">Connected APIs</td><td>masserjae</td><td class="ca-ok">Synced ${now} ✓</td></tr>
+    <tr><td colspan="3">Telegram Proxy: <span class="ca-ok">ACTIVE (Pakistan)</span></td><td class="ca-ok">Sync... ${now}</td></tr>`;
+}
+
+// ── SVG GAUGES ──
+function drawGauge(id,pct,color){
+  const svg=document.getElementById(id);
+  if(!svg) return;
+  const r=32,cx=40,cy=40,circ=2*Math.PI*r;
+  const dash=(Math.min(pct,100)/100)*circ;
+  svg.innerHTML=`
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#1a1a2e" stroke-width="7"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="7"
+      stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ*.25}"
+      stroke-linecap="round" style="transition:stroke-dasharray .5s"/>`;
+}
+
+function drawSMD(id,score){
+  const svg=document.getElementById(id);
+  if(!svg) return;
+  const angle=-90+(score/100)*180;
+  const rad=angle*Math.PI/180;
+  const cx=70,cy=65,r=50;
+  const nx=cx+r*Math.cos(rad),ny=cy+r*Math.sin(rad);
+  svg.innerHTML=`
+    <defs><linearGradient id="sg2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff2244"/>
+      <stop offset="50%" style="stop-color:#ffd700"/>
+      <stop offset="100%" style="stop-color:#00ff88"/>
+    </linearGradient></defs>
+    <path d="M${cx-r},${cy} A${r},${r} 0 0,1 ${cx+r},${cy}" fill="none" stroke="url(#sg2)" stroke-width="8" stroke-linecap="round"/>
+    <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="4" fill="#fff"/>`;
+}
+
+// ── HELPERS ──
+function set(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function fmt6(n){const f=parseFloat(n);if(isNaN(f)||f===0)return '—';return f<1?f.toFixed(6):f.toFixed(2);}
+function fmtNum(n){n=parseFloat(n);if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return n||'—';}
+function fmtVol(n){n=parseFloat(n);if(n>=1e9)return(n/1e9).toFixed(1)+'B USDT';if(n>=1e6)return(n/1e6).toFixed(1)+'M USDT';if(n>=1e3)return(n/1e3).toFixed(0)+'K USDT';return n+' USDT';}
+const CC={BTC:'#f7931a',ETH:'#627eea',BNB:'#f3ba2f',SOL:'#9945ff',XRP:'#00aae4',ADA:'#0033ad',DOGE:'#c3a634',AVAX:'#e84142',USDT:'#26a17b'};
+function coinClr(s){return CC[s]||'#4488cc';}
+</script>
 </body>
 </html>
