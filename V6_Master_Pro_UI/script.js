@@ -413,3 +413,282 @@ const CC = {BTC:'#f7931a',ETH:'#627eea',BNB:'#f3ba2f',SOL:'#9945ff',
   XRP:'#00aae4',ADA:'#0033ad',DOGE:'#c3a634',AVAX:'#e84142',
   USDT:'#26a17b',DEFAULT:'#4488cc'};
 function coinColor(s) { return CC[s] || CC.DEFAULT; }
+
+// ── SCALPING UPGRADE ──
+let currentTF = '15m';
+let tp1Line=null, tp2Line=null, slLine=null, entryLine=null;
+
+function setTimeframe(tf) {
+  document.querySelectorAll('.tf-btn').forEach(b => {
+    b.style.background='#0a0a14';
+    b.style.borderColor='#333';
+    b.style.color='#aaa';
+  });
+  const btn = document.querySelector(`[data-tf="${tf}"]`);
+  if(btn){btn.style.background='#003311';btn.style.borderColor='#00ff88';btn.style.color='#00ff88';}
+  currentTF = tf;
+  fetchChartWithTF(tf);
+}
+
+function fetchChartWithTF(tf) {
+  const raw = document.getElementById('coin-inp')?.value || 'XPLUSDT';
+  const sym = raw.replace('/','').replace(' ','').toUpperCase();
+  const symbol = sym.includes('USDT') ? sym : sym+'USDT';
+  fetch(`/chart_data?symbol=${symbol}&interval=${tf}&limit=100`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(!candleSeries||!d.candles) return;
+      const candles=d.candles.map(c=>({time:c.time,open:parseFloat(c.open),high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)}));
+      candleSeries.setData(candles);
+      drawPriceLines();
+      addBuySellMarkers(candles);
+      if(d.rsi) updateRSIDisplay(d.rsi);
+    }).catch(()=>{});
+}
+
+function drawPriceLines() {
+  const signals = window._lastDD?.inst_signals||[];
+  const top=signals[0]||{};
+  const tp=top.tp_zones||{};
+  const price=parseFloat(top.price||0);
+  try{if(tp1Line)candleSeries.removePriceLine(tp1Line);}catch(e){}
+  try{if(tp2Line)candleSeries.removePriceLine(tp2Line);}catch(e){}
+  try{if(slLine)candleSeries.removePriceLine(slLine);}catch(e){}
+  try{if(entryLine)candleSeries.removePriceLine(entryLine);}catch(e){}
+  if(!price||!candleSeries) return;
+  if(tp.entry_low) entryLine=candleSeries.createPriceLine({price:parseFloat(tp.entry_low),color:'#00aaff',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'ENTRY'});
+  if(tp.tp1) tp1Line=candleSeries.createPriceLine({price:parseFloat(tp.tp1),color:'#00ff88',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP1'});
+  if(tp.tp2) tp2Line=candleSeries.createPriceLine({price:parseFloat(tp.tp2),color:'#00cc44',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP2'});
+  if(tp.stop_loss) slLine=candleSeries.createPriceLine({price:parseFloat(tp.stop_loss),color:'#ff2244',lineWidth:2,lineStyle:0,axisLabelVisible:true,title:'⚠SL'});
+  checkStopLossProximity(price, parseFloat(tp.stop_loss||0));
+  updateRealtimeRR(price, parseFloat(tp.tp1||0), parseFloat(tp.stop_loss||0));
+}
+
+function addBuySellMarkers(candles) {
+  if(!candleSeries||!candles.length) return;
+  const signals=window._lastDD?.inst_signals||[];
+  const markers=[];
+  signals.slice(0,3).forEach(sig=>{
+    const v6=sig.v6||{};
+    const lbl=v6.label||'WAIT';
+    const last=candles[candles.length-1];
+    if(lbl==='BUY') markers.push({time:last.time,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:`BUY ${Math.round(v6.score||0)}`,size:2});
+    else if(lbl==='SELL'||lbl==='AVOID') markers.push({time:last.time,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:`${lbl} ${Math.round(v6.score||0)}`,size:2});
+  });
+  if(markers.length) candleSeries.setMarkers(markers);
+}
+
+function updateRSIDisplay(rsi) {
+  const v=parseFloat(rsi).toFixed(1);
+  const el=document.getElementById('rsi-value');
+  if(el){el.textContent=v;el.style.color=v>70?'#ff2244':v<30?'#00ff88':'#ffd700';}
+  const bar=document.getElementById('rsi-bar');
+  if(bar){bar.style.width=v+'%';bar.style.background=v>70?'#ff2244':v<30?'#00ff88':'#ffd700';}
+}
+
+function checkStopLossProximity(price, sl) {
+  const warn=document.getElementById('sl-warning');
+  if(!warn||!price||!sl) return;
+  const dist=((price-sl)/price)*100;
+  if(dist<1.5){warn.style.display='block';warn.textContent=`⚠ SL PROXIMITY: ${dist.toFixed(2)}% — DANGER!`;}
+  else{warn.style.display='none';}
+}
+
+function updateRealtimeRR(price, tp1, sl) {
+  const el=document.getElementById('rr-live');
+  if(!el||!price||!tp1||!sl) return;
+  const rr=(tp1-price)/(price-sl);
+  el.textContent=rr.toFixed(2)+':1';
+  el.style.color=rr>=2?'#00ff88':rr>=1?'#ffd700':'#ff2244';
+}
+
+// Override fetchAll to store data globally
+const _origFetch = fetchAll;
+fetchAll = function() {
+  fetch('/dashboard_data')
+    .then(r=>r.json())
+    .then(d=>{
+      window._lastDD=d;
+      updateSB(d);updateSniper(d);updateScanner(d);updateTraffic(d);updateBottom(d);updateCA(d);
+      drawPriceLines();
+      const top=(d.inst_signals||[])[0]||{};
+      const inst=top.inst||{};
+      if(inst.rsi) updateRSIDisplay(inst.rsi);
+      if(d.paper_mode) document.getElementById('paper').classList.add('show');
+      else document.getElementById('paper').classList.remove('show');
+    }).catch(e=>console.error(e));
+  fetchChartWithTF(currentTF);
+};
+
+// ── SCALPING UPGRADE ──
+let currentTF = '15m';
+let tp1Line=null, tp2Line=null, slLine=null, entryLine=null;
+
+function setTimeframe(tf) {
+  document.querySelectorAll('.tf-btn').forEach(b => {
+    b.style.background='#0a0a14';
+    b.style.borderColor='#333';
+    b.style.color='#aaa';
+  });
+  const btn = document.querySelector(`[data-tf="${tf}"]`);
+  if(btn){btn.style.background='#003311';btn.style.borderColor='#00ff88';btn.style.color='#00ff88';}
+  currentTF = tf;
+  fetchChartWithTF(tf);
+}
+
+function fetchChartWithTF(tf) {
+  const raw = document.getElementById('coin-inp')?.value || 'XPLUSDT';
+  const sym = raw.replace('/','').replace(' ','').toUpperCase();
+  const symbol = sym.includes('USDT') ? sym : sym+'USDT';
+  fetch(`/chart_data?symbol=${symbol}&interval=${tf}&limit=100`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(!candleSeries||!d.candles) return;
+      const candles=d.candles.map(c=>({time:c.time,open:parseFloat(c.open),high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)}));
+      candleSeries.setData(candles);
+      drawPriceLines();
+      addBuySellMarkers(candles);
+      if(d.rsi) updateRSIDisplay(d.rsi);
+    }).catch(()=>{});
+}
+
+function drawPriceLines() {
+  const signals = window._lastDD?.inst_signals||[];
+  const top=signals[0]||{};
+  const tp=top.tp_zones||{};
+  const price=parseFloat(top.price||0);
+  try{if(tp1Line)candleSeries.removePriceLine(tp1Line);}catch(e){}
+  try{if(tp2Line)candleSeries.removePriceLine(tp2Line);}catch(e){}
+  try{if(slLine)candleSeries.removePriceLine(slLine);}catch(e){}
+  try{if(entryLine)candleSeries.removePriceLine(entryLine);}catch(e){}
+  if(!price||!candleSeries) return;
+  if(tp.entry_low) entryLine=candleSeries.createPriceLine({price:parseFloat(tp.entry_low),color:'#00aaff',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'ENTRY'});
+  if(tp.tp1) tp1Line=candleSeries.createPriceLine({price:parseFloat(tp.tp1),color:'#00ff88',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP1'});
+  if(tp.tp2) tp2Line=candleSeries.createPriceLine({price:parseFloat(tp.tp2),color:'#00cc44',lineWidth:1,lineStyle:2,axisLabelVisible:true,title:'TP2'});
+  if(tp.stop_loss) slLine=candleSeries.createPriceLine({price:parseFloat(tp.stop_loss),color:'#ff2244',lineWidth:2,lineStyle:0,axisLabelVisible:true,title:'⚠SL'});
+  checkStopLossProximity(price, parseFloat(tp.stop_loss||0));
+  updateRealtimeRR(price, parseFloat(tp.tp1||0), parseFloat(tp.stop_loss||0));
+}
+
+function addBuySellMarkers(candles) {
+  if(!candleSeries||!candles.length) return;
+  const signals=window._lastDD?.inst_signals||[];
+  const markers=[];
+  signals.slice(0,3).forEach(sig=>{
+    const v6=sig.v6||{};
+    const lbl=v6.label||'WAIT';
+    const last=candles[candles.length-1];
+    if(lbl==='BUY') markers.push({time:last.time,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:`BUY ${Math.round(v6.score||0)}`,size:2});
+    else if(lbl==='SELL'||lbl==='AVOID') markers.push({time:last.time,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:`${lbl} ${Math.round(v6.score||0)}`,size:2});
+  });
+  if(markers.length) candleSeries.setMarkers(markers);
+}
+
+function updateRSIDisplay(rsi) {
+  const v=parseFloat(rsi).toFixed(1);
+  const el=document.getElementById('rsi-value');
+  if(el){el.textContent=v;el.style.color=v>70?'#ff2244':v<30?'#00ff88':'#ffd700';}
+  const bar=document.getElementById('rsi-bar');
+  if(bar){bar.style.width=v+'%';bar.style.background=v>70?'#ff2244':v<30?'#00ff88':'#ffd700';}
+}
+
+function checkStopLossProximity(price, sl) {
+  const warn=document.getElementById('sl-warning');
+  if(!warn||!price||!sl) return;
+  const dist=((price-sl)/price)*100;
+  if(dist<1.5){warn.style.display='block';warn.textContent=`⚠ SL PROXIMITY: ${dist.toFixed(2)}% — DANGER!`;}
+  else{warn.style.display='none';}
+}
+
+function updateRealtimeRR(price, tp1, sl) {
+  const el=document.getElementById('rr-live');
+  if(!el||!price||!tp1||!sl) return;
+  const rr=(tp1-price)/(price-sl);
+  el.textContent=rr.toFixed(2)+':1';
+  el.style.color=rr>=2?'#00ff88':rr>=1?'#ffd700':'#ff2244';
+}
+
+// Override fetchAll to store data globally
+const _origFetch = fetchAll;
+fetchAll = function() {
+  fetch('/dashboard_data')
+    .then(r=>r.json())
+    .then(d=>{
+      window._lastDD=d;
+      updateSB(d);updateSniper(d);updateScanner(d);updateTraffic(d);updateBottom(d);updateCA(d);
+      drawPriceLines();
+      const top=(d.inst_signals||[])[0]||{};
+      const inst=top.inst||{};
+      if(inst.rsi) updateRSIDisplay(inst.rsi);
+      if(d.paper_mode) document.getElementById('paper').classList.add('show');
+      else document.getElementById('paper').classList.remove('show');
+    }).catch(e=>console.error(e));
+  fetchChartWithTF(currentTF);
+};
+
+// ── POPUP NOTIFICATIONS ──
+function showTradeAlert(signal, coin, score, tp1, sl) {
+  const existing = document.getElementById('trade-popup');
+  if(existing) existing.remove();
+  
+  const color = signal==='BUY'?'#00ff88':signal==='SELL'?'#ff2244':'#ffd700';
+  const bg = signal==='BUY'?'#003311':signal==='SELL'?'#330011':'#332200';
+  
+  const popup = document.createElement('div');
+  popup.id = 'trade-popup';
+  popup.style.cssText = `position:fixed;top:70px;right:10px;z-index:9999;background:${bg};border:2px solid ${color};border-radius:6px;padding:12px 16px;font-family:'Courier New',monospace;font-size:11px;min-width:200px;box-shadow:0 0 20px ${color}44`;
+  
+  popup.innerHTML = `
+    <div style="color:${color};font-size:14px;font-weight:bold;margin-bottom:6px">
+      ${signal==='BUY'?'🟢':'🔴'} ${signal} SIGNAL
+    </div>
+    <div style="color:#fff;margin-bottom:4px">📊 ${coin}</div>
+    <div style="color:#aaa;margin-bottom:4px">Score: <span style="color:${color};font-weight:bold">${score}/100</span></div>
+    <div style="color:#00ff88;margin-bottom:2px">TP1: ${tp1}</div>
+    <div style="color:#ff2244;margin-bottom:8px">SL: ${sl}</div>
+    <button onclick="this.parentElement.remove()" style="background:#333;border:1px solid #555;color:#aaa;padding:3px 10px;cursor:pointer;font-family:'Courier New',monospace;border-radius:2px;font-size:9px">CLOSE ✕</button>
+  `;
+  
+  document.body.appendChild(popup);
+  setTimeout(() => { if(popup.parentElement) popup.remove(); }, 15000);
+}
+
+function displaySignalPopup(d) {
+  const signals = d.inst_signals || [];
+  const top = signals[0] || {};
+  const v6 = top.v6 || {};
+  const tp = top.tp_zones || {};
+  const label = v6.label || 'WAIT';
+  const score = Math.round(v6.score || 0);
+  const sym = (top.symbol||'').replace('USDT','');
+  
+  if((label==='BUY' && score>=70) || (label==='SELL' && score>=70)) {
+    const lastSignal = localStorage.getItem('lastSignal');
+    const current = sym+label+score;
+    if(lastSignal !== current) {
+      localStorage.setItem('lastSignal', current);
+      showTradeAlert(label, sym, score, fmt6(tp.tp1||0), fmt6(tp.stop_loss||0));
+      sendPushNotification(label, sym, score);
+    }
+  }
+}
+
+function sendPushNotification(signal, coin, score) {
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'granted') {
+    new Notification(`V6 ${signal} SIGNAL`, {
+      body: `${coin} — Score: ${score}/100`,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+    });
+  } else if(Notification.permission !== 'denied') {
+    Notification.requestPermission().then(p => {
+      if(p === 'granted') sendPushNotification(signal, coin, score);
+    });
+  }
+}
+
+// Request notification permission on load
+if('Notification' in window && Notification.permission === 'default') {
+  setTimeout(() => Notification.requestPermission(), 3000);
+}

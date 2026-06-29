@@ -289,7 +289,26 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
             <input class="s-inp" id="coin-inp" value="XPL / USDT" placeholder="🔍 Coin pair"/>
             <button class="s-btn" onclick="doSearch()">Search</button>
           </div>
-          <div id="chart-box"></div>
+          <div style="display:flex;gap:4px;margin-bottom:5px">
+<button class="tf-btn" data-tf="1m" onclick="setTimeframe('1m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1m</button>
+<button class="tf-btn" data-tf="5m" onclick="setTimeframe('5m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">5m</button>
+<button class="tf-btn active" data-tf="15m" onclick="setTimeframe('15m')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">15m</button>
+<button class="tf-btn" data-tf="1h" onclick="setTimeframe('1h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1h</button>
+<button class="tf-btn" data-tf="4h" onclick="setTimeframe('4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">4h</button>
+</div>
+<div id="chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
+<div id="sl-warning" style="display:none;background:#330000;border:1px solid #ff2244;color:#ff2244;font-size:10px;font-weight:bold;padding:5px 8px;border-radius:2px;margin-bottom:5px;text-align:center"></div>
+<div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px">
+<div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px">
+<span style="color:#555">RSI</span><span id="rsi-value" style="font-weight:bold;color:#ffd700">--</span>
+<span style="color:#555">30=Oversold 70=Overbought</span></div>
+<div style="background:#1a1a2e;height:5px;border-radius:3px;overflow:hidden">
+<div id="rsi-bar" style="height:100%;width:50%;background:#ffd700;border-radius:3px"></div></div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:5px">
+<div style="background:#0a0a14;border:1px solid #1e1e2e;padding:4px 6px;border-radius:2px;font-size:9px"><div style="color:#555">R/R Live</div><div id="rr-live" style="font-weight:bold;color:#ffd700">--</div></div>
+<div style="background:#0a0a14;border:1px solid #1e1e2e;padding:4px 6px;border-radius:2px;font-size:9px"><div style="color:#555">Trend 15m</div><div id="trend-15m" style="font-weight:bold">--</div></div>
+<div style="background:#0a0a14;border:1px solid #1e1e2e;padding:4px 6px;border-radius:2px;font-size:9px"><div style="color:#555">Trend 1h</div><div id="trend-1h" style="font-weight:bold">--</div></div>
+</div>
           <div class="dg" style="margin-top:6px">
             <span class="dg-l">Whale Bag Size:</span><span class="dg-v" id="whale-bag">—</span>
             <span class="dg-l">VMC Score:</span><span class="dg-v" id="vmc-score">—</span>
@@ -869,6 +888,20 @@ function fmtNum(n){n=parseFloat(n);if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=
 function fmtVol(n){n=parseFloat(n);if(n>=1e9)return(n/1e9).toFixed(1)+'B USDT';if(n>=1e6)return(n/1e6).toFixed(1)+'M USDT';if(n>=1e3)return(n/1e3).toFixed(0)+'K USDT';return n+' USDT';}
 const CC={BTC:'#f7931a',ETH:'#627eea',BNB:'#f3ba2f',SOL:'#9945ff',XRP:'#00aae4',ADA:'#0033ad',DOGE:'#c3a634',AVAX:'#e84142',USDT:'#26a17b'};
 function coinClr(s){return CC[s]||'#4488cc';}
+</script>
+<script>
+// Request notification on page load
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    if(typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().then(function(p) {
+        if(p === 'granted') {
+          new Notification('V6 Master Pro', {body: 'Notifications enabled! BUY/SELL alerts active.'});
+        }
+      });
+    }
+  }, 2000);
+});
 </script>
 </body>
 </html>
