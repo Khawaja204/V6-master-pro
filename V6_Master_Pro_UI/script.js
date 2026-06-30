@@ -45,7 +45,7 @@ function fetchAll() {
 
 // ── CHART ──
 function initChart() {
-  const container = document.getElementById('chart-container');
+  const container = document.getElementById('chart-box');
   if (!container || typeof LightweightCharts === 'undefined') return;
   chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
@@ -252,7 +252,7 @@ function updatePaperBanner(d) {
 
 // ── SCANNER TABLE ──
 function updateScannerTable(d) {
-  const coins = d.inst_signals || [];
+  const coins = (() => { const seen = new Set(); return (d.inst_signals || []).filter(c => { if (seen.has(c.symbol)) return false; seen.add(c.symbol); return true; }); })();
   const tbody = document.getElementById('scanner-tbody');
   if (!tbody) return;
 
@@ -292,7 +292,21 @@ function updateScannerTable(d) {
       <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>
       <td style="color:var(--green)">${tp.tp3?'▲'+fmt6(tp.tp3):'—'}</td>
-      <td><span class="strat-badge">${strat}</span> <span class="action-badge action-${act}">${act}</span></td>
+      <td><span class="strat-badge">${strat}</span> <span class="action-badge action-${act}">${act}</span></td>` ;
+      })
+      .join("");
+      tbody.querySelectorAll("tr").forEach((tr, i) => {
+        tr.style.cursor = "pointer";
+        tr.onclick = () => {
+          const sym = coins[i].symbol;
+          document.getElementById("coin-inp").value = sym;
+          document.querySelector(".tab.active")?.classList.remove("active");
+          document.querySelector(`[onclick*="sniper"]`)?.classList.add("active");
+          switchTab("sniper", document.querySelector(`[onclick*='sniper']`));
+          doSearch();
+        };
+      });
+      return; tbody.innerHTML = coins.slice(0,0).map((c)=>{
     </tr>`;
   }).join('');
 }

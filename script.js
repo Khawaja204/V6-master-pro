@@ -45,7 +45,7 @@ function fetchAll() {
 
 // ── CHART ──
 function initChart() {
-  const container = document.getElementById('chart-container');
+  const container = document.getElementById('chart-box');
   if (!container || typeof LightweightCharts === 'undefined') return;
   chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
@@ -252,7 +252,7 @@ function updatePaperBanner(d) {
 
 // ── SCANNER TABLE ──
 function updateScannerTable(d) {
-  const coins = d.inst_signals || [];
+  const coins = (() => { const seen = new Set(); return (d.inst_signals || []).filter(c => { if (seen.has(c.symbol)) return false; seen.add(c.symbol); return true; }); })();
   const tbody = document.getElementById('scanner-tbody');
   if (!tbody) return;
 
@@ -292,7 +292,21 @@ function updateScannerTable(d) {
       <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>
       <td style="color:var(--green)">${tp.tp3?'▲'+fmt6(tp.tp3):'—'}</td>
-      <td><span class="strat-badge">${strat}</span> <span class="action-badge action-${act}">${act}</span></td>
+      <td><span class="strat-badge">${strat}</span> <span class="action-badge action-${act}">${act}</span></td>` ;
+      })
+      .join("");
+      tbody.querySelectorAll("tr").forEach((tr, i) => {
+        tr.style.cursor = "pointer";
+        tr.onclick = () => {
+          const sym = coins[i].symbol;
+          document.getElementById("coin-inp").value = sym;
+          document.querySelector(".tab.active")?.classList.remove("active");
+          document.querySelector(`[onclick*="sniper"]`)?.classList.add("active");
+          switchTab("sniper", document.querySelector(`[onclick*='sniper']`));
+          doSearch();
+        };
+      });
+      return; tbody.innerHTML = coins.slice(0,0).map((c)=>{
     </tr>`;
   }).join('');
 }
@@ -509,7 +523,7 @@ fetchAll = function() {
     .then(r=>r.json())
     .then(d=>{
       window._lastDD=d;
-      updateSB(d);updateSniper(d);updateScanner(d);updateTraffic(d);updateBottom(d);updateCA(d);
+      updateSB(d);updateSniper(d);updateScanner(d);updateTraffic(d);updateBottom(d);updateCA(d);updateWhaleWallets(d);
       drawPriceLines();
       const top=(d.inst_signals||[])[0]||{};
       const inst=top.inst||{};
@@ -615,7 +629,7 @@ fetchAll = function() {
     .then(r=>r.json())
     .then(d=>{
       window._lastDD=d;
-      updateSB(d);updateSniper(d);updateScanner(d);updateTraffic(d);updateBottom(d);updateCA(d);
+      updateSB(d);updateSniper(d);updateScanner(d);updateTraffic(d);updateBottom(d);updateCA(d);updateWhaleWallets(d);
       drawPriceLines();
       const top=(d.inst_signals||[])[0]||{};
       const inst=top.inst||{};
@@ -691,4 +705,36 @@ function sendPushNotification(signal, coin, score) {
 // Request notification permission on load
 if('Notification' in window && Notification.permission === 'default') {
   setTimeout(() => Notification.requestPermission(), 3000);
+}
+
+function updateWhaleWallets(data) {
+  const whale24h = data.whale_24h || [];
+  const top3 = whale24h.slice(0, 3);
+  let html = '';
+  top3.forEach((w, i) => {
+    const color = w.label === 'WHALE TRAP' ? '#ff4444' : w.whale_power >= 60 ? '#00ff88' : '#ffaa00';
+    html += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #333;">
+      <span style="color:${color};font-weight:bold;">${w.symbol}</span>
+      <span style="color:#aaa;font-size:11px;">${w.label}</span>
+      <span style="color:#fff;">⚡${w.whale_power}%</span>
+    </div>`;
+  });
+  const el = document.getElementById('whale-wallet-list');
+  if(el) el.innerHTML = html || '<div style="color:#666;">No whale data</div>';
+}
+
+function updateWhaleWallets(data) {
+  const whale24h = data.whale_24h || [];
+  const top3 = whale24h.slice(0, 3);
+  let html = '';
+  top3.forEach((w, i) => {
+    const color = w.label === 'WHALE TRAP' ? '#ff4444' : w.whale_power >= 60 ? '#00ff88' : '#ffaa00';
+    html += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #333;">
+      <span style="color:${color};font-weight:bold;">${w.symbol}</span>
+      <span style="color:#aaa;font-size:11px;">${w.label}</span>
+      <span style="color:#fff;">⚡${w.whale_power}%</span>
+    </div>`;
+  });
+  const el = document.getElementById('whale-wallet-list');
+  if(el) el.innerHTML = html || '<div style="color:#666;">No whale data</div>';
 }

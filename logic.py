@@ -5,6 +5,11 @@ VWAP • RSI Divergence • Regime Detection • Confidence Score
 All thresholds in config.json — no hardcoded values.
 """
 import time
+import os
+
+def _tg_proxies():
+    p = os.getenv("TELEGRAM_PROXY")
+    return {"http": p, "https": p} if p else None
 import logging
 import threading
 import requests
@@ -92,7 +97,7 @@ def _binance_get(path: str, params: dict = None, timeout: int = 10):
     last_err = ""
     for host in BINANCE_HOSTS:
         try:
-            resp = _SESSION.get(host + path, params=params, timeout=timeout)
+            resp = _SESSION.get(host + path, params=params, timeout=timeout, proxies=_tg_proxies())
         except requests.exceptions.RequestException as e:
             last_err = f"{type(e).__name__}: {e}"
             log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
