@@ -7,8 +7,27 @@ let lastSignals = [];
 let currentTF = '15m';
 let tp1Line=null, tp2Line=null, slLine=null, entryLine=null;
 
+// ── DEBUG OVERLAY (temporary, shows errors on-screen) ──
+function showDebug(msg) {
+  let box = document.getElementById('debug-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'debug-box';
+    box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#330000;color:#ff8888;font-size:10px;padding:6px;z-index:99999;max-height:140px;overflow:auto;white-space:pre-wrap;font-family:monospace;border-top:2px solid #ff0000';
+    document.body.appendChild(box);
+  }
+  box.textContent += msg + '\n';
+}
+window.addEventListener('error', e => {
+  showDebug('JS ERROR: ' + e.message + ' @ ' + (e.filename||'').split('/').pop() + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', e => {
+  showDebug('PROMISE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+});
+
 document.addEventListener('DOMContentLoaded', () => {
-  try { initChart(); } catch (e) { console.error('initChart failed:', e); }
+  showDebug('DOM loaded, LightweightCharts type: ' + typeof LightweightCharts);
+  try { initChart(); showDebug('initChart() ran OK, candleSeries=' + (candleSeries?'created':'NULL')); } catch (e) { console.error('initChart failed:', e); showDebug('initChart FAILED: ' + e.message); }
   fetchAll();
   startCountdown();
 });
@@ -451,16 +470,23 @@ function fetchChartWithTF(tf) {
   const raw = document.getElementById('coin-inp')?.value || 'XPLUSDT';
   const sym = raw.replace('/','').replace(' ','').toUpperCase();
   const symbol = sym.includes('USDT') ? sym : sym+'USDT';
+  showDebug('fetchChartWithTF: container=' + (document.getElementById('chart-box') ? 'found h='+document.getElementById('chart-box').clientHeight+' w='+document.getElementById('chart-box').clientWidth : 'NOT FOUND') + ' chart=' + (chart?'init':'null') + ' candleSeries=' + (candleSeries?'init':'null'));
   fetch(`/chart_data?symbol=${symbol}&interval=${tf}&limit=100`)
     .then(r=>r.json())
     .then(d=>{
-      if(!candleSeries||!d.candles) return;
+      showDebug('chart_data response: candles=' + (d.candles?d.candles.length:'none') + ' keys=' + Object.keys(d).join(','));
+      if(!candleSeries||!d.candles) { showDebug('SKIP: candleSeries=' + !!candleSeries + ' candles=' + !!d.candles); return; }
       const candles=d.candles.map(c=>({time:c.time,open:parseFloat(c.open),high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)}));
-      candleSeries.setData(candles);
+      try {
+        candleSeries.setData(candles);
+        showDebug('setData OK, ' + candles.length + ' candles');
+      } catch(err) {
+        showDebug('setData FAILED: ' + err.message);
+      }
       drawPriceLines();
       addBuySellMarkers(candles);
       if(d.rsi) updateRSIDisplay(d.rsi);
-    }).catch(()=>{});
+    }).catch((err)=>{showDebug('FETCH FAILED: ' + err.message);});
 }
 
 function drawPriceLines() {
