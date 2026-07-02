@@ -552,12 +552,12 @@ function switchTab(name, el) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
-  if(name==='sniper' && !chart) initChart();
+  if(name==='sniper' && !chart) setTimeout(function(){initChart();fetchChart();},500);
 }
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded',()=>{
-  initChart();
+  setTimeout(function(){initChart();fetchChart();},500);
   fetchAll();
   timer=setInterval(()=>{
     countdown--;
