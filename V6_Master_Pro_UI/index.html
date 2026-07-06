@@ -591,7 +591,7 @@ function initChart(){
 
 function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
-    .replace('/','').replace(' ','').toUpperCase();
+    .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const symbol=s.includes('USDT')?s:s+'USDT';
   const _st=document.getElementById('chart-status');
   if(_st) _st.textContent='Loading '+symbol+' '+currentTF+'...';
