@@ -592,7 +592,7 @@ function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .replace('/','').replace(' ','').toUpperCase();
   const symbol=s.includes('USDT')?s:s+'USDT';
-  fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=100`)
+  fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=50`)
     .then(r=>r.json())
     .then(d=>{
       if(!candleSeries||!d.candles) return;
@@ -601,6 +601,17 @@ function fetchChart(sym){
         high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)
       }));
       candleSeries.setData(candles);
+      const sigs=(window._lastDD&&window._lastDD.inst_signals)||[];
+      const match=sigs.find(s2=>(s2.symbol||'').toUpperCase()===symbol);
+      if(match&&candles.length){
+        const v6=match.v6||{};
+        const lbl=(v6.label||'').toUpperCase();
+        const t=candles[candles.length-1].time;
+        let markers=[];
+        if(lbl==='BUY') markers=[{time:t,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(v6.score||0)}];
+        else if(lbl==='SELL'||lbl==='AVOID') markers=[{time:t,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:lbl+' '+Math.round(v6.score||0)}];
+        try{candleSeries.setMarkers(markers);}catch(e){}
+      }
     }).catch(()=>{});
 }
 
@@ -634,6 +645,7 @@ function fetchAll(){
   fetch('/dashboard_data')
     .then(r=>r.json())
     .then(d=>{
+      window._lastDD = d;
       updateSB(d);
       updateSniper(d);
       updateScanner(d);
@@ -691,6 +703,10 @@ function updateSniper(d){
   set('sell-est', fmt6(tp.tp1||0));
   set('buy-ext', fmt6(tp.entry_high||0));
   set('sell-ext', fmt6(tp.tp2||0));
+  const _buyCol = label==='BUY' ? '#00ff88' : '#8a8aa0';
+  const _sellCol = (label==='SELL'||label==='AVOID') ? '#ff2244' : '#00ff88';
+  ['buy-est','buy-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_buyCol;});
+  ['sell-est','sell-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_sellCol;});
 
   const tEl=document.getElementById('coin-trend');
   if(tEl){const tr=label==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}

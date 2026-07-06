@@ -297,6 +297,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 <button class="tf-btn" data-tf="4h" onclick="setTimeframe('4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">4h</button>
 </div>
 <div id="chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
+<div id="chart-status" style="font-size:9px;color:#666;margin-bottom:5px"></div>
 <div id="sl-warning" style="display:none;background:#330000;border:1px solid #ff2244;color:#ff2244;font-size:10px;font-weight:bold;padding:5px 8px;border-radius:2px;margin-bottom:5px;text-align:center"></div>
 <div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px">
 <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px">
@@ -592,15 +593,19 @@ function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .replace('/','').replace(' ','').toUpperCase();
   const symbol=s.includes('USDT')?s:s+'USDT';
+  const _st=document.getElementById('chart-status');
+  if(_st) _st.textContent='Loading '+symbol+' '+currentTF+'...';
   fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=50`)
     .then(r=>r.json())
     .then(d=>{
-      if(!candleSeries||!d.candles) return;
+      if(!candleSeries){ if(_st) _st.textContent='Chart engine not ready'; return; }
+      if(!d.candles || !d.candles.length){ if(_st) _st.textContent='No candle data for '+symbol+' ('+currentTF+')'; return; }
       const candles=d.candles.map(c=>({
         time:c.time,open:parseFloat(c.open),
         high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)
       }));
       candleSeries.setData(candles);
+      if(_st) _st.textContent=candles.length+' candles loaded ('+symbol+' '+currentTF+')';
       const sigs=(window._lastDD&&window._lastDD.inst_signals)||[];
       const match=sigs.find(s2=>(s2.symbol||'').toUpperCase()===symbol);
       if(match&&candles.length){
@@ -612,7 +617,7 @@ function fetchChart(sym){
         else if(lbl==='SELL'||lbl==='AVOID') markers=[{time:t,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:lbl+' '+Math.round(v6.score||0)}];
         try{candleSeries.setMarkers(markers);}catch(e){}
       }
-    }).catch(()=>{});
+    }).catch(err=>{ if(_st) _st.textContent='Fetch error: '+err; });
 }
 
 function setTimeframe(tf){
