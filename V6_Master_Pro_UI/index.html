@@ -544,7 +544,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 
 <script>
 // ── GLOBALS ──
-let chart=null, candleSeries=null, countdown=30, timer=null;
+let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m';
 
 // ── TABS ──
 function switchTab(name, el) {
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     countdown--;
     const el=document.getElementById('next-cnt');
     if(el) el.textContent=countdown;
-    if(countdown<=0){countdown=30;fetchAll();}
+    if(countdown<=0){countdown=8;fetchAll();}
   },1000);
 });
 
@@ -592,7 +592,7 @@ function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .replace('/','').replace(' ','').toUpperCase();
   const symbol=s.includes('USDT')?s:s+'USDT';
-  fetch(`/chart_data?symbol=${symbol}&interval=15m&limit=60`)
+  fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=100`)
     .then(r=>r.json())
     .then(d=>{
       if(!candleSeries||!d.candles) return;
@@ -602,6 +602,29 @@ function fetchChart(sym){
       }));
       candleSeries.setData(candles);
     }).catch(()=>{});
+}
+
+function setTimeframe(tf){
+  currentTF=tf;
+  document.querySelectorAll('.tf-btn').forEach(b=>{
+    const active=b.getAttribute('data-tf')===tf;
+    b.style.background=active?'#003311':'#0a0a14';
+    b.style.borderColor=active?'#00ff88':'#333';
+    b.style.color=active?'#00ff88':'#aaa';
+  });
+  fetchChart();
+}
+
+function loadCoin(symbol){
+  if(!symbol) return;
+  const inp=document.getElementById('coin-inp');
+  if(inp) inp.value=symbol.replace('USDT','')+' / USDT';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const sniperTab=document.querySelector('[onclick*="sniper"]');
+  if(sniperTab) sniperTab.classList.add('active');
+  document.getElementById('tab-sniper').classList.add('active');
+  doSearch();
 }
 
 function doSearch(){fetchChart();fetchAll();}
@@ -752,6 +775,10 @@ function updateScanner(d){
       <td><span class="at ${actCls}">${lbl}</span></td>
     </tr>`;
   }).join('');
+  const _scanRows = coins.slice(0,25);
+  tbody.querySelectorAll('tr').forEach((tr,i)=>{
+    if(_scanRows[i]){ tr.style.cursor='pointer'; tr.onclick=()=>loadCoin(_scanRows[i].symbol); }
+  });
 }
 
 // ── TRAFFIC LIGHT TAB ──
@@ -816,7 +843,7 @@ function updateBottom(d){
   const surges=d.volume_surge||[];
   const vl=document.getElementById('vol-list');
   if(vl) vl.innerHTML=surges.slice(0,8).map(s=>`
-    <div class="vol-item">
+    <div class="vol-item" style="cursor:pointer" onclick="loadCoin('${s.symbol}')">
       <span class="vi-coin">${(s.symbol||'').replace('USDT','')}</span>
       <span class="vi-mult">🚀${parseFloat(s.multiplier||s.ratio||1).toFixed(1)}x</span>
       <span class="vi-vol">${fmtVol(s.volume||0)}</span>
@@ -827,7 +854,7 @@ function updateBottom(d){
   const al=document.getElementById('alert-list');
   if(al) al.innerHTML=alerts.slice(0,6).map(a=>{
     const em=a.type==='VIP'?'🟢':a.label?.includes('TRAP')?'🔴':'🐋';
-    return `<div class="alt-item"><span>${em}</span> ${(a.symbol||'').replace('USDT','')} ${a.label||a.type||''} → ${a.detail||a.message||''}</div>`;
+    return `<div class="alt-item" style="cursor:pointer" onclick="loadCoin('${a.symbol}')"><span>${em}</span> ${(a.symbol||'').replace('USDT','')} ${a.label||a.type||''} → ${a.detail||a.message||''}</div>`;
   }).join('')||'<div class="alt-item" style="color:var(--grey)">No alerts yet</div>';
 
   // Backtest
