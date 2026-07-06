@@ -413,6 +413,28 @@ def calculate_54_point_score(symbol='', klines=None, order_book=None,
                               ticker=None, extra=None):
     """
     Full 54-point institutional scoring engine.
+<<<<<<< HEAD
+=======
+
+    Parameters
+    ----------
+    symbol     : str   — trading pair e.g. 'BTCUSDT'
+    klines     : list  — Binance kline rows [[open_time, o, h, l, c, vol, ...]]
+    order_book : dict  — {'bids': [[price,qty],...], 'asks': [[price,qty],...]}
+    ticker     : dict  — Binance 24hr ticker dict
+    extra      : dict  — enriched fields from logic.py:
+                         whale_power, obi, institutional_score, vmc_score,
+                         traffic_light, macd_hist, in_volume_surge,
+                         divergence_signal, btc_regime, btc_volatility_pct,
+                         whale_trap, whale_cluster, entry_low, stop_loss, tp1,
+                         paper_mode, paper_win_rate, consecutive_losses,
+                         cooldown_active
+
+    Returns
+    -------
+    dict with keys: score, signal, badge, rsi, rr, breakdown, category_scores,
+                    whale_wallet, sl, tp1, tp2, tp3, atr
+>>>>>>> d2c1ac82c18e370e2831c23a0a05ed14a20bb7ec
     """
     if klines     is None: klines     = []
     if order_book is None: order_book = {}
