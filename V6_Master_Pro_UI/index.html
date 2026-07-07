@@ -743,12 +743,6 @@ function updateSniper(d){
   const wh=d.whale||{};
   const walls=wh.top_wallets||wh.wallets||[];
   const w1=walls[0]||{};const w2=walls[1]||{};
-  set('w1-pat',w1.pattern||w1.label||'(Pattern)');
-  set('w1-cls',w1.cluster_status||'Stable');
-  set('w1-mov',(w1.moves||w1.power||0)+'%');
-  set('w2-pat',w2.pattern||w2.label||'Pattern tag');
-  set('w2-cls',w2.cluster_status||'Cluster');
-  set('w2-mov',(w2.moves||w2.power||0)+'%');
 }
 
 // ── SCANNER TAB ──
@@ -771,6 +765,14 @@ function updateScanner(d){
     const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
     const folder=c.folder||'';
     const fb=folder?`<span class="fb f-${folder.toLowerCase()}">${folder}</span>`:'';
+    const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
+    let patTag='';
+    if(whMatch){
+      const obiV=(whMatch.obi&&whMatch.obi.obi)||0;
+      if(whMatch.blink_to_push) patTag=`<span class="fb" style="background:#332200;color:#ff8800">PUMP</span>`;
+      else if(obiV>0.05) patTag=`<span class="fb" style="background:#002211;color:#00ff88">ACC</span>`;
+      else if(obiV<-0.05) patTag=`<span class="fb" style="background:#220011;color:#ff2244">DIST</span>`;
+    }
     const inst_s=parseFloat(inst.inst_score||0);
     const conf=parseFloat(c.confidence||0);
     const wp=parseFloat(inst.whale_power||0);
@@ -783,7 +785,7 @@ function updateScanner(d){
     return `<tr class="${rowCls}">
       <td style="color:var(--grey)">#${i+1}</td>
       <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-      <td>${fb}</td>
+      <td>${fb}${patTag}</td>
       <td>${tlDot}${tl[0]?.toUpperCase()}</td>
       <td>${inst_s.toFixed(1)}</td>
       <td>${conf}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(conf,100)}%;background:${bc}"></span></span></div></td>
