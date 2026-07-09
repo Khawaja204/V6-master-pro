@@ -11,7 +11,7 @@
   --bg:#060608;--card:#0e0e14;--card2:#111118;
   --border:#1e1e2e;--green:#00ff88;--red:#ff2244;
   --orange:#ff8800;--gold:#ffd700;--blue:#00aaff;
-  --white:#f0f0ff;--grey:#55556a;--grey2:#33334a;
+  --white:#f0f0ff;--grey:#9494b8;--grey2:#33334a;
   --font:'Courier New',monospace;
 }
 body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:12px;overflow-x:hidden}
@@ -589,15 +589,46 @@ function initChart(){
   }catch(e){console.warn('Chart init failed:',e);}
 }
 
+function calcRSI(closes,period){
+  period=period||14;
+  if(closes.length<period+1) return null;
+  let gains=0, losses=0;
+  for(let i=closes.length-period;i<closes.length;i++){
+    const diff=closes[i]-closes[i-1];
+    if(diff>0) gains+=diff; else losses-=diff;
+  }
+  const avgG=gains/period, avgL=losses/period;
+  if(avgL===0) return 100;
+  const rs=avgG/avgL;
+  return 100-(100/(1+rs));
+}
+
+function updateQuickTrends(symbol){
+  ['15m','1h'].forEach(iv=>{
+    fetch(`/chart_data?symbol=${symbol}&interval=${iv}&limit=3`)
+      .then(r=>r.json())
+      .then(d=>{
+        const c=d.candles||[];
+        if(c.length<2) return;
+        const last=c[c.length-1], prev=c[c.length-2];
+        const up = parseFloat(last.close) >= parseFloat(prev.close);
+        const el=document.getElementById(iv==='15m'?'trend-15m':'trend-1h');
+        if(el){ el.textContent = up?'UP ▲':'DOWN ▼'; el.style.color = up?'#00ff88':'#ff2244'; }
+      }).catch(()=>{});
+  });
+}
+
 function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const symbol=s.includes('USDT')?s:s+'USDT';
   const _st=document.getElementById('chart-status');
   if(_st) _st.textContent='Loading '+symbol+' '+currentTF+'...';
-  fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=50`)
-    .then(r=>r.json())
-    .then(d=>{
+  updateQuickTrends(symbol);
+  Promise.all([
+    fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=50`).then(r=>r.json()),
+    fetch(`/whale_detail?symbol=${symbol}`).then(r=>r.json()).catch(()=>({}))
+  ]).then(([d,wd])=>{
       if(!candleSeries){ if(_st) _st.textContent='Chart engine not ready'; return; }
       if(!d.candles || !d.candles.length){ if(_st) _st.textContent='No candle data for '+symbol+' ('+currentTF+')'; return; }
       const candles=d.candles.map(c=>({
@@ -606,17 +637,51 @@ function fetchChart(sym){
       }));
       candleSeries.setData(candles);
       if(_st) _st.textContent=candles.length+' candles loaded ('+symbol+' '+currentTF+')';
+      const _closes=candles.map(c=>c.close);
+      const _rsi=calcRSI(_closes);
+      if(_rsi!==null){
+        const rv=document.getElementById('rsi-value'), rb=document.getElementById('rsi-bar');
+        const rcol=_rsi>70?'#ff2244':_rsi<30?'#00ff88':'#ffd700';
+        if(rv){ rv.textContent=_rsi.toFixed(1); rv.style.color=rcol; }
+        if(rb){ rb.style.width=_rsi+'%'; rb.style.background=rcol; }
+      }
       const sigs=(window._lastDD&&window._lastDD.inst_signals)||[];
       const match=sigs.find(s2=>(s2.symbol||'').toUpperCase()===symbol);
+      let markers=[];
+      const rrEl=document.getElementById('rr-live');
       if(match&&candles.length){
         const v6=match.v6||{};
         const lbl=(v6.label||'').toUpperCase();
         const t=candles[candles.length-1].time;
-        let markers=[];
         if(lbl==='BUY') markers=[{time:t,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(v6.score||0)}];
         else if(lbl==='SELL'||lbl==='AVOID') markers=[{time:t,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:lbl+' '+Math.round(v6.score||0)}];
-        try{candleSeries.setMarkers(markers);}catch(e){}
-      }
+        const _tp=match.tp_zones||{};
+        const _price=candles[candles.length-1].close;
+        if(_tp.tp1&&_tp.stop_loss&&_price>_tp.stop_loss){
+          const _rr=(_tp.tp1-_price)/(_price-_tp.stop_loss);
+          if(rrEl){ rrEl.textContent=_rr.toFixed(2)+':1'; rrEl.style.color=_rr>=2?'#00ff88':_rr>=1?'#ffd700':'#ff2244'; }
+        } else if(rrEl){ rrEl.textContent='--'; }
+      } else if(rrEl){ rrEl.textContent='--'; }
+      try{candleSeries.setMarkers(markers);}catch(e){}
+      try{
+        if(window._whaleLines) window._whaleLines.forEach(l=>{try{candleSeries.removePriceLine(l);}catch(e){}});
+        window._whaleLines=[];
+        (wd.walls||[]).slice(0,4).forEach(w=>{
+          const ln=candleSeries.createPriceLine({
+            price: w.price_level, color: w.side==='BID'?'#00aaff':'#ff8800',
+            lineWidth:1, lineStyle:1, axisLabelVisible:true,
+            title:(w.side==='BID'?'W-BID ':'W-ASK ')+Math.round((w.size_usdt||0)/1000)+'K'
+          });
+          window._whaleLines.push(ln);
+        });
+      }catch(e){}
+      const pat=wd.pattern||{};
+      set('w1-pat', (pat.name||'—')+(pat.similarity_pct?' ('+pat.similarity_pct+'%)':''));
+      set('w1-cls', wd.clustering||'NORMAL');
+      set('w1-mov', (wd.trend||'—')+' '+(wd.whale_power||0)+'%');
+      set('w2-pat', 'OBI '+(wd.obi!==undefined?wd.obi.toFixed(3):'—'));
+      set('w2-cls', wd.buy_sell_ratio?wd.buy_sell_ratio.toFixed(2)+'x B/S':'—');
+      set('w2-mov', (wd.obi_velocity!==undefined?wd.obi_velocity.toFixed(2):'—')+' vel');
     }).catch(err=>{ if(_st) _st.textContent='Fetch error: '+err; });
 }
 
