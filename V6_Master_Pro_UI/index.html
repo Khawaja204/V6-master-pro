@@ -589,6 +589,35 @@ function initChart(){
   }catch(e){console.warn('Chart init failed:',e);}
 }
 
+function ensureScalpBox(){
+  let el=document.getElementById('scalp-signal');
+  if(!el){
+    el=document.createElement('div');
+    el.id='scalp-signal';
+    el.style.cssText='background:#0a0a14;border:1px solid #333;border-radius:2px;padding:6px 8px;margin-bottom:5px;font-size:10px;font-weight:bold;text-align:center';
+    const cs=document.getElementById('chart-status');
+    if(cs&&cs.parentNode) cs.parentNode.insertBefore(el, cs.nextSibling);
+  }
+  return el;
+}
+
+function computeScalpSignal(rsi, wd){
+  const wp=wd.whale_power||0;
+  const bw=wd.bid_wall||{}, aw=wd.ask_wall||{};
+  const bidReal = bw.real!==false && bw.price;
+  const askReal = aw.real!==false && aw.price;
+  const strongWhale = wp>=50;
+  if(strongWhale && bidReal && rsi!==null && rsi<40 && (bw.dist_pct===undefined||bw.dist_pct<=2)){
+    const entry=bw.price, target=askReal?aw.price:entry*1.005, stop=entry*0.997;
+    return {action:'BUY', color:'#00ff88', text:'⚡ SCALP BUY '+fmt6(entry)+' → '+fmt6(target)+' | SL '+fmt6(stop)+' (Whale '+wp+'%, real wall)'};
+  }
+  if(strongWhale && askReal && rsi!==null && rsi>60 && (aw.dist_pct===undefined||aw.dist_pct<=2)){
+    const entry=aw.price, target=bidReal?bw.price:entry*0.995, stop=entry*1.003;
+    return {action:'SELL', color:'#ff2244', text:'⚡ SCALP SELL '+fmt6(entry)+' → '+fmt6(target)+' | SL '+fmt6(stop)+' (Whale '+wp+'%, real wall)'};
+  }
+  return {action:'WAIT', color:'#8888a0', text:'SCALP: waiting for strong + real whale wall + RSI confluence'};
+}
+
 function calcRSI(closes,period){
   period=period||14;
   if(closes.length<period+1) return null;
@@ -645,6 +674,11 @@ function fetchChart(sym){
         if(rv){ rv.textContent=_rsi.toFixed(1); rv.style.color=rcol; }
         if(rb){ rb.style.width=_rsi+'%'; rb.style.background=rcol; }
       }
+      const _scalp=computeScalpSignal(_rsi, wd);
+      const _sb=ensureScalpBox();
+      _sb.textContent=_scalp.text;
+      _sb.style.borderColor=_scalp.color;
+      _sb.style.color=_scalp.color;
       const sigs=(window._lastDD&&window._lastDD.inst_signals)||[];
       const match=sigs.find(s2=>(s2.symbol||'').toUpperCase()===symbol);
       let markers=[];
