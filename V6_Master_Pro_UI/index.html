@@ -666,16 +666,19 @@ function fetchChart(sym){
       try{
         if(window._whaleLines) window._whaleLines.forEach(l=>{try{candleSeries.removePriceLine(l);}catch(e){}});
         window._whaleLines=[];
-        (wd.walls||[]).slice(0,4).forEach(w=>{
+        const _bidWall=(wd.walls||[]).find(w=>w.side==='BID');
+        const _askWall=(wd.walls||[]).find(w=>w.side==='ASK');
+        [_bidWall,_askWall].filter(Boolean).forEach(w=>{
           const ln=candleSeries.createPriceLine({
             price: w.price_level, color: w.side==='BID'?'#00aaff':'#ff8800',
-            lineWidth:1, lineStyle:1, axisLabelVisible:true,
-            title:(w.side==='BID'?'W-BID ':'W-ASK ')+Math.round((w.size_usdt||0)/1000)+'K'
+            lineWidth:1, lineStyle:2, axisLabelVisible:true,
+            title:(w.side==='BID'?'BID ':'ASK ')+Math.round((w.size_usdt||0)/1000)+'K'
           });
           window._whaleLines.push(ln);
         });
       }catch(e){}
       const pat=wd.pattern||{};
+      set('whale-bag', wd.bag_size_usdt?fmtNum(wd.bag_size_usdt)+' USDT':'—');
       set('w1-pat', (pat.name||'—')+(pat.similarity_pct?' ('+pat.similarity_pct+'%)':''));
       set('w1-cls', wd.clustering||'NORMAL');
       set('w1-mov', (wd.trend||'—')+' '+(wd.whale_power||0)+'%');
@@ -767,7 +770,7 @@ function updateSniper(d){
     pb.style.color=label==='BUY'?'var(--green)':'var(--red)';
   }
 
-  set('whale-bag', fmtNum(inst.whale_power||0));
+  set('whale-bag', '—');
   set('vmc-score', fmt6(inst.vmc_score||top.score||0));
   set('buy-est', fmt6(tp.entry_low||top.price||0));
   set('sell-est', fmt6(tp.tp1||0));
