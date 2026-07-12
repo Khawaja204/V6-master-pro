@@ -685,17 +685,67 @@ function fetchChart(sym){
       const rrEl=document.getElementById('rr-live');
       if(match&&candles.length){
         const v6=match.v6||{};
-        const lbl=(v6.label||'').toUpperCase();
+        const inst2=match.inst||{};
+        const tp2=match.tp_zones||{};
+        const lbl=(v6.label||'WAIT').toUpperCase();
         const t=candles[candles.length-1].time;
         if(lbl==='BUY') markers=[{time:t,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(v6.score||0)}];
         else if(lbl==='SELL'||lbl==='AVOID') markers=[{time:t,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:lbl+' '+Math.round(v6.score||0)}];
-        const _tp=match.tp_zones||{};
         const _price=candles[candles.length-1].close;
-        if(_tp.tp1&&_tp.stop_loss&&_price>_tp.stop_loss){
-          const _rr=(_tp.tp1-_price)/(_price-_tp.stop_loss);
+        if(tp2.tp1&&tp2.stop_loss&&_price>tp2.stop_loss){
+          const _rr=(tp2.tp1-_price)/(_price-tp2.stop_loss);
           if(rrEl){ rrEl.textContent=_rr.toFixed(2)+':1'; rrEl.style.color=_rr>=2?'#00ff88':_rr>=1?'#ffd700':'#ff2244'; }
         } else if(rrEl){ rrEl.textContent='--'; }
-      } else if(rrEl){ rrEl.textContent='--'; }
+
+        const bs=document.getElementById('big-signal');
+        const icons={BUY:'🟢',SELL:'🔴',WAIT:'⏳',HOLD:'🟡',AVOID:'🚫'};
+        if(bs){bs.className=lbl;bs.innerHTML=(icons[lbl]||'⏳')+' '+lbl+' — SCORE: <span id="big-score">'+Math.round(v6.score||0)+'</span>/100';}
+        const pb=document.getElementById('profile-badge');
+        if(pb){
+          pb.textContent=lbl==='BUY'?'BUY – ACCUMULATION':'AVOID – DUMP PREP';
+          pb.style.background=lbl==='BUY'?'#003311':'#440000';
+          pb.style.color=lbl==='BUY'?'#00ff88':'#ff2244';
+        }
+        set('vmc-score', fmt6(inst2.vmc_score||match.score||0));
+        set('buy-est', fmt6(tp2.entry_low||_price||0));
+        set('sell-est', fmt6(tp2.tp1||0));
+        set('buy-ext', fmt6(tp2.entry_high||0));
+        set('sell-ext', fmt6(tp2.tp2||0));
+        const _buyCol2 = lbl==='BUY' ? '#00ff88' : '#8a8aa0';
+        const _sellCol2 = (lbl==='SELL'||lbl==='AVOID') ? '#ff2244' : '#00ff88';
+        ['buy-est','buy-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_buyCol2;});
+        ['sell-est','sell-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_sellCol2;});
+        const tEl=document.getElementById('coin-trend');
+        if(tEl){const tr=lbl==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}
+        const eb=document.getElementById('eng-badge');
+        if(eb){eb.textContent=lbl;eb.style.background=lbl==='BUY'?'#003311':lbl==='WAIT'?'#1a1a1a':'#440000';eb.style.color=lbl==='BUY'?'#00ff88':lbl==='WAIT'?'#aaa':'#ff2244';}
+        const tlc=(inst2.traffic||'RED').toLowerCase();
+        const dot=document.getElementById('tl-dot');
+        if(dot) dot.className='tl-dot '+(tlc==='green'?'tl-green':tlc==='yellow'?'tl-yellow':'tl-red');
+        set('inst-score', Math.round(inst2.inst_score||0));
+        const wb=document.getElementById('warn-box');
+        if(wb){if(inst2.reason&&inst2.reason.includes('INSUFF')){wb.style.display='block';wb.textContent='⚠ '+inst2.reason;}else{wb.style.display='none';}}
+        set('reason-txt', (inst2.reason||lbl)+' → '+(match.trading_strategy||lbl));
+        const wp2=parseFloat(inst2.whale_power||0);
+        drawGauge('g-whale',wp2,wp2>60?'#00ff88':wp2>30?'#ffd700':'#ff2244');
+        set('g-whale-val', Math.round(wp2)+'%');
+        const bp2=parseFloat(inst2.ofi_score||50);
+        drawGauge('g-bsp',bp2,bp2>50?'#00ff88':'#ff2244');
+        set('g-bsp-val', bp2>50?'YES':'NO');
+      } else {
+        if(rrEl) rrEl.textContent='--';
+        const bs=document.getElementById('big-signal');
+        if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
+        const pb=document.getElementById('profile-badge');
+        if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
+        set('vmc-score','—'); set('buy-est','—'); set('sell-est','—'); set('buy-ext','—'); set('sell-ext','—');
+        const tEl=document.getElementById('coin-trend'); if(tEl){tEl.textContent='—';tEl.className='dg-v';}
+        const eb=document.getElementById('eng-badge'); if(eb){eb.textContent='—';eb.style.background='#1a1a1a';eb.style.color='#888';}
+        const dot=document.getElementById('tl-dot'); if(dot) dot.className='tl-dot tl-red';
+        set('inst-score','—');
+        const wb=document.getElementById('warn-box'); if(wb) wb.style.display='none';
+        set('reason-txt','No institutional signal for this coin yet');
+      }
       try{candleSeries.setMarkers(markers);}catch(e){}
       try{
         if(window._whaleLines) window._whaleLines.forEach(l=>{try{candleSeries.removePriceLine(l);}catch(e){}});
@@ -781,70 +831,8 @@ function updateSB(d){
 
 // ── SNIPER TAB ──
 function updateSniper(d){
-  const sigs=d.inst_signals||[];
-  const top=sigs[0]||{};
-  const inst=top.inst||{};
-  const tp=top.tp_zones||{};
-  const v6=top.v6||{};
-  const sizing=top.sizing||{};
-
-  const label=v6.label||'WAIT';
-  const score=v6.score||0;
-
-  // Big signal
-  const bs=document.getElementById('big-signal');
-  const icons={BUY:'🟢',SELL:'🔴',WAIT:'⏳',HOLD:'🟡',AVOID:'🚫'};
-  if(bs){bs.className=label;bs.innerHTML=`${icons[label]||'⏳'} ${label} — SCORE: <span id="big-score">${Math.round(score)}</span>/100`;}
-
-  // Profile badge
-  const pb=document.getElementById('profile-badge');
-  if(pb){
-    pb.textContent=label==='BUY'?'BUY – ACCUMULATION':'AVOID – DUMP PREP';
-    pb.style.background=label==='BUY'?'#003311':'#440000';
-    pb.style.color=label==='BUY'?'var(--green)':'var(--red)';
-  }
-
-  set('whale-bag', '—');
-  set('vmc-score', fmt6(inst.vmc_score||top.score||0));
-  set('buy-est', fmt6(tp.entry_low||top.price||0));
-  set('sell-est', fmt6(tp.tp1||0));
-  set('buy-ext', fmt6(tp.entry_high||0));
-  set('sell-ext', fmt6(tp.tp2||0));
-  const _buyCol = label==='BUY' ? '#00ff88' : '#8a8aa0';
-  const _sellCol = (label==='SELL'||label==='AVOID') ? '#ff2244' : '#00ff88';
-  ['buy-est','buy-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_buyCol;});
-  ['sell-est','sell-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_sellCol;});
-
-  const tEl=document.getElementById('coin-trend');
-  if(tEl){const tr=label==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}
-
-  // Engine
-  const eb=document.getElementById('eng-badge');
-  if(eb){eb.textContent=label;eb.style.background=label==='BUY'?'#003311':label==='WAIT'?'#1a1a1a':'#440000';eb.style.color=label==='BUY'?'var(--green)':label==='WAIT'?'#aaa':'var(--red)';}
-
-  const tl=(inst.traffic||sizing.light||'RED').toLowerCase();
-  const dot=document.getElementById('tl-dot');
-  if(dot) dot.className='tl-dot '+(tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red');
-
-  set('inst-score', Math.round(inst.inst_score||0));
-  set('atr-zones', 'Scoped');
-
-  const wb=document.getElementById('warn-box');
-  if(wb){if(inst.reason&&inst.reason.includes('INSUFF')){wb.style.display='block';wb.textContent='⚠ '+inst.reason;}else{wb.style.display='none';}}
-
-  set('reason-txt', (inst.reason||label)+' → '+(top.trading_strategy||label));
-
-  // Gauges
-  const wp=parseFloat(inst.whale_power||0);
-  drawGauge('g-whale',wp,wp>60?'#00ff88':wp>30?'#ffd700':'#ff2244');
-  set('g-whale-val', Math.round(wp)+'%');
-  const bp=parseFloat(inst.ofi_score||50);
-  drawGauge('g-bsp',bp,bp>50?'#00ff88':'#ff2244');
-  set('g-bsp-val', bp>50?'YES':'NO');
-
-  const wh=d.whale||{};
-  const walls=wh.top_wallets||wh.wallets||[];
-  const w1=walls[0]||{};const w2=walls[1]||{};
+  // Per-coin profile & engine panel is now driven by fetchChart() for the
+  // currently searched symbol, so this no longer overwrites it with top-signal data.
 }
 
 // ── SCANNER TAB ──
