@@ -1922,6 +1922,8 @@ function testTelegram(){
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear all alert history?')">🗑 Clear Alert History</button></form>
 <form method="POST" action="/admin/clear_backtest" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear backtest results + stats?')">🗑 Clear Backtest</button></form>
+<form method="POST" action="/admin/clear_whale_copy" style="display:inline">
+<button type="submit" class="btn btn-red" onclick="return confirm('Clear all Whale Copy trades and signals?')">🐋 Clear Whale Copy</button></form>
 </div></div>
 
 </div></body></html>"""
@@ -2116,6 +2118,17 @@ def admin_clear_backtest():
     GLOBAL_DATA["backtest"] = []; GLOBAL_DATA["win_streak"] = 0
     GLOBAL_DATA["total_wins"] = 0; GLOBAL_DATA["total_losses"] = 0; GLOBAL_DATA["win_rate"] = 0.0
     audit(request.remote_addr, "CLEAR_BACKTEST", "OK", ""); return redirect("/admin")
+
+
+@app.route("/admin/clear_whale_copy", methods=["POST"])
+@_admin_required
+def admin_clear_whale_copy():
+    global WHALE_COPY_TRADES
+    WHALE_COPY_TRADES = []
+    _save_whale_copy_trades()
+    GLOBAL_DATA["whale_copy_signals"] = []
+    audit(request.remote_addr, "CLEAR_WHALE_COPY", "OK", "")
+    return redirect("/admin")
 
 
 # ── System Health (public, used by admin portal JS) ────────────────────────────

@@ -1056,13 +1056,18 @@ def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
     sl_buffer_pct   = wc_cfg.get("sl_buffer_pct", 1.5)
     tp_fallback_pct = wc_cfg.get("tp_fallback_pct", 3.0)
     persist_window  = wc_cfg.get("persistence_window_seconds", 120)
+    default_stables = ["USDC","USDT","BUSD","DAI","TUSD","USDP","FDUSD","PYUSD","GUSD","USDD","EURT","EURI"]
+    excluded_bases  = set(wc_cfg.get("exclude_symbols", default_stables))
 
     now = time.time()
     signals   = []
     seen_syms = set()
 
     for w in whale_data:
-        sym = w.get("symbol")
+        sym  = w.get("symbol")
+        base = sym[:-4] if sym and sym.endswith("USDT") else sym
+        if base in excluded_bases:
+            continue   # stablecoin pair — price barely moves, whale-copy meaningless here
         seen_syms.add(sym)
         walls = w.get("walls", [])
         spoof = w.get("spoofing", {})
