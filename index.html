@@ -265,6 +265,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
   <button class="tab active" onclick="switchTab('sniper',this)">⚡ SNIPER</button>
   <button class="tab" onclick="switchTab('scanner',this)">📊 SCANNER</button>
   <button class="tab" onclick="switchTab('traffic',this)">🚦 SIGNAL</button>
+  <button class="tab" onclick="switchTab('whalecopy',this)">🐋 WHALE COPY</button>
 </div>
 
 <!-- ═══════════════════════════════
@@ -532,6 +533,36 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
       <div class="cs-item"><div class="cs-lbl">TP3</div><div class="cs-val" style="color:var(--green)" id="cs-tp3">—</div></div>
       <div class="cs-item"><div class="cs-lbl">R/R Ratio</div><div class="cs-val" id="cs-rr">—</div></div>
       <div class="cs-item"><div class="cs-lbl">Strategy</div><div class="cs-val" id="cs-strat">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     TAB 4: WHALE COPY MODE
+═══════════════════════════════ -->
+<div class="panel" id="tab-whalecopy">
+  <div class="scan-hdr">
+    <span class="scan-title">🐋 WHALE COPY MODE — Wall + OBI Confirmed</span>
+    <span class="scan-meta" id="wc-meta">Loading...</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="scan-tbl">
+    <thead>
+      <tr><th>Coin</th><th>Dir</th><th>Wall Price</th><th>Size(USDT)</th><th>Qty</th><th>OBI</th><th>Rate</th><th>Conf%</th><th>News</th></tr>
+    </thead>
+    <tbody id="wc-tbody">
+      <tr><td colspan="9" style="text-align:center;color:var(--grey);padding:20px">Loading whale copy signals...</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
+    <div class="cb">
+      <table class="bt-tbl" style="width:100%">
+        <thead><tr><th>Coin</th><th>Dir</th><th>Entry Price</th><th>Conf%</th><th>Time</th></tr></thead>
+        <tbody id="wc-trades-tbody"><tr><td colspan="5" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -811,6 +842,59 @@ function fetchAll(){
       else document.getElementById('paper').classList.remove('show');
     }).catch(e=>console.error('Fetch:',e));
   fetchChart();
+  fetchWhaleCopy();
+}
+
+function fetchWhaleCopy(){
+  fetch('/whale_copy_data')
+    .then(r=>r.json())
+    .then(d=>updateWhaleCopy(d))
+    .catch(e=>console.error('WhaleCopy fetch:',e));
+}
+
+function updateWhaleCopy(d){
+  const sigs = d.signals || [];
+  const meta = document.getElementById('wc-meta');
+  if(meta) meta.textContent = `${sigs.length} active signals`;
+  const tbody = document.getElementById('wc-tbody');
+  if(tbody){
+    if(!sigs.length){
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">No confirmed wall+OBI signals right now</td></tr>';
+    } else {
+      tbody.innerHTML = sigs.slice(0,25).map(s=>{
+        const sym = (s.symbol||'').replace('USDT','');
+        const dirCls = s.direction==='COPY_BUY' ? 'at-buy' : 'at-avoid';
+        const dirLbl = s.direction==='COPY_BUY' ? 'COPY BUY' : 'AVOID';
+        const newsUrl = `https://www.google.com/search?q=${encodeURIComponent(sym+' crypto news')}&tbm=nws`;
+        return `<tr>
+          <td style="cursor:pointer" onclick="loadCoin('${s.symbol}')"><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+          <td><span class="at ${dirCls}">${dirLbl}</span></td>
+          <td>${fmt6(s.wall_price||0)}</td>
+          <td>${fmtNum(s.wall_size_usdt||0)}</td>
+          <td>${s.wall_qty||0}</td>
+          <td style="color:${(s.obi||0)>0?'var(--green)':'var(--red)'}">${(s.obi||0).toFixed(3)}</td>
+          <td>${(s.obi_velocity||0).toFixed(2)}</td>
+          <td>${s.confidence||0}%</td>
+          <td><a href="${newsUrl}" target="_blank" style="color:var(--blue);font-size:9px">📰 News</a></td>
+        </tr>`;
+      }).join('');
+    }
+  }
+  const trades = d.trades || [];
+  const ttbody = document.getElementById('wc-trades-tbody');
+  if(ttbody){
+    ttbody.innerHTML = trades.slice(0,20).map(t=>{
+      const sym = (t.symbol||'').replace('USDT','');
+      const dirCol = t.direction==='COPY_BUY' ? 'var(--green)' : 'var(--red)';
+      return `<tr>
+        <td>${sym}</td>
+        <td style="color:${dirCol}">${t.direction}</td>
+        <td>${fmt6(t.wall_price||0)}</td>
+        <td>${t.confidence||0}%</td>
+        <td style="color:var(--grey);font-size:9px">${t.entry_time||''}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" style="color:var(--grey)">No whale copy trades yet</td></tr>';
+  }
 }
 
 // ── STATUS BAR ──
@@ -835,7 +919,17 @@ function updateSniper(d){
 
 // ── SCANNER TAB ──
 function updateScanner(d){
-  const coins=d.inst_signals||[];
+  const raw=d.inst_signals||[];
+  // DEDUPE FIX: same coin can qualify for multiple folders (VIP/GOLDEN/BOOM/
+  // ENTRY) and previously showed as 2-3 separate identical rows. Merge into
+  // one row per symbol, combining all its folder badges.
+  const bySym=new Map();
+  raw.forEach(c=>{
+    const sym=c.symbol;
+    if(!bySym.has(sym)) bySym.set(sym, {...c, _folders:[c.folder].filter(Boolean)});
+    else { const ex=bySym.get(sym); if(c.folder && !ex._folders.includes(c.folder)) ex._folders.push(c.folder); }
+  });
+  const coins=Array.from(bySym.values());
   const meta=document.getElementById('scan-meta');
   if(meta) meta.textContent=`${coins.length} unique coins | top conf: ${coins[0]?.confidence||0}%`;
 
@@ -851,8 +945,7 @@ function updateScanner(d){
     const sizing=c.sizing||{};
     const tl=(inst.traffic||sizing.light||'RED').toLowerCase();
     const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
-    const folder=c.folder||'';
-    const fb=folder?`<span class="fb f-${folder.toLowerCase()}">${folder}</span>`:'';
+    const fb=(c._folders||[]).map(f=>`<span class="fb f-${f.toLowerCase()}">${f}</span>`).join('');
     const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
     let patTag='';
     if(whMatch){
@@ -867,7 +960,7 @@ function updateScanner(d){
     const bc=conf>60?'#00ff88':conf>30?'#ffd700':'#ff2244';
     const wc=wp>60?'#00ff88':wp>30?'#ffd700':'#ff2244';
     const lbl=v6.label||'WAIT';
-    const actCls=lbl==='BUY'?'at-buy':lbl==='SELL'?'at-sell':lbl==='AVOID'?'at-avoid':lbl==='WAIT'?'at-wait':'at-spot';
+    const actCls=lbl==='BUY'?'at-buy':lbl==='AVOID'?'at-avoid':lbl==='WAIT'?'at-wait':'at-spot';
     const sym=(c.symbol||'').replace('USDT','');
     const rowCls=wp>70?'hot':lbl==='AVOID'?'avoid':'';
     return `<tr class="${rowCls}">
