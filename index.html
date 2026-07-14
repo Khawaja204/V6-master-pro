@@ -711,10 +711,8 @@ function fetchChart(sym){
         set('sell-est', fmt6(tp2.tp1||0));
         set('buy-ext', fmt6(tp2.entry_high||0));
         set('sell-ext', fmt6(tp2.tp2||0));
-        const _buyCol2 = lbl==='BUY' ? '#00ff88' : '#8a8aa0';
-        const _sellCol2 = (lbl==='SELL'||lbl==='AVOID') ? '#ff2244' : '#00ff88';
-        ['buy-est','buy-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_buyCol2;});
-        ['sell-est','sell-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color=_sellCol2;});
+        ['buy-est','buy-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color='#00ff88';});
+        ['sell-est','sell-ext'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.color='#ff2244';});
         const tEl=document.getElementById('coin-trend');
         if(tEl){const tr=lbl==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}
         const eb=document.getElementById('eng-badge');
