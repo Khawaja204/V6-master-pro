@@ -548,10 +548,10 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
   <div style="overflow-x:auto">
   <table class="scan-tbl">
     <thead>
-      <tr><th>Coin</th><th>Dir</th><th>Wall Price</th><th>Size(USDT)</th><th>Qty</th><th>OBI</th><th>Rate</th><th>Conf%</th><th>News</th></tr>
+      <tr><th>Coin</th><th>Dir</th><th>Wall Price</th><th>SL</th><th>Target</th><th>Size(USDT)</th><th>OBI</th><th>Rate</th><th>Conf%</th><th>News</th></tr>
     </thead>
     <tbody id="wc-tbody">
-      <tr><td colspan="9" style="text-align:center;color:var(--grey);padding:20px">Loading whale copy signals...</td></tr>
+      <tr><td colspan="10" style="text-align:center;color:var(--grey);padding:20px">Loading whale copy signals...</td></tr>
     </tbody>
   </table>
   </div>
@@ -560,8 +560,8 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
     <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Dir</th><th>Entry Price</th><th>Conf%</th><th>Time</th></tr></thead>
-        <tbody id="wc-trades-tbody"><tr><td colspan="5" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
+        <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Conf%</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody id="wc-trades-tbody"><tr><td colspan="6" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -855,23 +855,28 @@ function fetchWhaleCopy(){
 function updateWhaleCopy(d){
   const sigs = d.signals || [];
   const meta = document.getElementById('wc-meta');
-  if(meta) meta.textContent = `${sigs.length} active signals`;
+  const confCount = sigs.filter(s=>s.confirmed).length;
+  if(meta) meta.textContent = `${sigs.length} signals (${confCount} confirmed) | Win Rate: ${d.win_rate||0}% (${d.wins||0}W/${d.losses||0}L)`;
   const tbody = document.getElementById('wc-tbody');
   if(tbody){
     if(!sigs.length){
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">No confirmed wall+OBI signals right now</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--grey);padding:16px">No confirmed wall+OBI signals right now</td></tr>';
     } else {
       tbody.innerHTML = sigs.slice(0,25).map(s=>{
         const sym = (s.symbol||'').replace('USDT','');
         const dirCls = s.direction==='COPY_BUY' ? 'at-buy' : 'at-avoid';
         const dirLbl = s.direction==='COPY_BUY' ? 'COPY BUY' : 'AVOID';
+        const confBadge = s.confirmed
+          ? '<span style="color:var(--green);font-size:9px">✔ CONFIRMED</span>'
+          : '<span style="color:var(--gold);font-size:9px">⏳ watching</span>';
         const newsUrl = `https://www.google.com/search?q=${encodeURIComponent(sym+' crypto news')}&tbm=nws`;
         return `<tr>
           <td style="cursor:pointer" onclick="loadCoin('${s.symbol}')"><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-          <td><span class="at ${dirCls}">${dirLbl}</span></td>
+          <td><span class="at ${dirCls}">${dirLbl}</span><br>${confBadge}</td>
           <td>${fmt6(s.wall_price||0)}</td>
+          <td style="color:var(--red)">${fmt6(s.stop_loss||0)}</td>
+          <td style="color:var(--green)">${fmt6(s.target||0)}</td>
           <td>${fmtNum(s.wall_size_usdt||0)}</td>
-          <td>${s.wall_qty||0}</td>
           <td style="color:${(s.obi||0)>0?'var(--green)':'var(--red)'}">${(s.obi||0).toFixed(3)}</td>
           <td>${(s.obi_velocity||0).toFixed(2)}</td>
           <td>${s.confidence||0}%</td>
@@ -886,14 +891,16 @@ function updateWhaleCopy(d){
     ttbody.innerHTML = trades.slice(0,20).map(t=>{
       const sym = (t.symbol||'').replace('USDT','');
       const dirCol = t.direction==='COPY_BUY' ? 'var(--green)' : 'var(--red)';
+      const resCol = t.result==='WIN' ? 'var(--green)' : t.result==='LOSS' ? 'var(--red)' : 'var(--grey)';
       return `<tr>
         <td>${sym}</td>
         <td style="color:${dirCol}">${t.direction}</td>
-        <td>${fmt6(t.wall_price||0)}</td>
+        <td>${fmt6(t.entry_price||t.wall_price||0)}</td>
         <td>${t.confidence||0}%</td>
+        <td style="color:${resCol}">${t.status==='OPEN'?'OPEN':(t.result||'—')}</td>
         <td style="color:var(--grey);font-size:9px">${t.entry_time||''}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="5" style="color:var(--grey)">No whale copy trades yet</td></tr>';
+    }).join('') || '<tr><td colspan="6" style="color:var(--grey)">No whale copy trades yet</td></tr>';
   }
 }
 
