@@ -20,6 +20,7 @@ from logic import (
     detect_obi_spike, compute_confidence_score, fetch_ticker_price,
     detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines,
     fetch_macd_for_symbol, compute_v6_final_score,
+    calculate_wall_proximity, detect_spoofing, blink_to_push_check,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -860,18 +861,33 @@ def data_refresh_loop():
 
             # ── Enrich institutional signals ─────────────────────────────────
             inst_signals = []
+            _ob_cache = {}
             for folder in ["VIP", "GOLDEN", "ENTRY", "BOOM"]:
                 for coin in vmc_data.get(folder, [])[:5]:
                     sym         = coin["symbol"]
+                    price       = coin["price"]
                     whale_match = next((w for w in whale_data if w["symbol"] == sym), None)
-                    walls  = whale_match["walls"]   if whale_match else []
-                    spoof  = whale_match["spoofing"] if whale_match else {"bid_spoof": False, "ask_spoof": False, "details": "Clean"}
-                    b2p    = whale_match["blink_to_push"] if whale_match else False
-                    w_pow  = whale_match.get("whale_power", 0) if whale_match else 0
-                    obi_r  = whale_match.get("obi", {"obi": 0}) if whale_match else {"obi": 0}
+                    if whale_match:
+                        walls = whale_match["walls"]
+                        spoof = whale_match["spoofing"]
+                        b2p   = whale_match["blink_to_push"]
+                        w_pow = whale_match.get("whale_power", 0)
+                        obi_r = whale_match.get("obi", {"obi": 0})
+                    elif sym in _ob_cache:
+                        walls, spoof, b2p, w_pow, obi_r = _ob_cache[sym]
+                    else:
+                        book    = fetch_order_book(sym, CONFIG["whale"]["order_book_depth"])
+                        walls   = calculate_wall_proximity(price, book, CONFIG)
+                        spoof   = detect_spoofing(book.get("bids", []), book.get("asks", []), CONFIG)
+                        b2p     = blink_to_push_check(sym, walls, _previous_walls, CONFIG)
+                        w_pow   = compute_whale_power(walls, spoof, b2p, price, CONFIG)
+                        obi_val = calculate_obi(book)
+                        obi_r   = detect_obi_spike(sym, obi_val, CONFIG)
+                        _previous_walls[sym] = walls
+                        _ob_cache[sym] = (walls, spoof, b2p, w_pow, obi_r)
                     atr    = calculate_atr(sym)
                     macd_d = fetch_macd_for_symbol(sym)
-                    tp     = compute_tp_levels(coin["price"], atr, CONFIG)
+                    tp     = compute_tp_levels(price, atr, CONFIG)
                     inst   = compute_institutional_score(coin["score"], w_pow, obi_r, walls, CONFIG)
                     conf   = compute_confidence_score(inst, obi_r, coin["score"])
                     sizing = compute_position_size(inst, CONFIG)

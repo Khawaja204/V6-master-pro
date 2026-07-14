@@ -317,9 +317,9 @@ def compute_v6_final_score(signal: dict, regime: str, btc_volatility_pct: float,
 
     raw   = market_regime + inst_whale + technical + smart_divergence + trade_engine
     score = max(0, min(100, round(raw / 54 * 100)))
-    if score >= 68:   label, badge = "BUY",  "badge-buy"
-    elif score >= 45: label, badge = "WAIT", "badge-wait"
-    else:             label, badge = "SELL", "badge-sell"
+    if score >= 68:   label, badge = "BUY",   "badge-buy"
+    elif score >= 45: label, badge = "WAIT",  "badge-wait"
+    else:             label, badge = "AVOID", "badge-avoid"
 
     return {
         "score": score, "raw": round(raw, 1), "rr": round(rr, 2),
@@ -676,17 +676,24 @@ def compute_confidence_score(inst_result: dict, obi_result: dict, vmc_score: int
 def compute_tp_levels(price: float, atr: float, config: dict) -> dict:
     if atr == 0:
         return {"entry_low": price, "entry_high": price, "stop_loss": price,
-                "tp1": price, "tp2": price, "tp3": price, "atr": 0, "risk_pct": 0}
+                "tp1": price, "tp2": price, "tp3": price, "atr": 0, "risk_pct": 0, "rr": 0}
     cfg = config["institutional"]
+    entry_low = round(price - 0.3 * atr, 8)
+    stop_loss = round(price - cfg["atr_stop_loss_multiplier"] * atr, 8)
+    tp1       = round(price + cfg["tp1_atr_multiplier"] * atr, 8)
+    risk   = entry_low - stop_loss
+    reward = tp1 - entry_low
+    rr     = round(reward / risk, 2) if risk > 0 else 0
     return {
         "atr":        round(atr, 8),
-        "entry_low":  round(price - 0.3 * atr, 8),
+        "entry_low":  entry_low,
         "entry_high": round(price + 0.3 * atr, 8),
-        "stop_loss":  round(price - cfg["atr_stop_loss_multiplier"] * atr, 8),
-        "tp1":        round(price + cfg["tp1_atr_multiplier"] * atr, 8),
+        "stop_loss":  stop_loss,
+        "tp1":        tp1,
         "tp2":        round(price + cfg["tp2_atr_multiplier"] * atr, 8),
         "tp3":        round(price + cfg["tp3_atr_multiplier"] * atr, 8),
         "risk_pct":   round(cfg["atr_stop_loss_multiplier"] * atr / price * 100, 3),
+        "rr":         rr,
     }
 
 
