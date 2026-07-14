@@ -21,7 +21,7 @@ from logic import (
     detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines,
     fetch_macd_for_symbol, compute_v6_final_score,
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
-    detect_whale_copy_signals,
+    detect_whale_copy_signals, is_stablecoin_pair,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -1135,6 +1135,8 @@ def data_refresh_loop():
 
                 whale_min = CONFIG["telegram"]["whale_alert_min_proximity"]
                 for w in whale_data:
+                    if is_stablecoin_pair(w.get("symbol"), w.get("price", 0), CONFIG):
+                        continue   # skip stablecoin-like pairs — not real whale activity
                     wp = w.get("whale_power", 0)
                     if wp >= CONFIG["whale"]["critical_whale_power_pct"]:
                         alert_critical_whale(w)

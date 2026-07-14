@@ -1041,6 +1041,27 @@ def match_whale_pattern(obi: float, whale_power: float, trend: str,
 
 _whale_copy_state: dict = {}
 
+DEFAULT_STABLECOIN_BASES = ["USDC","USDT","BUSD","DAI","TUSD","USDP","FDUSD","PYUSD",
+                            "GUSD","USDD","EURT","EURI","USD1","RLUSD","USDE"]
+
+def is_stablecoin_pair(symbol: str, price: float, config: dict = None) -> bool:
+    """
+    True if `symbol` looks like a stablecoin pair — either by name (base
+    asset in a known stablecoin list) or by price behavior (trading within
+    1% of $1.00, catching new/unlisted stablecoins the name list hasn't
+    been updated for). Used by both Whale Copy Mode and the legacy whale
+    alert system so stablecoin noise is filtered consistently everywhere.
+    """
+    cfg      = config or {}
+    wc_cfg   = cfg.get("whale_copy", {})
+    excluded = set(wc_cfg.get("exclude_symbols", DEFAULT_STABLECOIN_BASES))
+    base = symbol[:-4] if symbol and symbol.endswith("USDT") else symbol
+    if base in excluded:
+        return True
+    p = price or 0
+    return 0.99 <= p <= 1.01
+
+
 def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
     """
     WHALE COPY MODE — independent of the 54-point v6 score. Directly mirrors
@@ -1056,18 +1077,16 @@ def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
     sl_buffer_pct   = wc_cfg.get("sl_buffer_pct", 1.5)
     tp_fallback_pct = wc_cfg.get("tp_fallback_pct", 3.0)
     persist_window  = wc_cfg.get("persistence_window_seconds", 120)
-    default_stables = ["USDC","USDT","BUSD","DAI","TUSD","USDP","FDUSD","PYUSD","GUSD","USDD","EURT","EURI"]
-    excluded_bases  = set(wc_cfg.get("exclude_symbols", default_stables))
 
     now = time.time()
     signals   = []
     seen_syms = set()
 
     for w in whale_data:
-        sym  = w.get("symbol")
-        base = sym[:-4] if sym and sym.endswith("USDT") else sym
-        if base in excluded_bases:
-            continue   # stablecoin pair — price barely moves, whale-copy meaningless here
+        sym    = w.get("symbol")
+        price0 = w.get("price", 0) or 0
+        if is_stablecoin_pair(sym, price0, config):
+            continue   # stablecoin-like pair — price barely moves, whale-copy meaningless here
         seen_syms.add(sym)
         walls = w.get("walls", [])
         spoof = w.get("spoofing", {})
