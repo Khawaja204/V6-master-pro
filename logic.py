@@ -1039,6 +1039,111 @@ def match_whale_pattern(obi: float, whale_power: float, trend: str,
             "tag": "[WHALE PATTERN MATCH]" if best_score >= 75 else ""}
 
 
+_whale_copy_state: dict = {}
+
+def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
+    """
+    WHALE COPY MODE — independent of the 54-point v6 score. Directly mirrors
+    a CONFIRMED whale wall's direction:
+      BID wall (real, min size) + OBI positive  -> COPY_BUY
+      ASK wall (real, min size) + OBI negative  -> COPY_AVOID (spot-only, no shorting)
+      Both walls present at once (ranging)       -> skipped, no clear direction
+    Includes SL/TP levels and a 2-consecutive-cycle persistence check before
+    a signal is marked confirmed=True (auto-trade only fires on confirmed).
+    """
+    wc_cfg          = config.get("whale_copy", {})
+    min_wall_usdt   = wc_cfg.get("min_wall_usdt", 500000)
+    sl_buffer_pct   = wc_cfg.get("sl_buffer_pct", 1.5)
+    tp_fallback_pct = wc_cfg.get("tp_fallback_pct", 3.0)
+    persist_window  = wc_cfg.get("persistence_window_seconds", 120)
+
+    now = time.time()
+    signals   = []
+    seen_syms = set()
+
+    for w in whale_data:
+        sym = w.get("symbol")
+        seen_syms.add(sym)
+        walls = w.get("walls", [])
+        spoof = w.get("spoofing", {})
+        obi_r = w.get("obi", {}) or {}
+        obi_val = obi_r.get("obi", 0)
+        obi_vel = obi_r.get("velocity", 0)
+        price   = w.get("price", 0)
+
+        bid_walls = [x for x in walls if x.get("side") == "BID" and x.get("size_usdt", 0) >= min_wall_usdt]
+        ask_walls = [x for x in walls if x.get("side") == "ASK" and x.get("size_usdt", 0) >= min_wall_usdt]
+        has_bid = bool(bid_walls) and not spoof.get("bid_spoof", False)
+        has_ask = bool(ask_walls) and not spoof.get("ask_spoof", False)
+
+        if has_bid and has_ask:
+            _whale_copy_state.pop(sym, None)
+            continue   # ranging market, no clear direction — skip
+        if not has_bid and not has_ask:
+            _whale_copy_state.pop(sym, None)
+            continue
+
+        if has_bid and obi_val > 0:
+            wall      = max(bid_walls, key=lambda x: x["size_usdt"])
+            direction = "COPY_BUY"
+            opposite  = min(ask_walls, key=lambda x: x["dist_pct"]) if ask_walls else None
+        elif has_ask and obi_val < 0:
+            wall      = max(ask_walls, key=lambda x: x["size_usdt"])
+            direction = "COPY_AVOID"
+            opposite  = min(bid_walls, key=lambda x: x["dist_pct"]) if bid_walls else None
+        else:
+            _whale_copy_state.pop(sym, None)
+            continue   # wall exists but OBI doesn't confirm the direction
+
+        # ── 2-cycle persistence confirmation ──────────────────────────────
+        prev = _whale_copy_state.get(sym)
+        if prev and prev["direction"] == direction and (now - prev["first_seen"]) <= persist_window:
+            confirmed = True
+        else:
+            confirmed = False
+            _whale_copy_state[sym] = {"direction": direction, "first_seen": now}
+
+        wall_price     = wall.get("price_level", price)
+        wall_size_usdt = wall.get("size_usdt", 0)
+        wall_qty       = round(wall_size_usdt / wall_price, 4) if wall_price else 0
+
+        # ── SL / TP levels ──────────────────────────────────────────────────
+        if direction == "COPY_BUY":
+            stop_loss = round(wall_price * (1 - sl_buffer_pct / 100), 8)
+            target    = opposite["price_level"] if opposite else round(wall_price * (1 + tp_fallback_pct / 100), 8)
+        else:
+            stop_loss = round(wall_price * (1 + sl_buffer_pct / 100), 8)
+            target    = opposite["price_level"] if opposite else round(wall_price * (1 - tp_fallback_pct / 100), 8)
+
+        size_score = min(100, (wall_size_usdt / min_wall_usdt) * 50) if min_wall_usdt else 0
+        obi_score  = min(100, abs(obi_val) * 200)
+        confidence = round(min(100, (size_score + obi_score) / 2), 1)
+
+        signals.append({
+            "symbol":         sym,
+            "direction":      direction,
+            "price":          price,
+            "wall_price":     wall_price,
+            "wall_size_usdt": round(wall_size_usdt, 0),
+            "wall_qty":       wall_qty,
+            "stop_loss":      stop_loss,
+            "target":         target,
+            "obi":            obi_val,
+            "obi_velocity":   obi_vel,
+            "confidence":     confidence,
+            "confirmed":      confirmed,
+            "dist_pct":       wall.get("dist_pct", 0),
+            "detected_at":    time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+
+    for sym in list(_whale_copy_state.keys()):
+        if sym not in seen_syms:
+            _whale_copy_state.pop(sym, None)
+
+    signals.sort(key=lambda x: (x["confirmed"], x["confidence"]), reverse=True)
+    return signals
+
+
 def compute_whale_detail(symbol: str, price: float, ticker_24h: dict, config: dict) -> dict:
     try:
         book    = fetch_order_book(symbol, depth=20)

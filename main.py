@@ -21,6 +21,7 @@ from logic import (
     detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines,
     fetch_macd_for_symbol, compute_v6_final_score,
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
+    detect_whale_copy_signals,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ GLOBAL_DATA = {
     "backtest":       [],
     "hot_coins":      [],
     "inst_signals":   [],
+    "whale_copy_signals": [],
     "btc":            {},
     "last_update":    None,
     "heartbeat":      None,
@@ -273,6 +275,14 @@ try:
         PAPER_TRADES = json.load(_ptf)
 except Exception:
     pass
+_WC_TRADES_FILE = "whale_copy_trades.json"
+WHALE_COPY_TRADES: list = []
+try:
+    with open(_WC_TRADES_FILE) as _wcf:
+        WHALE_COPY_TRADES = json.load(_wcf)
+except Exception:
+    pass
+_wc_dedup: dict = {}
 _previous_walls    = {}
 _alert_cooldown    = {}
 _login_attempts    = {}
@@ -424,6 +434,95 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         BACKTEST_SIGNALS = BACKTEST_SIGNALS[:100]
     GLOBAL_DATA["backtest"] = BACKTEST_SIGNALS
     return entry
+
+
+def _save_whale_copy_trades():
+    try:
+        with open(_WC_TRADES_FILE, "w") as f:
+            json.dump(WHALE_COPY_TRADES[-500:], f, indent=2)
+    except Exception as e:
+        log.debug(f"Whale copy trades save failed: {e}")
+
+
+def _record_whale_copy_trade(sig: dict):
+    """WHALE COPY MODE — separate paper-trade ledger, independent of the
+    v6-score auto-trade system. Fires on a wall+OBI-confirmed COPY_BUY
+    (confirmed across 2 consecutive scan cycles) above the confidence
+    threshold. 30-min dedup per symbol + the shared daily circuit-breaker
+    both still apply. Trades stay OPEN until whale_copy_check_loop resolves
+    them against the SL/target levels."""
+    global WHALE_COPY_TRADES
+    if not _entries_allowed():
+        return None
+    sym = sig["symbol"]
+    now = time.time()
+    if now - _wc_dedup.get(sym, 0) < 1800:
+        return None
+    _wc_dedup[sym] = now
+    entry = {
+        "id":             f"WC-{int(now)}-{sym[:4]}",
+        "symbol":         sym,
+        "direction":      sig["direction"],
+        "entry_price":    sig.get("price", sig["wall_price"]),
+        "wall_price":     sig["wall_price"],
+        "wall_size_usdt": sig["wall_size_usdt"],
+        "wall_qty":       sig["wall_qty"],
+        "stop_loss":      sig.get("stop_loss", 0),
+        "target":         sig.get("target", 0),
+        "obi":            sig["obi"],
+        "obi_velocity":   sig["obi_velocity"],
+        "confidence":     sig["confidence"],
+        "entry_time":     time.strftime("%Y-%m-%d %H:%M:%S"),
+        "entry_ts":       now,
+        "mode":           "PAPER (WHALE COPY)",
+        "status":         "OPEN",
+        "exit_price":     None,
+        "exit_time":      None,
+        "result":         None,
+        "pnl_pct":        None,
+    }
+    WHALE_COPY_TRADES.insert(0, entry)
+    if len(WHALE_COPY_TRADES) > 500:
+        WHALE_COPY_TRADES.pop()
+    _save_whale_copy_trades()
+    log.info(f"[WHALE COPY] {sig['direction']} {sym} @ {sig['wall_price']} (conf {sig['confidence']}%)")
+    return entry
+
+
+def whale_copy_check_loop():
+    """Every 5 minutes: resolve OPEN whale-copy trades against target/SL."""
+    global WHALE_COPY_TRADES
+    while True:
+        time.sleep(300)
+        try:
+            changed = False
+            for tr in WHALE_COPY_TRADES:
+                if tr.get("status") != "OPEN":
+                    continue
+                age = time.time() - tr.get("entry_ts", time.time())
+                if age < 300:
+                    continue
+                current = fetch_ticker_price(tr["symbol"])
+                if not current:
+                    continue
+                entry_p = tr.get("entry_price", 0)
+                target  = tr.get("target", 0)
+                sl      = tr.get("stop_loss", 0)
+                hit_target = bool(target) and current >= target
+                hit_sl     = bool(sl) and current <= sl
+                if hit_target or hit_sl or age >= 6 * 3600:
+                    exit_price = target if hit_target else (sl if hit_sl else current)
+                    tr["exit_price"] = exit_price
+                    tr["exit_time"]  = time.strftime("%Y-%m-%d %H:%M:%S")
+                    tr["pnl_pct"]    = round((exit_price - entry_p) / entry_p * 100, 3) if entry_p else 0
+                    tr["result"]     = "WIN" if hit_target else ("LOSS" if hit_sl else "TIMEOUT")
+                    tr["status"]     = "CLOSED"
+                    changed = True
+            if changed:
+                _save_whale_copy_trades()
+                log.info("[WHALE COPY] Trade resolutions updated")
+        except Exception as e:
+            log.warning(f"Whale copy check error: {e}")
 
 
 def _update_hot_coins(symbol: str) -> bool:
@@ -853,6 +952,14 @@ def data_refresh_loop():
             vmc_data   = process_vmc_signals(CONFIG)
             price_map  = {c["symbol"]: c["price"] for c in vmc_data.get("ALL", [])}
             whale_data = process_whale_walls(CONFIG, price_map, _previous_walls)
+
+            # ── WHALE COPY MODE: independent wall+OBI mirrored signals ────────
+            whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG)
+            GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
+            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50)
+            for sig in whale_copy_signals:
+                if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
+                    _record_whale_copy_trade(sig)
 
             # ── HOT COIN: decay old entries ─────────────────────────────────
             now = time.time()
@@ -2138,6 +2245,14 @@ def admin_refresh_scan():
             vmc_data   = process_vmc_signals(CONFIG)
             price_map  = {c["symbol"]: c["price"] for c in vmc_data.get("ALL", [])}
             whale_data = process_whale_walls(CONFIG, price_map, _previous_walls)
+
+            # ── WHALE COPY MODE: independent wall+OBI mirrored signals ────────
+            whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG)
+            GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
+            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50)
+            for sig in whale_copy_signals:
+                if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
+                    _record_whale_copy_trade(sig)
             GLOBAL_DATA["vmc"]         = vmc_data
             GLOBAL_DATA["whale"]       = whale_data
             GLOBAL_DATA["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -2515,6 +2630,21 @@ def chart_data():
     })
 
 
+@app.route("/whale_copy_data")
+def whale_copy_data_route():
+    closed = [t for t in WHALE_COPY_TRADES if t.get("status") == "CLOSED"]
+    wins   = sum(1 for t in closed if t.get("result") == "WIN")
+    losses = sum(1 for t in closed if t.get("result") == "LOSS")
+    total  = wins + losses
+    return jsonify({
+        "signals":  GLOBAL_DATA.get("whale_copy_signals", []),
+        "trades":   WHALE_COPY_TRADES[:50],
+        "wins":     wins,
+        "losses":   losses,
+        "win_rate": round(wins / total * 100, 1) if total else 0.0,
+    })
+
+
 @app.route("/whale_detail")
 def whale_detail_route():
     from logic import compute_whale_detail
@@ -2703,6 +2833,7 @@ if __name__ == "__main__":
     threading.Thread(target=btc_monitor_loop,     daemon=True).start()
     threading.Thread(target=midnight_report_loop, daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
+    threading.Thread(target=whale_copy_check_loop, daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()
     app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
