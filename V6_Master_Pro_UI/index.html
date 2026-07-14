@@ -835,7 +835,17 @@ function updateSniper(d){
 
 // ── SCANNER TAB ──
 function updateScanner(d){
-  const coins=d.inst_signals||[];
+  const raw=d.inst_signals||[];
+  // DEDUPE FIX: same coin can qualify for multiple folders (VIP/GOLDEN/BOOM/
+  // ENTRY) and previously showed as 2-3 separate identical rows. Merge into
+  // one row per symbol, combining all its folder badges.
+  const bySym=new Map();
+  raw.forEach(c=>{
+    const sym=c.symbol;
+    if(!bySym.has(sym)) bySym.set(sym, {...c, _folders:[c.folder].filter(Boolean)});
+    else { const ex=bySym.get(sym); if(c.folder && !ex._folders.includes(c.folder)) ex._folders.push(c.folder); }
+  });
+  const coins=Array.from(bySym.values());
   const meta=document.getElementById('scan-meta');
   if(meta) meta.textContent=`${coins.length} unique coins | top conf: ${coins[0]?.confidence||0}%`;
 
@@ -851,8 +861,7 @@ function updateScanner(d){
     const sizing=c.sizing||{};
     const tl=(inst.traffic||sizing.light||'RED').toLowerCase();
     const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
-    const folder=c.folder||'';
-    const fb=folder?`<span class="fb f-${folder.toLowerCase()}">${folder}</span>`:'';
+    const fb=(c._folders||[]).map(f=>`<span class="fb f-${f.toLowerCase()}">${f}</span>`).join('');
     const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
     let patTag='';
     if(whMatch){
@@ -867,7 +876,7 @@ function updateScanner(d){
     const bc=conf>60?'#00ff88':conf>30?'#ffd700':'#ff2244';
     const wc=wp>60?'#00ff88':wp>30?'#ffd700':'#ff2244';
     const lbl=v6.label||'WAIT';
-    const actCls=lbl==='BUY'?'at-buy':lbl==='SELL'?'at-sell':lbl==='AVOID'?'at-avoid':lbl==='WAIT'?'at-wait':'at-spot';
+    const actCls=lbl==='BUY'?'at-buy':lbl==='AVOID'?'at-avoid':lbl==='WAIT'?'at-wait':'at-spot';
     const sym=(c.symbol||'').replace('USDT','');
     const rowCls=wp>70?'hot':lbl==='AVOID'?'avoid':'';
     return `<tr class="${rowCls}">

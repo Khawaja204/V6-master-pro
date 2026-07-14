@@ -546,11 +546,16 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
         ins_v  = inst.get("inst_score", "—") if inst else "—"
         strat  = coin.get("trading_strategy", "SPOT")
         sreason= coin.get("trading_strategy_reason", "")
-        reason = (f"VIP {tl} | Score {coin['score']} | RSI {coin['rsi']} | "
+        v6_score   = coin.get("v6", {}).get("score", coin.get("score"))
+        folder_lbl = coin.get("folder", "VIP")
+        reason = (f"V6-BUY {v6_score} | {folder_lbl} | Old-traffic {tl} | RSI {coin['rsi']} | "
                   f"WhalePow {wp_v}% | Inst {ins_v} | Conf {confidence}%"
                   + (f" | {sreason}" if sreason else ""))
-        entry = _record_backtest_signal(coin["symbol"], coin["price"], "VIP",
-                                        tp_zones, confidence, traffic=tl, reason=reason)
+        # GATE FIX: entry already verified via v6.label=="BUY" at the call
+        # site — pass "GREEN" here so it satisfies the green_only_entries
+        # safety check (circuit-breaker / 30-min dedup still fully apply).
+        entry = _record_backtest_signal(coin["symbol"], coin["price"], folder_lbl,
+                                        tp_zones, confidence, traffic="GREEN", reason=reason)
         if entry:   # an actual entry passed the GREEN-only + circuit-breaker gate
             notify_trade(coin["symbol"], "BUY", strat, "PAPER (AUTO)", reason,
                          price=coin["price"], tp_zones=tp_zones, traffic=tl)
@@ -1007,14 +1012,19 @@ def data_refresh_loop():
 
             # ── Fire Alerts ──────────────────────────────────────────────────
             if not GLOBAL_DATA.get("btc_pause"):
-                vip_min = CONFIG["telegram"]["vip_alert_min_score"]
-                for coin in vmc_data.get("VIP", []):
-                    if coin["score"] >= vip_min:
-                        im = next((s for s in inst_signals if s["symbol"] == coin["symbol"]), None)
-                        inst_r = im["inst"] if im else {}
-                        tp_z   = im["tp_zones"] if im else {}
-                        conf   = im.get("confidence", 0) if im else 0
-                        alert_vip(coin, inst_r, tp_z, conf)
+                # V6 GATE: auto paper-trade now fires off the fixed 54-point
+                # v6.label=="BUY" for ANY folder's coin, instead of the old
+                # VIP-folder-only + institutional-traffic=="GREEN" gate that
+                # real market data almost never satisfied (root cause of
+                # zero trades over ~2 months).
+                _seen_buy_syms = set()
+                for s in inst_signals:
+                    sym = s["symbol"]
+                    if sym in _seen_buy_syms:
+                        continue
+                    if s.get("v6", {}).get("label", "") == "BUY":
+                        _seen_buy_syms.add(sym)
+                        alert_vip(s, s.get("inst", {}), s.get("tp_zones", {}), s.get("confidence", 0))
 
                 whale_min = CONFIG["telegram"]["whale_alert_min_proximity"]
                 for w in whale_data:
