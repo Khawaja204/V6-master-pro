@@ -82,11 +82,15 @@ def get_binance_health() -> dict:
 
 
 def _binance_get(path: str, params: dict = None, timeout: int = 10):
-    """GET with automatic host failover. 451/5xx triggers next host."""
+    """GET with automatic host failover. 451/5xx triggers next host.
+    NOTE: intentionally NOT using TELEGRAM_PROXY here — that variable is
+    scoped to Telegram API calls only. Routing Binance traffic through a
+    Telegram proxy (often a slow/free/dead SOCKS5) breaks market data
+    entirely, which is what happened when TELEGRAM_PROXY was first set."""
     last_err = ""
     for host in BINANCE_HOSTS:
         try:
-            resp = _SESSION.get(host + path, params=params, timeout=timeout, proxies=_tg_proxies())
+            resp = _SESSION.get(host + path, params=params, timeout=timeout)
         except requests.exceptions.RequestException as e:
             last_err = f"{type(e).__name__}: {e}"
             log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
