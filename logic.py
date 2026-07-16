@@ -165,6 +165,18 @@ def fetch_ticker_price(symbol: str) -> float:
     return 0.0
 
 
+def fetch_ticker_24h(symbol: str) -> dict:
+    """24hr ticker stats for one symbol — used by live on-demand scoring
+    (SNIPER search box) for coins outside the pre-enriched top-20 list."""
+    try:
+        resp = _binance_get("/api/v3/ticker/24hr", params={"symbol": symbol}, timeout=8)
+        if resp is not None and resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        log.debug(f"24hr ticker fetch failed for {symbol}: {e}")
+    return {}
+
+
 def calculate_rsi(closes: list, period: int = 14) -> float:
     if len(closes) < period + 1:
         return 50.0
@@ -945,8 +957,40 @@ def fetch_btc_sentiment() -> dict:
 # GOOGLE SHEETS INTEGRATION
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _add_color_rule(spreadsheet, worksheet, col_idx: int, match_text: str, rgb: tuple):
+    """One-time conditional-format rule: cells in `col_idx` (0-indexed)
+    equal to `match_text` get filled with `rgb`. Called only right after a
+    worksheet is newly created — surviving later ws.clear()/update() calls
+    since formatting rules are attached to the sheet, not the cell values."""
+    try:
+        r, g, b = rgb
+        body = {"requests": [{
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [{
+                        "sheetId": worksheet.id,
+                        "startRowIndex": 1, "endRowIndex": 2000,
+                        "startColumnIndex": col_idx, "endColumnIndex": col_idx + 1,
+                    }],
+                    "booleanRule": {
+                        "condition": {"type": "TEXT_EQ", "values": [{"userEnteredValue": match_text}]},
+                        "format": {"backgroundColor": {"red": r, "green": g, "blue": b}},
+                    },
+                },
+                "index": 0,
+            }
+        }]}
+        spreadsheet.batch_update(body)
+    except Exception as e:
+        log.debug(f"Color rule failed for {match_text}: {e}")
+
+
 def push_to_google_sheets(vmc_data: dict, whale_data: list,
-                           credentials_json: str, sheet_id: str) -> bool:
+                           credentials_json: str, sheet_id: str,
+                           whale_copy_signals: list = None,
+                           whale_copy_trades: list = None,
+                           paper_trades: list = None,
+                           inst_signals: list = None) -> bool:
     try:
         import json as _json, gspread
         from oauth2client.service_account import ServiceAccountCredentials
@@ -958,8 +1002,12 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
         client = gspread.authorize(creds)
         sheet  = client.open_by_key(sheet_id)
 
-        try: ws_live = sheet.worksheet("LIVE_DASHBOARD")
-        except Exception: ws_live = sheet.add_worksheet("LIVE_DASHBOARD", rows=1100, cols=15)
+        try:
+            ws_live = sheet.worksheet("LIVE_DASHBOARD")
+        except Exception:
+            ws_live = sheet.add_worksheet("LIVE_DASHBOARD", rows=1100, cols=15)
+            _add_color_rule(sheet, ws_live, 6, "BUY", (0.72,0.93,0.72))
+            _add_color_rule(sheet, ws_live, 6, "WATCH", (1.0,0.95,0.6))
 
         std_headers = ["Timestamp","Asset","Status","Signal","VMC","Price",
                        "Buy/Sale","Heatmap","Slack","Chg%","RSI","Flux","Sentiment","Log"]
@@ -1011,6 +1059,96 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                           c.get("sig_limit","100"), c.get("role","CLIENT"), c.get("added","")])
         ws_users.clear()
         if urows: ws_users.update("A1", urows)
+
+        # ── V6 54-POINT SIGNALS (the BUY/WAIT/AVOID score that drives
+        # ── auto paper-trade entry — separate from the older VMC score) ───
+        if inst_signals is not None:
+            try:
+                ws_v6 = sheet.worksheet("V6_SIGNALS")
+            except Exception:
+                ws_v6 = sheet.add_worksheet("V6_SIGNALS", rows=200, cols=16)
+                _add_color_rule(sheet, ws_v6, 2, "BUY", (0.72,0.93,0.72))
+                _add_color_rule(sheet, ws_v6, 2, "WAIT", (1.0,0.95,0.6))
+                _add_color_rule(sheet, ws_v6, 2, "AVOID", (0.96,0.72,0.72))
+            v6_rows = [["Symbol","Folder","Label","Score","MarketRegime","WhaleInst",
+                        "Technical","SmartMoney","TradeEngine","RSI","Price",
+                        "StopLoss","TP1","TP2","TP3","Strategy"]]
+            seen_v6 = set()
+            for s in inst_signals[:100]:
+                sym = s.get("symbol")
+                if sym in seen_v6:
+                    continue
+                seen_v6.add(sym)
+                v6 = s.get("v6", {}) or {}
+                bd = v6.get("breakdown", {}) or {}
+                tp = s.get("tp_zones", {}) or {}
+                v6_rows.append([
+                    sym, s.get("folder",""), v6.get("label",""), v6.get("score",0),
+                    bd.get("market_regime",0), bd.get("inst_whale",0), bd.get("technical",0),
+                    bd.get("smart_divergence",0), bd.get("trade_engine",0),
+                    s.get("rsi",0), s.get("price",0),
+                    tp.get("stop_loss",0), tp.get("tp1",0), tp.get("tp2",0), tp.get("tp3",0),
+                    s.get("trading_strategy",""),
+                ])
+            ws_v6.clear(); ws_v6.update("A1", v6_rows)
+
+        # ── WHALE COPY SIGNALS (current live wall+OBI signals) ────────────
+        if whale_copy_signals is not None:
+            try:
+                ws_wc = sheet.worksheet("WHALE_COPY_SIGNALS")
+            except Exception:
+                ws_wc = sheet.add_worksheet("WHALE_COPY_SIGNALS", rows=200, cols=12)
+                _add_color_rule(sheet, ws_wc, 2, "COPY_BUY", (0.72,0.93,0.72))
+                _add_color_rule(sheet, ws_wc, 2, "COPY_AVOID", (0.96,0.72,0.72))
+            wc_rows = [["Time","Symbol","Direction","WallPrice","StopLoss","Target",
+                        "SizeUSDT","OBI","OBIVelocity","Confidence","Confirmed"]]
+            for s in whale_copy_signals[:100]:
+                wc_rows.append([
+                    s.get("detected_at",""), s.get("symbol",""), s.get("direction",""),
+                    s.get("wall_price",0), s.get("stop_loss",0), s.get("target",0),
+                    s.get("wall_size_usdt",0), s.get("obi",0), s.get("obi_velocity",0),
+                    s.get("confidence",0), s.get("confirmed",False),
+                ])
+            ws_wc.clear(); ws_wc.update("A1", wc_rows)
+
+        # ── WHALE COPY TRADES (paper ledger, win/loss tracked) ────────────
+        if whale_copy_trades is not None:
+            try:
+                ws_wct = sheet.worksheet("WHALE_COPY_TRADES")
+            except Exception:
+                ws_wct = sheet.add_worksheet("WHALE_COPY_TRADES", rows=500, cols=12)
+                _add_color_rule(sheet, ws_wct, 1, "COPY_BUY", (0.72,0.93,0.72))
+                _add_color_rule(sheet, ws_wct, 1, "COPY_AVOID", (0.96,0.72,0.72))
+                _add_color_rule(sheet, ws_wct, 7, "WIN", (0.72,0.93,0.72))
+                _add_color_rule(sheet, ws_wct, 7, "LOSS", (0.96,0.72,0.72))
+            wct_rows = [["Symbol","Direction","EntryPrice","StopLoss","Target",
+                         "Confidence","Status","Result","PnL%","EntryTime","ExitTime"]]
+            for t in whale_copy_trades[:200]:
+                wct_rows.append([
+                    t.get("symbol",""), t.get("direction",""), t.get("entry_price",0),
+                    t.get("stop_loss",0), t.get("target",0), t.get("confidence",0),
+                    t.get("status",""), t.get("result") or "—", t.get("pnl_pct") or "—",
+                    t.get("entry_time",""), t.get("exit_time") or "—",
+                ])
+            ws_wct.clear(); ws_wct.update("A1", wct_rows)
+
+        # ── PAPER TRADES (manual + v6 auto-trade ledger) ──────────────────
+        if paper_trades is not None:
+            try:
+                ws_pt = sheet.worksheet("PAPER_TRADES")
+            except Exception:
+                ws_pt = sheet.add_worksheet("PAPER_TRADES", rows=500, cols=10)
+                _add_color_rule(sheet, ws_pt, 2, "BUY", (0.72,0.93,0.72))
+                _add_color_rule(sheet, ws_pt, 2, "SELL", (0.96,0.72,0.72))
+            pt_rows = [["Time","Symbol","Side","AmountUSDT","Price","Qty","Strategy","Mode","Reason"]]
+            for t in paper_trades[:200]:
+                pt_rows.append([
+                    t.get("time",""), t.get("symbol",""), t.get("side",""),
+                    t.get("amount_usdt",0), t.get("price",0), t.get("qty",0),
+                    t.get("strategy",""), t.get("mode",""), t.get("reason",""),
+                ])
+            ws_pt.clear(); ws_pt.update("A1", pt_rows)
+
         log.info(f"Sheets updated — {len(rows)-1} LIVE rows, {len(wrows)-1} WATCH rows.")
         return True
     except ImportError:

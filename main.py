@@ -22,6 +22,7 @@ from logic import (
     fetch_macd_for_symbol, compute_v6_final_score,
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
     detect_whale_copy_signals, is_stablecoin_pair,
+    fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -854,6 +855,52 @@ def determine_trading_strategy(coin: dict, whale_data: list, market_regime: str)
     return "SPOT_GRID", "No clear direction"
 
 
+def _compute_live_signal(symbol: str) -> dict:
+    """
+    Compute a full v6-scored signal for ANY tracked symbol on demand — used
+    by the SNIPER tab search box so a coin outside the pre-enriched top-20
+    list still gets a real score instead of "NO SIGNAL DATA".
+    """
+    price = fetch_ticker_price(symbol)
+    if not price:
+        return {}
+    tkr = fetch_ticker_24h(symbol) or {}
+    change_pct  = float(tkr.get("priceChangePercent", 0) or 0)
+    volume_usdt = float(tkr.get("quoteVolume", 0) or 0)
+    rsi    = fetch_rsi_for_symbol(symbol)
+    atr    = calculate_atr(symbol)
+    macd_d = fetch_macd_for_symbol(symbol)
+
+    book  = fetch_order_book(symbol, CONFIG["whale"]["order_book_depth"])
+    walls = calculate_wall_proximity(price, book, CONFIG)
+    spoof = detect_spoofing(book.get("bids", []), book.get("asks", []), CONFIG)
+    b2p   = blink_to_push_check(symbol, walls, _previous_walls, CONFIG)
+    w_pow = compute_whale_power(walls, spoof, b2p, price, CONFIG)
+    obi_val = calculate_obi(book)
+    obi_r   = detect_obi_spike(symbol, obi_val, CONFIG)
+
+    vmc_score = score_coin(tkr, rsi, CONFIG) if tkr else 0
+    tp     = compute_tp_levels(price, atr, CONFIG)
+    inst   = compute_institutional_score(vmc_score, w_pow, obi_r, walls, CONFIG)
+    conf   = compute_confidence_score(inst, obi_r, vmc_score)
+    sizing = compute_position_size(inst, CONFIG)
+
+    signal = {
+        "symbol": symbol, "price": price, "change_pct": round(change_pct, 2),
+        "volume_usdt": round(volume_usdt, 0), "rsi": rsi, "score": vmc_score,
+        "folder": "LIVE", "atr": atr, "macd": macd_d,
+        "macd_hist": macd_d.get("hist", 0.0), "tp_zones": tp,
+        "inst": inst, "sizing": sizing, "confidence": conf,
+    }
+    mkt_reg = GLOBAL_DATA.get("market_regime", "RANGING")
+    strat, sreason = determine_trading_strategy(signal, GLOBAL_DATA.get("whale", []), mkt_reg)
+    signal["trading_strategy"]        = strat
+    signal["trading_strategy_reason"] = sreason
+    btc_vol = (GLOBAL_DATA.get("btc", {}) or {}).get("volatility_pct", 0) or 0
+    signal["v6"] = compute_v6_final_score(signal, mkt_reg, btc_vol, "NONE", False)
+    return signal
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PAPER MODE INTELLIGENCE — LEARNING ENGINE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1149,6 +1196,12 @@ def data_refresh_loop():
                 threading.Thread(
                     target=push_to_google_sheets,
                     args=(vmc_data, whale_data, GOOGLE_CREDENTIALS, GOOGLE_SHEET_ID),
+                    kwargs={
+                        "whale_copy_signals": whale_copy_signals,
+                        "whale_copy_trades":  WHALE_COPY_TRADES,
+                        "paper_trades":       PAPER_TRADES,
+                        "inst_signals":       inst_signals,
+                    },
                     daemon=True
                 ).start()
 
@@ -2658,6 +2711,19 @@ def whale_copy_data_route():
         "losses":   losses,
         "win_rate": round(wins / total * 100, 1) if total else 0.0,
     })
+
+
+@app.route("/live_score")
+def live_score_route():
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol:
+        return jsonify({"error": "No symbol"})
+    try:
+        sig = _compute_live_signal(symbol)
+        return jsonify(sig or {"error": "not found"})
+    except Exception as e:
+        log.warning(f"live_score failed for {symbol}: {e}")
+        return jsonify({"error": str(e)})
 
 
 @app.route("/whale_detail")
