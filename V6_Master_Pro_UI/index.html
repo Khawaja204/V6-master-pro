@@ -764,16 +764,45 @@ function fetchChart(sym){
       } else {
         if(rrEl) rrEl.textContent='--';
         const bs=document.getElementById('big-signal');
-        if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
+        if(bs){bs.className='WAIT';bs.innerHTML='⏳ Computing live score…';}
         const pb=document.getElementById('profile-badge');
-        if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
-        set('vmc-score','—'); set('buy-est','—'); set('sell-est','—'); set('buy-ext','—'); set('sell-ext','—');
-        const tEl=document.getElementById('coin-trend'); if(tEl){tEl.textContent='—';tEl.className='dg-v';}
-        const eb=document.getElementById('eng-badge'); if(eb){eb.textContent='—';eb.style.background='#1a1a1a';eb.style.color='#888';}
-        const dot=document.getElementById('tl-dot'); if(dot) dot.className='tl-dot tl-red';
-        set('inst-score','—');
-        const wb=document.getElementById('warn-box'); if(wb) wb.style.display='none';
-        set('reason-txt','No institutional signal for this coin yet');
+        if(pb){pb.textContent='LOADING…';pb.style.background='#1a1a1a';pb.style.color='#888';}
+        fetch(`/live_score?symbol=${symbol}`).then(r=>r.json()).then(ls=>{
+          if(!ls || ls.error){
+            if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
+            if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
+            set('vmc-score','—'); set('buy-est','—'); set('sell-est','—'); set('buy-ext','—'); set('sell-ext','—');
+            const tEl=document.getElementById('coin-trend'); if(tEl){tEl.textContent='—';tEl.className='dg-v';}
+            const eb=document.getElementById('eng-badge'); if(eb){eb.textContent='—';eb.style.background='#1a1a1a';eb.style.color='#888';}
+            const dot=document.getElementById('tl-dot'); if(dot) dot.className='tl-dot tl-red';
+            set('inst-score','—');
+            const wb=document.getElementById('warn-box'); if(wb) wb.style.display='none';
+            set('reason-txt','No institutional signal for this coin yet');
+            return;
+          }
+          const lv6=ls.v6||{}, linst=ls.inst||{}, ltp=ls.tp_zones||{};
+          const llbl=(lv6.label||'WAIT').toUpperCase();
+          const icons={BUY:'🟢',SELL:'🔴',WAIT:'⏳',HOLD:'🟡',AVOID:'🚫'};
+          if(bs){bs.className=llbl;bs.innerHTML=(icons[llbl]||'⏳')+' '+llbl+' — SCORE: <span id="big-score">'+Math.round(lv6.score||0)+'</span>/100 <span style="font-size:9px;color:#888">(live)</span>';}
+          if(pb){pb.textContent=llbl==='BUY'?'BUY – ACCUMULATION (live)':'AVOID – DUMP PREP (live)';pb.style.background=llbl==='BUY'?'#003311':'#440000';pb.style.color=llbl==='BUY'?'#00ff88':'#ff2244';}
+          set('vmc-score', fmt6(linst.vmc_score||ls.score||0));
+          set('buy-est', fmt6(ltp.entry_low||ls.price||0));
+          set('sell-est', fmt6(ltp.tp1||0));
+          set('buy-ext', fmt6(ltp.entry_high||0));
+          set('sell-ext', fmt6(ltp.tp2||0));
+          const tEl=document.getElementById('coin-trend');
+          if(tEl){const tr=llbl==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}
+          const eb=document.getElementById('eng-badge');
+          if(eb){eb.textContent=llbl;eb.style.background=llbl==='BUY'?'#003311':llbl==='WAIT'?'#1a1a1a':'#440000';eb.style.color=llbl==='BUY'?'#00ff88':llbl==='WAIT'?'#aaa':'#ff2244';}
+          const ltlc=(linst.traffic||'RED').toLowerCase();
+          const dot=document.getElementById('tl-dot');
+          if(dot) dot.className='tl-dot '+(ltlc==='green'?'tl-green':ltlc==='yellow'?'tl-yellow':'tl-red');
+          set('inst-score', Math.round(linst.inst_score||0));
+          set('reason-txt', 'LIVE (on-demand) → '+(ls.trading_strategy||llbl));
+        }).catch(()=>{
+          if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
+          if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
+        });
       }
       try{candleSeries.setMarkers(markers);}catch(e){}
       try{
