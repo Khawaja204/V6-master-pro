@@ -1015,7 +1015,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
         rows = [std_headers]
         for folder, coins in vmc_data.items():
             for coin in coins[:20]:
-                row = {"Timestamp": ts, "Asset": coin["symbol"], "Status": "ACTIVE",
+                row = {"Timestamp": ts, "Asset": coin["symbol"].replace("USDT",""), "Status": "ACTIVE",
                        "Signal": folder, "VMC": coin["score"], "Price": coin["price"],
                        "Buy/Sale": "BUY" if folder in ["ENTRY","GOLDEN","VIP"] else "WATCH",
                        "Heatmap": "HOT" if coin["volume_usdt"] > 10_000_000 else "WARM",
@@ -1026,12 +1026,17 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
 
         ws_live.clear(); ws_live.update("A1", rows)
 
-        try: ws_watch = sheet.worksheet("WATCH")
-        except Exception: ws_watch = sheet.add_worksheet("WATCH", rows=200, cols=9)
+        try:
+            ws_watch = sheet.worksheet("WATCH")
+        except Exception:
+            ws_watch = sheet.add_worksheet("WATCH", rows=200, cols=9)
+            _add_color_rule(sheet, ws_watch, 2, "WHALE TRAP", (0.96,0.72,0.72))
+            _add_color_rule(sheet, ws_watch, 2, "BLINK→PUSH", (1.0,0.95,0.6))
+            _add_color_rule(sheet, ws_watch, 2, "WALL", (0.75,0.85,0.98))
         wrows = [["Symbol","Price","Label","BlinkPush","BidSpoof","AskSpoof",
                   "WallCount","MinDist%","WhalePower"]]
         for w in whale_data[:100]:
-            wrows.append([w["symbol"], w["price"], w["label"], w["blink_to_push"],
+            wrows.append([w["symbol"].replace("USDT",""), w["price"], w["label"], w["blink_to_push"],
                           w["spoofing"]["bid_spoof"], w["spoofing"]["ask_spoof"],
                           w["wall_count"], w["min_dist_pct"], w.get("whale_power", 0)])
         ws_watch.clear(); ws_watch.update("A1", wrows)
@@ -1083,7 +1088,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 bd = v6.get("breakdown", {}) or {}
                 tp = s.get("tp_zones", {}) or {}
                 v6_rows.append([
-                    sym, s.get("folder",""), v6.get("label",""), v6.get("score",0),
+                    sym.replace("USDT",""), s.get("folder",""), v6.get("label",""), v6.get("score",0),
                     bd.get("market_regime",0), bd.get("inst_whale",0), bd.get("technical",0),
                     bd.get("smart_divergence",0), bd.get("trade_engine",0),
                     s.get("rsi",0), s.get("price",0),
@@ -1104,7 +1109,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                         "SizeUSDT","OBI","OBIVelocity","Confidence","Confirmed"]]
             for s in whale_copy_signals[:100]:
                 wc_rows.append([
-                    s.get("detected_at",""), s.get("symbol",""), s.get("direction",""),
+                    s.get("detected_at",""), s.get("symbol","").replace("USDT",""), s.get("direction",""),
                     s.get("wall_price",0), s.get("stop_loss",0), s.get("target",0),
                     s.get("wall_size_usdt",0), s.get("obi",0), s.get("obi_velocity",0),
                     s.get("confidence",0), s.get("confirmed",False),
@@ -1125,7 +1130,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                          "Confidence","Status","Result","PnL%","EntryTime","ExitTime"]]
             for t in whale_copy_trades[:200]:
                 wct_rows.append([
-                    t.get("symbol",""), t.get("direction",""), t.get("entry_price",0),
+                    t.get("symbol","").replace("USDT",""), t.get("direction",""), t.get("entry_price",0),
                     t.get("stop_loss",0), t.get("target",0), t.get("confidence",0),
                     t.get("status",""), t.get("result") or "—", t.get("pnl_pct") or "—",
                     t.get("entry_time",""), t.get("exit_time") or "—",
@@ -1143,7 +1148,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
             pt_rows = [["Time","Symbol","Side","AmountUSDT","Price","Qty","Strategy","Mode","Reason"]]
             for t in paper_trades[:200]:
                 pt_rows.append([
-                    t.get("time",""), t.get("symbol",""), t.get("side",""),
+                    t.get("time",""), t.get("symbol","").replace("USDT",""), t.get("side",""),
                     t.get("amount_usdt",0), t.get("price",0), t.get("qty",0),
                     t.get("strategy",""), t.get("mode",""), t.get("reason",""),
                 ])
