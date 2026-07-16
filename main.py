@@ -459,6 +459,11 @@ def _record_whale_copy_trade(sig: dict):
     now = time.time()
     if now - _wc_dedup.get(sym, 0) < 1800:
         return None
+    # Guard against duplicate OPEN entries even after a redeploy resets the
+    # in-memory dedup timer above — never record a second OPEN trade for a
+    # symbol that already has one.
+    if any(t.get("symbol") == sym and t.get("status") == "OPEN" for t in WHALE_COPY_TRADES):
+        return None
     _wc_dedup[sym] = now
     entry = {
         "id":             f"WC-{int(now)}-{sym[:4]}",
