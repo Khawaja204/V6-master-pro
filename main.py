@@ -564,9 +564,13 @@ def _can_alert(key: str, cooldown: int) -> bool:
 
 
 def _dashboard_url(symbol: str = "") -> str:
-    domains = os.getenv("REPLIT_DOMAINS", "")
-    domain  = domains.split(",")[0].strip() if domains else "localhost"
-    base    = f"https://{domain}" if domain != "localhost" else "http://localhost:8080"
+    # Render auto-sets RENDER_EXTERNAL_URL; REPLIT_DOMAINS only applies
+    # inside Replit. Neither present (e.g. localhost) means Telegram would
+    # reject the button URL outright — fall back to the known production URL.
+    base = (os.getenv("RENDER_EXTERNAL_URL")
+            or (f"https://{os.getenv('REPLIT_DOMAINS').split(',')[0].strip()}" if os.getenv("REPLIT_DOMAINS") else None)
+            or "https://v6-master-pro-1.onrender.com")
+    base = base.rstrip("/")
     return f"{base}/?sniper={symbol}" if symbol else base
 
 
