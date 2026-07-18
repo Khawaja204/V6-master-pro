@@ -492,6 +492,13 @@ def _record_whale_copy_trade(sig: dict):
         WHALE_COPY_TRADES.pop()
     _save_whale_copy_trades()
     log.info(f"[WHALE COPY] {sig['direction']} {sym} @ {sig['wall_price']} (conf {sig['confidence']}%)")
+    if sig["direction"] == "COPY_BUY":
+        wc_msg = (f"🐋 <b>WHALE COPY BUY — {sym.replace('USDT','')}</b>\n"
+                  f"Wall Price: {_fmtP(sig['wall_price'])} | Size: ${sig['wall_size_usdt']:,.0f}\n"
+                  f"🎯 Target: {_fmtP(sig['target'])} | 🛡 SL: {_fmtP(sig['stop_loss'])}\n"
+                  f"Confidence: {sig['confidence']}% | OBI: {sig['obi']}\n"
+                  f"📋 Wall + OBI confirmed across 2 consecutive scans")
+        notify_all(f"V6 Whale Copy BUY — {sym.replace('USDT','')}", wc_msg)
     return entry
 
 
@@ -603,9 +610,41 @@ def send_telegram(msg: str, inline_button: dict = None) -> bool:
     return False
 
 
+def send_email(subject: str, body: str) -> bool:
+    """Send an email alert via Gmail SMTP. Needs EMAIL_USER (sender gmail
+    address), EMAIL_PASS (a Gmail App Password — NOT the normal account
+    password), and EMAIL_TO (recipient) env vars. No-ops silently if unset."""
+    user = os.getenv("EMAIL_USER"); pwd = os.getenv("EMAIL_PASS"); to = os.getenv("EMAIL_TO")
+    if not (user and pwd and to):
+        return False
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = user
+        msg["To"] = to
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
+            server.login(user, pwd)
+            server.sendmail(user, [to], msg.as_string())
+        return True
+    except Exception as e:
+        log.warning(f"Email send failed: {e}")
+        return False
+
+
+def notify_all(subject: str, telegram_msg: str, email_body: str = None):
+    """Unified dispatcher for a real, actionable alert — sends to BOTH
+    Telegram and Email (whichever are configured). Use this for anything
+    worth acting on: a v6 BUY, a confirmed Whale Copy entry, or a holdings
+    sell-check — never for routine/heartbeat noise."""
+    send_telegram(telegram_msg)
+    send_email(subject, email_body or telegram_msg.replace("<b>", "").replace("</b>", ""))
+
+
 def notify_trade(symbol: str, side: str, strategy: str, mode: str, reason: str,
                  price=None, amount=None, tp_zones: dict = None, traffic: str = ""):
-    """Unified Telegram alert for every trade/entry, including the rationale."""
+    """Unified Telegram + Email alert for every trade/entry, including the rationale."""
     side  = (side or "BUY").upper()
     icon  = "🟢" if side == "BUY" else "🔴"
     light = (f" | {traffic}") if traffic else ""
@@ -622,9 +661,11 @@ def notify_trade(symbol: str, side: str, strategy: str, mode: str, reason: str,
             f"TP3 {_fmtP(tp_zones.get('tp3',0))}")
         lines.append(f"🛡 SL {_fmtP(tp_zones.get('stop_loss',0))}")
     lines.append(f"📋 <b>Rationale:</b> {reason}")
-    send_telegram("\n".join(lines),
-                  inline_button={"text": f"📊 Sniper: {symbol.replace('USDT','')}",
-                                 "url": _dashboard_url(symbol)})
+    msg = "\n".join(lines)
+    send_telegram(msg, inline_button={"text": f"📊 Sniper: {symbol.replace('USDT','')}",
+                                       "url": _dashboard_url(symbol)})
+    send_email(f"V6 TRADE {side} — {symbol.replace('USDT','')}",
+               msg.replace("<b>", "").replace("</b>", ""))
 
 
 def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: int = 0):
@@ -1315,8 +1356,13 @@ def backtest_check_loop():
             log.warning(f"Backtest check error: {e}")
 
 
+_heartbeat_iter = 0
+
 def heartbeat_loop():
+    global _heartbeat_iter
     interval = CONFIG["scanner"]["heartbeat_interval_seconds"]
+    HEARTBEAT_SEND_EVERY = 12  # only actually message Telegram ~hourly — was
+                               # spamming every single cycle with no real signal
     while True:
         time.sleep(interval)
         secs = int(time.time() - GLOBAL_DATA["uptime_start"])
@@ -1324,14 +1370,16 @@ def heartbeat_loop():
         ts   = time.strftime("%Y-%m-%d %H:%M:%S")
         GLOBAL_DATA["heartbeat"] = ts
         log.info(f"[HEARTBEAT] Uptime:{h}h{m}m | Cycles:{GLOBAL_DATA['cycle_count']} | WinRate:{GLOBAL_DATA['win_rate']}%")
-        send_telegram(
-            f"💚 <b>V6 HEARTBEAT</b>\n"
-            f"Status: {GLOBAL_DATA['status']} | Cycles: {GLOBAL_DATA['cycle_count']}\n"
-            f"Uptime: {h}h {m}m | Exchange: {GLOBAL_DATA['active_exchange']}\n"
-            f"VIP:{len(GLOBAL_DATA['vmc'].get('VIP',[]))} GOLDEN:{len(GLOBAL_DATA['vmc'].get('GOLDEN',[]))} Whale:{len(GLOBAL_DATA['whale'])}\n"
-            f"WinRate: {GLOBAL_DATA['win_rate']}% | Streak: {_win_streak} | BTC: {GLOBAL_DATA['btc'].get('sentiment','?')}\n"
-            f"HotCoins: {len(GLOBAL_DATA['hot_coins'])} | Alerts: {len(GLOBAL_DATA['alert_history'])}"
-        )
+        _heartbeat_iter += 1
+        if _heartbeat_iter % HEARTBEAT_SEND_EVERY == 0:
+            send_telegram(
+                f"💚 <b>V6 HEARTBEAT</b>\n"
+                f"Status: {GLOBAL_DATA['status']} | Cycles: {GLOBAL_DATA['cycle_count']}\n"
+                f"Uptime: {h}h {m}m | Exchange: {GLOBAL_DATA['active_exchange']}\n"
+                f"VIP:{len(GLOBAL_DATA['vmc'].get('VIP',[]))} GOLDEN:{len(GLOBAL_DATA['vmc'].get('GOLDEN',[]))} Whale:{len(GLOBAL_DATA['whale'])}\n"
+                f"WinRate: {GLOBAL_DATA['win_rate']}% | Streak: {_win_streak} | BTC: {GLOBAL_DATA['btc'].get('sentiment','?')}\n"
+                f"HotCoins: {len(GLOBAL_DATA['hot_coins'])} | Alerts: {len(GLOBAL_DATA['alert_history'])}"
+            )
         audit("SYSTEM", "HEARTBEAT", "OK", f"uptime={h}h{m}m wins={_total_wins} losses={_total_losses}")
 
 
@@ -1914,6 +1962,42 @@ function testTelegram(){
 }
 </script>
 
+<!-- ══ MY HOLDINGS / INVENTORY ══ -->
+<div class="card"><h3>📦 MY HOLDINGS (INVENTORY)</h3>
+<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Track coins you already own — get a Telegram+Email alert when it looks like a good time to sell.</p>
+<form method="POST" action="/admin/add_holding"><div class="form-row">
+<input type="text" name="symbol" placeholder="BTC" style="width:90px" required/>
+<input type="number" name="quantity" placeholder="Quantity" step="any" style="width:110px" required/>
+<input type="number" name="buy_price" placeholder="Buy Price" step="any" style="width:110px" required/>
+<input type="number" name="target_pct" placeholder="Target %" value="15" style="width:100px"/>
+<button type="submit" class="btn btn-blue">+ Add Holding</button></div></form>
+<table style="margin-top:10px"><thead><tr><th>Symbol</th><th>Qty</th><th>Buy Price</th><th>Current</th><th>P/L%</th><th></th></tr></thead>
+<tbody id="holdings-tbody"><tr><td colspan="6" style="color:#444">Loading…</td></tr></tbody></table>
+</div>
+<script>
+function loadHoldings(){
+  fetch('/admin/holdings_status').then(r=>r.json()).then(hs=>{
+    const tb=document.getElementById('holdings-tbody');
+    if(!hs.length){tb.innerHTML='<tr><td colspan="6" style="color:#444">No holdings added yet</td></tr>';return;}
+    tb.innerHTML=hs.map(h=>{
+      const pnlColor=h.pnl_pct>=0?'#3fb950':'#FF4500';
+      return `<tr>
+        <td style="color:#FFD700">${h.symbol.replace('USDT','')}</td>
+        <td>${h.quantity}</td>
+        <td>${h.buy_price}</td>
+        <td>${h.current_price||'—'}</td>
+        <td style="color:${pnlColor}">${h.pnl_pct}%</td>
+        <td><form method="POST" action="/admin/delete_holding" style="display:inline">
+          <input type="hidden" name="symbol" value="${h.symbol}"/>
+          <button type="submit" class="btn btn-red" style="padding:2px 8px">✕</button></form></td>
+      </tr>`;
+    }).join('');
+  }).catch(()=>{});
+}
+loadHoldings();
+setInterval(loadHoldings, 20000);
+</script>
+
 <!-- ══ HOT COINS ══ -->
 <div class="card"><h3>🔥 HOT COINS (3+ signals/hr)</h3>
 <table><thead><tr><th>Symbol</th><th>Count</th><th>Since</th></tr></thead><tbody>
@@ -2460,6 +2544,51 @@ def _save_clients(clients: list):
         json.dump(clients, f, indent=2)
 
 
+_HOLDINGS_FILE = "holdings.json"
+
+def _load_holdings() -> list:
+    try:
+        with open(_HOLDINGS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_holdings(holdings: list):
+    with open(_HOLDINGS_FILE, "w") as f:
+        json.dump(holdings, f, indent=2)
+
+
+def holdings_check_loop():
+    """Every 5 minutes: check each held coin's live v6 score/price move and
+    send a Telegram+Email sell-check alert when it looks like a good time
+    to sell (AVOID signal or profit target reached). 1-hour cooldown/coin."""
+    while True:
+        time.sleep(300)
+        try:
+            for h in _load_holdings():
+                sym = h["symbol"]
+                sig = _compute_live_signal(sym)
+                if not sig:
+                    continue
+                price     = sig.get("price", 0)
+                buy_price = h.get("buy_price", 0)
+                pnl_pct   = round((price - buy_price) / buy_price * 100, 2) if buy_price and price else 0
+                v6        = sig.get("v6", {})
+                label     = v6.get("label", "")
+                target    = h.get("target_pct", 15)
+                should_alert = label == "AVOID" or (target and pnl_pct >= target)
+                if should_alert and _can_alert(f"holding_{sym}", 3600):
+                    reason = "V6 score suggests distribution/avoid" if label == "AVOID" else f"Profit target ({target}%) reached"
+                    msg = (f"💰 <b>SELL CHECK — {sym.replace('USDT','')}</b>\n"
+                           f"Holding: {h.get('quantity',0)} @ buy {_fmtP(buy_price)}\n"
+                           f"Current: {_fmtP(price)} | P/L: {pnl_pct}%\n"
+                           f"V6 Signal: {label} (score {v6.get('score',0)})\n"
+                           f"📋 {reason}")
+                    notify_all(f"V6 Sell Check — {sym.replace('USDT','')} ({pnl_pct}%)", msg)
+        except Exception as e:
+            log.warning(f"Holdings check error: {e}")
+
+
 @app.route("/admin/add_client", methods=["POST"])
 @_admin_required
 def admin_add_client():
@@ -2502,6 +2631,53 @@ def admin_toggle_client():
     _save_clients(clients)
     audit(request.remote_addr, "TOGGLE_CLIENT", "OK", f"name={name}")
     return redirect("/admin")
+
+
+# ── Holdings / Inventory ────────────────────────────────────────────────────
+
+@app.route("/admin/add_holding", methods=["POST"])
+@_admin_required
+def admin_add_holding():
+    sym = request.form.get("symbol", "").upper().strip()
+    if not sym.endswith("USDT"):
+        sym += "USDT"
+    try:
+        qty = float(request.form.get("quantity", 0))
+        buy_price = float(request.form.get("buy_price", 0))
+    except Exception:
+        return redirect("/admin")
+    try:
+        target_pct = float(request.form.get("target_pct", 15))
+    except Exception:
+        target_pct = 15.0
+    holdings = [h for h in _load_holdings() if h["symbol"] != sym]
+    holdings.append({"symbol": sym, "quantity": qty, "buy_price": buy_price,
+                      "target_pct": target_pct, "added": time.strftime("%Y-%m-%d")})
+    _save_holdings(holdings)
+    audit(request.remote_addr, "ADD_HOLDING", "OK", f"sym={sym} qty={qty}")
+    return redirect("/admin")
+
+
+@app.route("/admin/delete_holding", methods=["POST"])
+@_admin_required
+def admin_delete_holding():
+    sym = request.form.get("symbol", "").upper().strip()
+    holdings = [h for h in _load_holdings() if h["symbol"] != sym]
+    _save_holdings(holdings)
+    audit(request.remote_addr, "DELETE_HOLDING", "OK", f"sym={sym}")
+    return redirect("/admin")
+
+
+@app.route("/admin/holdings_status")
+@_admin_required
+def admin_holdings_status():
+    out = []
+    for h in _load_holdings():
+        price = fetch_ticker_price(h["symbol"])
+        buy_price = h.get("buy_price", 0)
+        pnl = round((price - buy_price) / buy_price * 100, 2) if buy_price and price else 0
+        out.append({**h, "current_price": price, "pnl_pct": pnl})
+    return jsonify(out)
 
 
 # ── Client Portal ──────────────────────────────────────────────────────────────
@@ -2920,6 +3096,7 @@ if __name__ == "__main__":
     threading.Thread(target=midnight_report_loop, daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
+    threading.Thread(target=holdings_check_loop,   daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()
     app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)

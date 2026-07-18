@@ -15,11 +15,11 @@
     "entry_time": "2026-07-16 06:14:00",
     "entry_ts": 1784182440.3694017,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 2.059,
+    "exit_time": "2026-07-16 16:05:41",
+    "result": "TIMEOUT",
+    "pnl_pct": 0.097
   },
   {
     "id": "WC-1784180518-NEAR",
@@ -37,10 +37,10 @@
     "entry_time": "2026-07-16 05:41:58",
     "entry_ts": 1784180518.5448503,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 2.032,
+    "exit_time": "2026-07-16 12:02:25",
+    "result": "TIMEOUT",
+    "pnl_pct": -1.311
   }
 ]

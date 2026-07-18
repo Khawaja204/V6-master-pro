@@ -1266,13 +1266,14 @@ def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
             _whale_copy_state.pop(sym, None)
             continue   # wall exists but OBI doesn't confirm the direction
 
-        # ── 2-cycle persistence confirmation ──────────────────────────────
+        # ── Consecutive-scan-cycle confirmation (cycle-count based, not
+        # wall-clock time — a time window shorter than the actual scan
+        # interval meant confirmation could never trigger; this counts
+        # actual consecutive scans instead, regardless of interval length).
         prev = _whale_copy_state.get(sym)
-        if prev and prev["direction"] == direction and (now - prev["first_seen"]) <= persist_window:
-            confirmed = True
-        else:
-            confirmed = False
-            _whale_copy_state[sym] = {"direction": direction, "first_seen": now}
+        count = (prev["count"] + 1) if (prev and prev["direction"] == direction) else 1
+        _whale_copy_state[sym] = {"direction": direction, "count": count, "last_seen": now}
+        confirmed = count >= 2
 
         wall_price     = wall.get("price_level", price)
         wall_size_usdt = wall.get("size_usdt", 0)
