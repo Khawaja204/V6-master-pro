@@ -751,6 +751,7 @@ function fetchChart(sym){
         const tlc=(inst2.traffic||'RED').toLowerCase();
         const dot=document.getElementById('tl-dot');
         if(dot) dot.className='tl-dot '+(tlc==='green'?'tl-green':tlc==='yellow'?'tl-yellow':'tl-red');
+        drawSMD('smd-g', Math.min(100,(v6.breakdown&&v6.breakdown.smart_divergence||0)/10*100));
         set('inst-score', Math.round(inst2.inst_score||0));
         const wb=document.getElementById('warn-box');
         if(wb){if(inst2.reason&&inst2.reason.includes('INSUFF')){wb.style.display='block';wb.textContent='⚠ '+inst2.reason;}else{wb.style.display='none';}}
@@ -797,6 +798,7 @@ function fetchChart(sym){
           const ltlc=(linst.traffic||'RED').toLowerCase();
           const dot=document.getElementById('tl-dot');
           if(dot) dot.className='tl-dot '+(ltlc==='green'?'tl-green':ltlc==='yellow'?'tl-yellow':'tl-red');
+          drawSMD('smd-g', Math.min(100,(lv6.breakdown&&lv6.breakdown.smart_divergence||0)/10*100));
           set('inst-score', Math.round(linst.inst_score||0));
           set('reason-txt', 'LIVE (on-demand) → '+(ls.trading_strategy||llbl));
         }).catch(()=>{
@@ -905,6 +907,7 @@ function updateWhaleCopy(d){
           <td>${fmt6(s.wall_price||0)}</td>
           <td style="color:var(--red)">${fmt6(s.stop_loss||0)}</td>
           <td style="color:var(--green)">${fmt6(s.target||0)}</td>
+          <td>${s.eta||'—'}</td>
           <td>${fmtNum(s.wall_size_usdt||0)}</td>
           <td style="color:${(s.obi||0)>0?'var(--green)':'var(--red)'}">${(s.obi||0).toFixed(3)}</td>
           <td>${(s.obi_velocity||0).toFixed(2)}</td>

@@ -689,10 +689,31 @@ def compute_confidence_score(inst_result: dict, obi_result: dict, vmc_score: int
     return min(100, max(0, score))
 
 
+def estimate_time_to_target(price: float, target: float, atr: float, interval_hours: float = 1.0) -> dict:
+    """
+    ATR-based ESTIMATE (not a prediction) of how long price might take to
+    travel from `price` to `target`, assuming it keeps moving at its recent
+    average per-candle range. Always shown/labelled as an estimate.
+    """
+    if not atr or atr <= 0 or not price:
+        return {"bars": 0, "hours": 0, "label": "—"}
+    distance = abs(target - price)
+    bars  = distance / atr
+    hours = round(bars * interval_hours, 1)
+    if hours < 1:
+        label = f"~{max(5, int(hours * 60))}min (scalp)"
+    elif hours < 24:
+        label = f"~{round(hours, 1)}h"
+    else:
+        label = f"~{round(hours / 24, 1)}d"
+    return {"bars": round(bars, 1), "hours": hours, "label": label}
+
+
 def compute_tp_levels(price: float, atr: float, config: dict) -> dict:
     if atr == 0:
         return {"entry_low": price, "entry_high": price, "stop_loss": price,
-                "tp1": price, "tp2": price, "tp3": price, "atr": 0, "risk_pct": 0, "rr": 0}
+                "tp1": price, "tp2": price, "tp3": price, "atr": 0, "risk_pct": 0, "rr": 0,
+                "eta_tp1": "—"}
     cfg = config["institutional"]
     entry_low = round(price - 0.3 * atr, 8)
     stop_loss = round(price - cfg["atr_stop_loss_multiplier"] * atr, 8)
@@ -700,6 +721,7 @@ def compute_tp_levels(price: float, atr: float, config: dict) -> dict:
     risk   = entry_low - stop_loss
     reward = tp1 - entry_low
     rr     = round(reward / risk, 2) if risk > 0 else 0
+    eta    = estimate_time_to_target(price, tp1, atr)
     return {
         "atr":        round(atr, 8),
         "entry_low":  entry_low,
@@ -710,6 +732,7 @@ def compute_tp_levels(price: float, atr: float, config: dict) -> dict:
         "tp3":        round(price + cfg["tp3_atr_multiplier"] * atr, 8),
         "risk_pct":   round(cfg["atr_stop_loss_multiplier"] * atr / price * 100, 3),
         "rr":         rr,
+        "eta_tp1":    eta["label"],
     }
 
 
@@ -1077,7 +1100,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 _add_color_rule(sheet, ws_v6, 2, "AVOID", (0.96,0.72,0.72))
             v6_rows = [["Symbol","Folder","Label","Score","MarketRegime","WhaleInst",
                         "Technical","SmartMoney","TradeEngine","RSI","Price",
-                        "StopLoss","TP1","TP2","TP3","Strategy"]]
+                        "StopLoss","TP1","TP2","TP3","Strategy","ETA_to_TP1"]]
             seen_v6 = set()
             for s in inst_signals[:100]:
                 sym = s.get("symbol")
@@ -1093,7 +1116,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                     bd.get("smart_divergence",0), bd.get("trade_engine",0),
                     s.get("rsi",0), s.get("price",0),
                     tp.get("stop_loss",0), tp.get("tp1",0), tp.get("tp2",0), tp.get("tp3",0),
-                    s.get("trading_strategy",""),
+                    s.get("trading_strategy",""), tp.get("eta_tp1","—"),
                 ])
             ws_v6.clear(); ws_v6.update("A1", v6_rows)
 
@@ -1106,13 +1129,13 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 _add_color_rule(sheet, ws_wc, 2, "COPY_BUY", (0.72,0.93,0.72))
                 _add_color_rule(sheet, ws_wc, 2, "COPY_AVOID", (0.96,0.72,0.72))
             wc_rows = [["Time","Symbol","Direction","WallPrice","StopLoss","Target",
-                        "SizeUSDT","OBI","OBIVelocity","Confidence","Confirmed"]]
+                        "SizeUSDT","OBI","OBIVelocity","Confidence","Confirmed","ETA"]]
             for s in whale_copy_signals[:100]:
                 wc_rows.append([
                     s.get("detected_at",""), s.get("symbol","").replace("USDT",""), s.get("direction",""),
                     s.get("wall_price",0), s.get("stop_loss",0), s.get("target",0),
                     s.get("wall_size_usdt",0), s.get("obi",0), s.get("obi_velocity",0),
-                    s.get("confidence",0), s.get("confirmed",False),
+                    s.get("confidence",0), s.get("confirmed",False), s.get("eta","—"),
                 ])
             ws_wc.clear(); ws_wc.update("A1", wc_rows)
 
@@ -1127,13 +1150,13 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 _add_color_rule(sheet, ws_wct, 7, "WIN", (0.72,0.93,0.72))
                 _add_color_rule(sheet, ws_wct, 7, "LOSS", (0.96,0.72,0.72))
             wct_rows = [["Symbol","Direction","EntryPrice","StopLoss","Target",
-                         "Confidence","Status","Result","PnL%","EntryTime","ExitTime"]]
+                         "Confidence","Status","Result","PnL%","EntryTime","ExitTime","ETA"]]
             for t in whale_copy_trades[:200]:
                 wct_rows.append([
                     t.get("symbol","").replace("USDT",""), t.get("direction",""), t.get("entry_price",0),
                     t.get("stop_loss",0), t.get("target",0), t.get("confidence",0),
                     t.get("status",""), t.get("result") or "—", t.get("pnl_pct") or "—",
-                    t.get("entry_time",""), t.get("exit_time") or "—",
+                    t.get("entry_time",""), t.get("exit_time") or "—", t.get("eta","—"),
                 ])
             ws_wct.clear(); ws_wct.update("A1", wct_rows)
 
