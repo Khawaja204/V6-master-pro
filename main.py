@@ -23,6 +23,7 @@ from logic import (
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
     detect_whale_copy_signals, is_stablecoin_pair,
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
+    estimate_time_to_target,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -478,6 +479,7 @@ def _record_whale_copy_trade(sig: dict):
         "obi":            sig["obi"],
         "obi_velocity":   sig["obi_velocity"],
         "confidence":     sig["confidence"],
+        "eta":            sig.get("eta", "—"),
         "entry_time":     time.strftime("%Y-%m-%d %H:%M:%S"),
         "entry_ts":       now,
         "mode":           "PAPER (WHALE COPY)",
@@ -496,6 +498,7 @@ def _record_whale_copy_trade(sig: dict):
         wc_msg = (f"🐋 <b>WHALE COPY BUY — {sym.replace('USDT','')}</b>\n"
                   f"Wall Price: {_fmtP(sig['wall_price'])} | Size: ${sig['wall_size_usdt']:,.0f}\n"
                   f"🎯 Target: {_fmtP(sig['target'])} | 🛡 SL: {_fmtP(sig['stop_loss'])}\n"
+                  f"⏱ Est. Time to Target: {sig.get('eta','—')}\n"
                   f"Confidence: {sig['confidence']}% | OBI: {sig['obi']}\n"
                   f"📋 Wall + OBI confirmed across 2 consecutive scans")
         notify_all(f"V6 Whale Copy BUY — {sym.replace('USDT','')}", wc_msg)
@@ -652,7 +655,7 @@ def notify_trade(symbol: str, side: str, strategy: str, mode: str, reason: str,
     side  = (side or "BUY").upper()
     icon  = "🟢" if side == "BUY" else "🔴"
     light = (f" | {traffic}") if traffic else ""
-    lines = [f"{icon} <b>TRADE {side} — {symbol}</b>",
+    lines = [f"{icon} <b>TRADE {side} — {symbol.replace('USDT','')}</b>",
              f"Mode: {mode} | Strategy: {strategy}{light}"]
     if price is not None:
         lines.append(f"Entry: {_fmtP(price)}")
@@ -664,6 +667,7 @@ def notify_trade(symbol: str, side: str, strategy: str, mode: str, reason: str,
             f"TP2 {_fmtP(tp_zones.get('tp2',0))} | "
             f"TP3 {_fmtP(tp_zones.get('tp3',0))}")
         lines.append(f"🛡 SL {_fmtP(tp_zones.get('stop_loss',0))}")
+        lines.append(f"⏱ Est. Time to TP1: {tp_zones.get('eta_tp1','—')}")
     lines.append(f"📋 <b>Rationale:</b> {reason}")
     msg = "\n".join(lines)
     send_telegram(msg, inline_button={"text": f"📊 Sniper: {symbol.replace('USDT','')}",
@@ -682,7 +686,7 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
     is_hot = _update_hot_coins(coin["symbol"])
     hot_tag = "\n🔥 <b>[HOT COIN]</b> — 3+ signals this hour!" if is_hot else ""
     send_telegram(
-        f"⭐ <b>VIP SIGNAL — {coin['symbol']}</b>{hot_tag}\n"
+        f"⭐ <b>VIP SIGNAL — {coin['symbol'].replace('USDT','')}</b>{hot_tag}\n"
         f"Price: {coin['price']} | Chg: {coin['change_pct']}%\n"
         f"Score: {coin['score']} | RSI: {coin['rsi']}\n"
         f"Confidence: {confidence}% | {icon} {tl}\n"
@@ -1052,6 +1056,12 @@ def data_refresh_loop():
 
             # ── WHALE COPY MODE: independent wall+OBI mirrored signals ────────
             whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG)
+            for _wcs in whale_copy_signals:
+                if _wcs.get("confirmed"):
+                    _wcs_atr = calculate_atr(_wcs["symbol"])
+                    _wcs["eta"] = estimate_time_to_target(_wcs["price"], _wcs["target"], _wcs_atr)["label"]
+                else:
+                    _wcs["eta"] = "—"
             GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
             wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50)
             for sig in whale_copy_signals:
@@ -1230,15 +1240,12 @@ def data_refresh_loop():
                         _seen_buy_syms.add(sym)
                         alert_vip(s, s.get("inst", {}), s.get("tp_zones", {}), s.get("confidence", 0))
 
-                whale_min = CONFIG["telegram"]["whale_alert_min_proximity"]
-                for w in whale_data:
-                    if is_stablecoin_pair(w.get("symbol"), w.get("price", 0), CONFIG):
-                        continue   # skip stablecoin-like pairs — not real whale activity
-                    wp = w.get("whale_power", 0)
-                    if wp >= CONFIG["whale"]["critical_whale_power_pct"]:
-                        alert_critical_whale(w)
-                    if w["min_dist_pct"] <= whale_min or w["blink_to_push"]:
-                        alert_whale(w)
+                # NOTE: wall/blink/whale-trap Telegram pings intentionally
+                # disabled — too noisy, not actionable. Whale data still shows
+                # live on the dashboard/Sheets WATCH tab. Only BUY signals,
+                # confirmed Whale Copy entries, and inventory sell-checks
+                # reach Telegram now.
+                pass
             else:
                 log.info("[SCAN] BTC BEARISH — entries paused.")
 
@@ -2409,6 +2416,12 @@ def admin_refresh_scan():
 
             # ── WHALE COPY MODE: independent wall+OBI mirrored signals ────────
             whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG)
+            for _wcs in whale_copy_signals:
+                if _wcs.get("confirmed"):
+                    _wcs_atr = calculate_atr(_wcs["symbol"])
+                    _wcs["eta"] = estimate_time_to_target(_wcs["price"], _wcs["target"], _wcs_atr)["label"]
+                else:
+                    _wcs["eta"] = "—"
             GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
             wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50)
             for sig in whale_copy_signals:
