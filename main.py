@@ -711,6 +711,9 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
         entry = _record_backtest_signal(coin["symbol"], coin["price"], folder_lbl,
                                         tp_zones, confidence, traffic="GREEN", reason=reason)
         if entry:   # an actual entry passed the GREEN-only + circuit-breaker gate
+            _open_ct = sum(1 for b in BACKTEST_SIGNALS if b.get("status") == "OPEN")
+            if _open_ct >= 3:
+                reason += f" | ⚠️ CORRELATION: {_open_ct} positions already open — most crypto moves with BTC, consider overexposure risk"
             notify_trade(coin["symbol"], "BUY", strat, "PAPER (AUTO)", reason,
                          price=coin["price"], tp_zones=tp_zones, traffic=tl)
             audit("SYSTEM", "AUTO_ENTRY", "OPENED",
