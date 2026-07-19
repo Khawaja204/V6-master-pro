@@ -944,6 +944,46 @@ def process_whale_walls(config: dict, price_map: dict, previous_walls: dict) -> 
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# LARGE TRADE DETECTOR — exchange-side whale-activity proxy (no on-chain API needed)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_large_trade_since: dict = {}   # symbol -> last aggTrade id checked
+
+def fetch_large_trades(symbol: str, min_usdt: float = 50000, limit: int = 200) -> list:
+    """Scans recent aggTrades for single trades >= min_usdt. Returns new large
+    trades since the last check for this symbol (dedup via fromId)."""
+    try:
+        params = {"symbol": symbol, "limit": limit}
+        last_id = _large_trade_since.get(symbol)
+        if last_id:
+            params["fromId"] = last_id + 1
+        resp = _binance_get("/api/v3/aggTrades", params=params, timeout=8)
+        if resp is None or resp.status_code != 200:
+            return []
+        trades = resp.json()
+        if not trades:
+            return []
+        _large_trade_since[symbol] = trades[-1]["a"]
+        out = []
+        for t in trades:
+            price = float(t["p"]); qty = float(t["q"])
+            usdt = price * qty
+            if usdt < min_usdt:
+                continue
+            out.append({
+                "symbol": symbol, "price": price, "qty": qty,
+                "usdt": round(usdt, 0),
+                "side": "SELL" if t["m"] else "BUY",  # m=True: buyer is maker -> taker sold
+                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t["T"] / 1000)),
+                "ts": t["T"] / 1000,
+            })
+        return out
+    except Exception as e:
+        log.debug(f"Large trade fetch failed for {symbol}: {e}")
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # BTC SENTIMENT + REGIME
 # ══════════════════════════════════════════════════════════════════════════════
 
