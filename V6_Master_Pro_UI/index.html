@@ -748,9 +748,9 @@ function fetchChart(sym){
         if(tEl){const tr=lbl==='BUY'?'ACCUMULATION':'DISTRIBUTION';tEl.textContent=tr;tEl.className='dg-v '+(tr==='ACCUMULATION'?'g':'r');}
         const eb=document.getElementById('eng-badge');
         if(eb){eb.textContent=lbl;eb.style.background=lbl==='BUY'?'#003311':lbl==='WAIT'?'#1a1a1a':'#440000';eb.style.color=lbl==='BUY'?'#00ff88':lbl==='WAIT'?'#aaa':'#ff2244';}
-        const tlc=(inst2.traffic||'RED').toLowerCase();
+        const tlc=(lbl==='BUY'?'green':lbl==='WAIT'?'yellow':'red');
         const dot=document.getElementById('tl-dot');
-        if(dot) dot.className='tl-dot '+(tlc==='green'?'tl-green':tlc==='yellow'?'tl-yellow':'tl-red');
+        if(dot) dot.className='tl-dot tl-'+tlc;
         drawSMD('smd-g', Math.min(100,(v6.breakdown&&v6.breakdown.smart_divergence||0)/10*100));
         set('inst-score', Math.round(inst2.inst_score||0));
         const wb=document.getElementById('warn-box');
