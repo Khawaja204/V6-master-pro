@@ -349,6 +349,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
             <span id="atr-zones">Scoped</span>
           </div>
           <div class="warn" id="warn-box" style="display:none"></div>
+          <div class="warn" id="spoof-warning" style="display:none;border-color:#ff2244;color:#ff2244;font-weight:bold"></div>
           <div class="rsn">
             <div class="rsn-lbl">REASON</div>
             <div id="reason-txt">DUMP_PREPARATION → AVOID</div>
@@ -822,6 +823,16 @@ function fetchChart(sym){
         });
       }catch(e){}
       const pat=wd.pattern||{};
+      const _spoofBox=document.getElementById('spoof-warning');
+      if(_spoofBox){
+        const _sp=wd.spoofing||{};
+        if(_sp.bid_spoof||_sp.ask_spoof){
+          _spoofBox.style.display='block';
+          _spoofBox.textContent='⚠️ SPOOF DETECTED — '+(_sp.details||'Fake wall on '+(_sp.bid_spoof?'BID':'')+(_sp.bid_spoof&&_sp.ask_spoof?' & ':'')+(_sp.ask_spoof?'ASK':'')+' side');
+        } else {
+          _spoofBox.style.display='none';
+        }
+      }
       set('whale-bag', wd.bag_size_usdt?fmtNum(wd.bag_size_usdt)+' USDT':'—');
       set('w1-pat', (pat.name||'—')+(pat.similarity_pct?' ('+pat.similarity_pct+'%)':''));
       set('w1-cls', wd.clustering||'NORMAL');
