@@ -23,7 +23,7 @@ from logic import (
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
     detect_whale_copy_signals, is_stablecoin_pair,
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
-    estimate_time_to_target,
+    estimate_time_to_target, fetch_large_trades,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -79,6 +79,7 @@ GLOBAL_DATA = {
     "hot_coins":      [],
     "inst_signals":   [],
     "whale_copy_signals": [],
+    "large_trades":   [],
     "btc":            {},
     "last_update":    None,
     "heartbeat":      None,
@@ -1070,6 +1071,18 @@ def data_refresh_loop():
             for sig in whale_copy_signals:
                 if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
                     _record_whale_copy_trade(sig)
+
+            # ── LARGE TRADE DETECTOR: exchange-side whale-activity proxy ─────
+            _lt_min_usdt = CONFIG.get("whale_copy", {}).get("large_trade_min_usdt", 50000)
+            _new_large_trades = []
+            for _lt_sym in list(price_map.keys())[:20]:
+                if is_stablecoin_pair(_lt_sym, price_map.get(_lt_sym, 0), CONFIG):
+                    continue
+                _new_large_trades.extend(fetch_large_trades(_lt_sym, min_usdt=_lt_min_usdt))
+            if _new_large_trades:
+                _lt_all = _new_large_trades + GLOBAL_DATA.get("large_trades", [])
+                _lt_all.sort(key=lambda x: x["ts"], reverse=True)
+                GLOBAL_DATA["large_trades"] = _lt_all[:100]
 
             # ── HOT COIN: decay old entries ─────────────────────────────────
             now = time.time()
@@ -2931,6 +2944,11 @@ def chart_data():
         "stop_loss": tp_z.get("stop_loss",0), "entry_low": tp_z.get("entry_low",0),
         "entry_high": tp_z.get("entry_high",0), "markers": markers, "whale_walls": whale_walls,
     })
+
+
+@app.route("/large_trades_data")
+def large_trades_data_route():
+    return jsonify({"trades": GLOBAL_DATA.get("large_trades", [])[:50]})
 
 
 @app.route("/whale_copy_data")
