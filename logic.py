@@ -1072,14 +1072,14 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
             _add_color_rule(sheet, ws_live, 6, "BUY", (0.72,0.93,0.72))
             _add_color_rule(sheet, ws_live, 6, "WATCH", (1.0,0.95,0.6))
 
-        std_headers = ["Timestamp","Asset","Status","Signal","VMC","Price",
+        std_headers = ["Timestamp","Asset","Status","Signal","Basis","VMC","Price",
                        "Buy/Sale","Heatmap","Slack","Chg%","RSI","Flux","Sentiment","Log"]
         ts   = time.strftime("%Y-%m-%d %H:%M:%S")
         rows = [std_headers]
         for folder, coins in vmc_data.items():
             for coin in coins[:20]:
                 row = {"Timestamp": ts, "Asset": coin["symbol"].replace("USDT",""), "Status": "ACTIVE",
-                       "Signal": folder, "VMC": coin["score"], "Price": coin["price"],
+                       "Signal": folder, "Basis": "VMC", "VMC": coin["score"], "Price": coin["price"],
                        "Buy/Sale": "BUY" if folder in ["ENTRY","GOLDEN","VIP"] else "WATCH",
                        "Heatmap": "HOT" if coin["volume_usdt"] > 10_000_000 else "WARM",
                        "Slack": "", "Chg%": coin["change_pct"], "RSI": coin["rsi"],
@@ -1096,13 +1096,32 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
             _add_color_rule(sheet, ws_watch, 2, "WHALE TRAP", (0.96,0.72,0.72))
             _add_color_rule(sheet, ws_watch, 2, "BLINK→PUSH", (1.0,0.95,0.6))
             _add_color_rule(sheet, ws_watch, 2, "WALL", (0.75,0.85,0.98))
-        wrows = [["Symbol","Price","Label","BlinkPush","BidSpoof","AskSpoof",
-                  "WallCount","MinDist%","WhalePower"]]
+        _now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        _exp_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + 1800))
+        _lt_cnt  = sum(1 for w in whale_data[:100] if w["label"] == "WHALE TRAP")
+        _wall_cnt= sum(1 for w in whale_data[:100] if w["label"] == "WALL")
+        _bp_cnt  = sum(1 for w in whale_data[:100] if w["label"] == "BLINK→PUSH")
+        wrows = [[f"Summary: {len(whale_data[:100])} active | {_lt_cnt} trapped | {_wall_cnt} walls | {_bp_cnt} blink→push",
+                  "", "", "", "", "", "", "", "", "", "", ""],
+                 ["Symbol","Price","Label","Light","Basis","BlinkPush","BidSpoof","AskSpoof",
+                  "WallCount","MinDist%","WhalePower","GeneratedAt","ExpiresAt"]]
         for w in whale_data[:100]:
-            wrows.append([w["symbol"].replace("USDT",""), w["price"], w["label"], w["blink_to_push"],
-                          w["spoofing"]["bid_spoof"], w["spoofing"]["ask_spoof"],
-                          w["wall_count"], w["min_dist_pct"], w.get("whale_power", 0)])
+            _light = "🔴" if w["label"] == "WHALE TRAP" else "🟢" if w["label"] == "BLINK→PUSH" else "🟡"
+            wrows.append([w["symbol"].replace("USDT",""), w["price"], w["label"], _light, "OBI+Walls",
+                          w["blink_to_push"], w["spoofing"]["bid_spoof"], w["spoofing"]["ask_spoof"],
+                          w["wall_count"], w["min_dist_pct"], w.get("whale_power", 0), _now_str, _exp_str])
         ws_watch.clear(); ws_watch.update("A1", wrows)
+
+        # ── ARCHIVE_LOG: rolling per-cycle summary (fixes tab staying empty) ──
+        try:
+            ws_arch2 = sheet.worksheet("ARCHIVE_LOG")
+        except Exception:
+            ws_arch2 = sheet.add_worksheet("ARCHIVE_LOG", rows=5000, cols=8)
+            ws_arch2.update("A1", [["Timestamp","ActiveWhaleSignals","Trapped","Walls","BlinkPush","LiveRows"]])
+        try:
+            ws_arch2.append_row([_now_str, len(whale_data[:100]), _lt_cnt, _wall_cnt, _bp_cnt, len(rows) - 1])
+        except Exception as _ae:
+            log.debug(f"ARCHIVE_LOG cycle append failed: {_ae}")
 
         try: ws_arch = sheet.worksheet("ARCHIVE_LOG")
         except Exception: ws_arch = sheet.add_worksheet("ARCHIVE_LOG", rows=5000, cols=15)
