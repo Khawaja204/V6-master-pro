@@ -577,6 +577,16 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
   </div>
 
   <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)</div>
+    <div style="overflow-x:auto">
+    <table class="scan-tbl">
+      <thead><tr><th>Time</th><th>Coin</th><th>Side</th><th>Price</th><th>Size(USDT)</th></tr></thead>
+      <tbody id="lt-tbody"><tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">Loading large trades...</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
@@ -912,6 +922,7 @@ function fetchAll(){
     }).catch(e=>console.error('Fetch:',e));
   fetchChart();
   fetchWhaleCopy();
+  fetchLargeTrades();
 }
 
 let _lastMSKey='';
@@ -951,6 +962,31 @@ function updateMasterSignal(){
     if(navigator.vibrate) navigator.vibrate([200,100,200]);
   }
   _lastMSKey=msKey;
+}
+
+function fetchLargeTrades(){
+  fetch('/large_trades_data')
+    .then(r=>r.json())
+    .then(d=>{
+      const trades=d.trades||[];
+      const tbody=document.getElementById('lt-tbody');
+      if(!tbody) return;
+      if(!trades.length){
+        tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">No large trades detected yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML=trades.slice(0,25).map(t=>{
+        const sym=(t.symbol||'').replace('USDT','');
+        const sideColor=t.side==='BUY'?'var(--green)':'var(--red)';
+        return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
+          <td style="color:var(--grey);font-size:9px">${(t.time||'').split(' ')[1]||t.time||''}</td>
+          <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+          <td style="color:${sideColor};font-weight:bold">${t.side}</td>
+          <td>${fmt6(t.price||0)}</td>
+          <td>${fmtNum(t.usdt||0)}</td>
+        </tr>`;
+      }).join('');
+    }).catch(e=>console.error('Large trades fetch:',e));
 }
 
 function fetchWhaleCopy(){
