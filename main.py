@@ -715,7 +715,23 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
             _open_ct = sum(1 for b in BACKTEST_SIGNALS if b.get("status") == "OPEN")
             if _open_ct >= 3:
                 reason += f" | ⚠️ CORRELATION: {_open_ct} positions already open — most crypto moves with BTC, consider overexposure risk"
-            notify_trade(coin["symbol"], "BUY", strat, "PAPER (AUTO)", reason,
+            mode_str = "PAPER (AUTO)"
+            # ── REAL MODE MIRROR: same auto-fire trigger also places a real
+            # order, sized to the admin-set fund limit. No separate/stricter
+            # logic — it simply mirrors whatever the paper bot just decided.
+            if not GLOBAL_DATA.get("paper_mode", True):
+                _real_amt = GLOBAL_DATA.get("fund_limit_usdt", 10.0)
+                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt)
+                if _real_res.get("ok"):
+                    mode_str = "REAL (AUTO)"
+                    reason += f" | ⚡ REAL order placed: ${_real_amt} (orderId {_real_res.get('order_id')})"
+                    audit("SYSTEM", "AUTO_REAL_ENTRY", "OPENED",
+                          f"sym={coin['symbol']} amt={_real_amt} orderId={_real_res.get('order_id')}")
+                else:
+                    reason += f" | ❌ REAL order FAILED: {_real_res.get('error','?')} — paper entry still recorded"
+                    audit("SYSTEM", "AUTO_REAL_ENTRY", "FAILED",
+                          f"sym={coin['symbol']} err={_real_res.get('error','?')}")
+            notify_trade(coin["symbol"], "BUY", strat, mode_str, reason,
                          price=coin["price"], tp_zones=tp_zones, traffic=tl)
             audit("SYSTEM", "AUTO_ENTRY", "OPENED",
                   f"sym={coin['symbol']} traffic={tl} conf={confidence}%")
