@@ -1440,6 +1440,40 @@ def market_quiet_loop():
             log.warning(f"Market quiet loop error: {e}")
 
 
+def weekly_report_loop():
+    """Fires a weekly performance summary every Monday at UTC+5 (PKT) midnight."""
+    while True:
+        now_pkt = time.gmtime(time.time() + 5 * 3600)
+        days_until_monday = (7 - now_pkt.tm_wday) % 7
+        if days_until_monday == 0 and now_pkt.tm_hour == 0:
+            days_until_monday = 7
+        secs_until = days_until_monday * 86400 - now_pkt.tm_hour * 3600 - now_pkt.tm_min * 60 - now_pkt.tm_sec
+        if secs_until <= 0:
+            secs_until += 86400
+        time.sleep(secs_until)
+        try:
+            week_ago = time.time() - 7 * 86400
+            week_trades = [b for b in BACKTEST_SIGNALS if b.get("exit_ts", 0) >= week_ago and b.get("status") == "CLOSED"]
+            wins = sum(1 for t in week_trades if t.get("result") == "WIN")
+            losses = sum(1 for t in week_trades if t.get("result") == "LOSS")
+            total = wins + losses
+            wr = round(wins / total * 100, 1) if total else 0
+            wc_week = [t for t in WHALE_COPY_TRADES if t.get("status") == "CLOSED" and t.get("entry_ts", 0) >= week_ago]
+            wc_wins = sum(1 for t in wc_week if t.get("result") == "WIN")
+            wc_losses = sum(1 for t in wc_week if t.get("result") == "LOSS")
+            pkt_ts = time.strftime("%Y-%m-%d %H:%M PKT", time.gmtime(time.time() + 5 * 3600))
+            msg = (f"📅 <b>WEEKLY PERFORMANCE REPORT</b>\n{pkt_ts}\n\n"
+                   f"🎯 Auto Trades (V6): {wins}W / {losses}L | Win Rate: {wr}%\n"
+                   f"🐋 Whale Copy: {wc_wins}W / {wc_losses}L\n"
+                   f"📊 Total Signals This Week: {total + len(wc_week)}\n"
+                   f"⏱ Generated: {pkt_ts}")
+            notify_all("V6 Weekly Report", msg)
+            audit("SYSTEM", "WEEKLY_REPORT", "SENT", f"wr={wr}% trades={total}")
+        except Exception as e:
+            log.error(f"Weekly report error: {e}")
+            audit("SYSTEM", "WEEKLY_REPORT", "ERROR", str(e))
+
+
 def midnight_report_loop():
     """Fires a midnight report every 24h at UTC+5 (PKT) midnight."""
     while True:
@@ -3114,6 +3148,7 @@ if __name__ == "__main__":
     threading.Thread(target=heartbeat_loop,       daemon=True).start()
     threading.Thread(target=btc_monitor_loop,     daemon=True).start()
     threading.Thread(target=midnight_report_loop, daemon=True).start()
+    threading.Thread(target=weekly_report_loop,   daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
     threading.Thread(target=holdings_check_loop,   daemon=True).start()
