@@ -1,5 +1,28 @@
 [
   {
+    "id": "WC-1784481972-XRPU",
+    "symbol": "XRPUSDT",
+    "direction": "COPY_BUY",
+    "entry_price": 1.0945,
+    "wall_price": 1.0933,
+    "wall_size_usdt": 194881.0,
+    "wall_qty": 178250.2515,
+    "stop_loss": 1.0769005,
+    "target": 1.126099,
+    "obi": 0.2549,
+    "obi_velocity": 0.822,
+    "confidence": 58.0,
+    "eta": "~7.2h",
+    "entry_time": "2026-07-19 17:26:12",
+    "entry_ts": 1784481972.925281,
+    "mode": "PAPER (WHALE COPY)",
+    "status": "OPEN",
+    "exit_price": null,
+    "exit_time": null,
+    "result": null,
+    "pnl_pct": null
+  },
+  {
     "id": "WC-1784481324-TRUM",
     "symbol": "TRUMPUSDT",
     "direction": "COPY_BUY",
