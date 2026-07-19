@@ -95,5 +95,28 @@
     "backup_count": 5,
     "retention_days": 90
   },
-  "bot_fund_limit_usdt": 10.0
+  "bot_fund_limit_usdt": 10.0,
+  "whale_copy": {
+    "min_wall_usdt": 150000,
+    "sl_buffer_pct": 1.5,
+    "tp_fallback_pct": 3.0,
+    "min_confidence": 40,
+    "exclude_symbols": [
+      "USDC",
+      "USDT",
+      "BUSD",
+      "DAI",
+      "TUSD",
+      "USDP",
+      "FDUSD",
+      "PYUSD",
+      "GUSD",
+      "USDD",
+      "EURT",
+      "EURI",
+      "USD1",
+      "RLUSD",
+      "USDE"
+    ]
+  }
 }
