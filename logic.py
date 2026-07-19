@@ -1074,7 +1074,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
 
         std_headers = ["Timestamp","Asset","Status","Signal","Basis","VMC","Price",
                        "Buy/Sale","Heatmap","Slack","Chg%","RSI","Flux","Sentiment","Log"]
-        ts   = time.strftime("%Y-%m-%d %H:%M:%S")
+        ts   = time.strftime("%Y-%m-%d %H:%M:%S PKT", time.gmtime(time.time() + 5 * 3600))
         rows = [std_headers]
         for folder, coins in vmc_data.items():
             for coin in coins[:20]:
