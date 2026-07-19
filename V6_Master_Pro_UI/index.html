@@ -821,6 +821,13 @@ function fetchChart(sym){
           drawSMD('smd-g', Math.min(100,(lv6.breakdown&&lv6.breakdown.smart_divergence||0)/10*100));
           set('inst-score', Math.round(linst.inst_score||0));
           set('reason-txt', 'LIVE (on-demand) → '+(ls.trading_strategy||llbl));
+          if(candles.length){
+            const lt=candles[candles.length-1].time;
+            let lmarkers=[];
+            if(llbl==='BUY') lmarkers=[{time:lt,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(lv6.score||0)+' (live)'}];
+            else if(llbl==='SELL'||llbl==='AVOID') lmarkers=[{time:lt,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:llbl+' '+Math.round(lv6.score||0)+' (live)'}];
+            try{candleSeries.setMarkers(lmarkers);}catch(e){}
+          }
         }).catch(()=>{
           if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
           if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}

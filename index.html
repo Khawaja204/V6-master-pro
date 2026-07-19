@@ -42,6 +42,16 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 .next-pill{background:#1a1a2e;border:1px solid var(--border);padding:2px 8px;border-radius:10px;font-size:10px}
 .conn-dot{color:var(--green)}
 
+/* MASTER SIGNAL CARD */
+#master-signal{display:flex;align-items:center;justify-content:center;gap:14px;padding:10px;margin:8px;border-radius:6px;border:2px solid #555;background:#0e0e14;cursor:pointer;transition:border-color .3s}
+#master-signal.BUY{border-color:var(--green);background:#00220f}
+#master-signal.WAIT{border-color:var(--gold);background:#221c00}
+#master-signal.AVOID{border-color:var(--red);background:#220008}
+.ms-icon{font-size:26px}
+.ms-text{display:flex;flex-direction:column}
+.ms-label{font-size:16px;font-weight:bold;letter-spacing:1px}
+.ms-sub{font-size:9px;color:var(--grey);margin-top:2px}
+
 /* PAPER BANNER */
 #paper{background:#1a1400;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);color:var(--gold);font-size:11px;font-weight:bold;text-align:center;padding:7px;display:none}
 #paper.show{display:block}
@@ -259,6 +269,15 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 
 <!-- PAPER BANNER -->
 <div id="paper">📋 PAPER MODE — Simulated. Safe for testing & monitoring.</div>
+
+<!-- MASTER SIGNAL -->
+<div id="master-signal" class="WAIT" onclick="document.querySelector('[onclick*=sniper]').click()">
+  <span class="ms-icon" id="ms-icon">⏳</span>
+  <div class="ms-text">
+    <span class="ms-label" id="ms-label">WAIT</span>
+    <span class="ms-sub" id="ms-sub">Loading master signal...</span>
+  </div>
+</div>
 
 <!-- TABS -->
 <div id="tabs">
@@ -880,11 +899,51 @@ function fetchAll(){
       updateTraffic(d);
       updateBottom(d);
       updateCA(d);
+      updateMasterSignal();
       if(d.paper_mode) document.getElementById('paper').classList.add('show');
       else document.getElementById('paper').classList.remove('show');
     }).catch(e=>console.error('Fetch:',e));
   fetchChart();
   fetchWhaleCopy();
+}
+
+let _lastMSKey='';
+function updateMasterSignal(){
+  const d=window._lastDD||{};
+  const wc=window._lastWC||{};
+  const sigs=d.inst_signals||[];
+  const top=sigs[0]||{};
+  const v6=top.v6||{};
+  const label=(v6.label||'WAIT').toUpperCase();
+  const score=Math.round(v6.score||0);
+  const wcConfirmed=(wc.signals||[]).filter(s=>s.confirmed).length;
+  let spoofActive=false;
+  (d.whale||[]).forEach(w=>{const sp=w.spoofing||{}; if(sp.bid_spoof||sp.ask_spoof) spoofActive=true;});
+
+  const box=document.getElementById('master-signal');
+  const icon=document.getElementById('ms-icon');
+  const lbl=document.getElementById('ms-label');
+  const sub=document.getElementById('ms-sub');
+  if(!box) return;
+
+  let finalLabel=label, icons={BUY:'🟢',WAIT:'⏳',AVOID:'🔴'};
+  if(spoofActive && label!=='BUY') finalLabel='AVOID';
+  box.className=finalLabel;
+  if(icon) icon.textContent=icons[finalLabel]||'⏳';
+  if(lbl) lbl.textContent=finalLabel+' — '+score+'/100';
+  if(sub){
+    let parts=[];
+    if(top.symbol) parts.push('Top: '+top.symbol.replace('USDT',''));
+    parts.push('WhaleCopy: '+wcConfirmed+' confirmed');
+    if(spoofActive) parts.push('⚠️ Spoof detected');
+    sub.textContent=parts.join(' | ');
+  }
+
+  const msKey=finalLabel+score+(top.symbol||'');
+  if(finalLabel==='BUY' && score>=68 && msKey!==_lastMSKey){
+    if(navigator.vibrate) navigator.vibrate([200,100,200]);
+  }
+  _lastMSKey=msKey;
 }
 
 function fetchWhaleCopy(){
@@ -895,6 +954,8 @@ function fetchWhaleCopy(){
 }
 
 function updateWhaleCopy(d){
+  window._lastWC = d;
+  updateMasterSignal();
   const sigs = d.signals || [];
   const meta = document.getElementById('wc-meta');
   const confCount = sigs.filter(s=>s.confirmed).length;
