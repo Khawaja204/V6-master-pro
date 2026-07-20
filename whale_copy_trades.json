@@ -1,5 +1,28 @@
 [
   {
+    "id": "WC-1784530238-PEPE",
+    "symbol": "PEPEUSDT",
+    "direction": "COPY_BUY",
+    "entry_price": 2.83e-06,
+    "wall_price": 3e-06,
+    "wall_size_usdt": 402419.0,
+    "wall_qty": 134139666666.6667,
+    "stop_loss": 2.96e-06,
+    "target": 3.09e-06,
+    "obi": 0.1087,
+    "obi_velocity": 0.0,
+    "confidence": 60.9,
+    "eta": "~5.2h",
+    "entry_time": "2026-07-20 11:50:38",
+    "entry_ts": 1784530238.2965484,
+    "mode": "PAPER (WHALE COPY)",
+    "status": "OPEN",
+    "exit_price": null,
+    "exit_time": null,
+    "result": null,
+    "pnl_pct": null
+  },
+  {
     "id": "WC-1784528223-TRXU",
     "symbol": "TRXUSDT",
     "direction": "COPY_BUY",
