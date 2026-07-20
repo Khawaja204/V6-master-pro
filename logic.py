@@ -944,6 +944,55 @@ def process_whale_walls(config: dict, price_map: dict, previous_walls: dict) -> 
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ETH ON-CHAIN EXCHANGE FLOW — via Etherscan (ETH/ERC-20 only)
+# ══════════════════════════════════════════════════════════════════════════════
+
+BINANCE_ETH_HOT_WALLET = "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+_eth_flow_last_block: dict = {}
+
+def fetch_eth_exchange_flows(api_key: str, min_eth: float = 50.0) -> list:
+    """Detects large ETH transfers into/out of a known Binance hot wallet via
+    Etherscan. Returns new flows since the last check. ETH/ERC-20 chain only —
+    does NOT apply to BTC, BNB(native), SOL, XRP, ADA, DOGE, AVAX."""
+    if not api_key:
+        return []
+    try:
+        params = {
+            "module": "account", "action": "txlist",
+            "address": BINANCE_ETH_HOT_WALLET, "sort": "desc",
+            "apikey": api_key, "offset": 20, "page": 1,
+        }
+        resp = requests.get("https://api.etherscan.io/api", params=params, timeout=10)
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        if data.get("status") != "1":
+            return []
+        txs = data.get("result", [])
+        last_block = _eth_flow_last_block.get("last", 0)
+        new_txs = [t for t in txs if int(t.get("blockNumber", 0)) > last_block]
+        if txs:
+            _eth_flow_last_block["last"] = max(int(t["blockNumber"]) for t in txs)
+        out = []
+        for t in new_txs:
+            eth_val = int(t.get("value", 0)) / 1e18
+            if eth_val < min_eth:
+                continue
+            is_inflow = t.get("to", "").lower() == BINANCE_ETH_HOT_WALLET.lower()
+            out.append({
+                "eth": round(eth_val, 3),
+                "direction": "INFLOW (deposit → sell pressure)" if is_inflow else "OUTFLOW (withdraw → accumulation)",
+                "hash": t.get("hash", ""),
+                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(int(t.get("timeStamp", 0)) + 5 * 3600)) + " PKT",
+                "source": "Etherscan",
+            })
+        return out
+    except Exception as e:
+        log.debug(f"Etherscan fetch failed: {e}")
+        return []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # LARGE TRADE DETECTOR — exchange-side whale-activity proxy (no on-chain API needed)
 # ══════════════════════════════════════════════════════════════════════════════
 

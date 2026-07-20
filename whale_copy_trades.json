@@ -1,5 +1,28 @@
 [
   {
+    "id": "WC-1784587191-NEAR",
+    "symbol": "NEARUSDT",
+    "direction": "COPY_BUY",
+    "entry_price": 1.961,
+    "wall_price": 1.95,
+    "wall_size_usdt": 153358.0,
+    "wall_qty": 78645.1282,
+    "stop_loss": 1.92075,
+    "target": 2.0085,
+    "obi": 0.2833,
+    "obi_velocity": 0.0,
+    "confidence": 53.9,
+    "eta": "~2.2h",
+    "entry_time": "2026-07-21 03:39:51",
+    "entry_ts": 1784587191.4632957,
+    "mode": "PAPER (WHALE COPY)",
+    "status": "OPEN",
+    "exit_price": null,
+    "exit_time": null,
+    "result": null,
+    "pnl_pct": null
+  },
+  {
     "id": "WC-1784530238-PEPE",
     "symbol": "PEPEUSDT",
     "direction": "COPY_BUY",
