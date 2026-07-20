@@ -47,6 +47,11 @@ _audit.addHandler(_ah)
 def audit(user_id: str, action: str, result: str, extra: str = ""):
     _audit.info(f"USER={user_id} | ACTION={action} | RESULT={result} | {extra}")
 
+
+def _pkt_ts() -> str:
+    """Current timestamp formatted in Pakistan time (UTC+5)."""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
+
 # ── Config ────────────────────────────────────────────────────────────────────
 with open("config.json") as f:
     CONFIG = json.load(f)
@@ -180,7 +185,7 @@ def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
         "manual":      manual,
         "reason":      reason or ("Manual admin trade" if manual else "Auto trade"),
         "status":      "FILLED (SIMULATED)",
-        "time":        time.strftime("%Y-%m-%d %H:%M:%S"),
+        "time":        _pkt_ts(),
     }
     PAPER_TRADES.insert(0, rec)
     if len(PAPER_TRADES) > 500:
@@ -368,7 +373,7 @@ def _record_trade_result(is_win: bool, pnl_pct: float) -> None:
 def _record_alert(alert_type: str, symbol: str, label: str, price,
                   detail: str, traffic: str = "", confidence: int = 0):
     entry = {
-        "time":       time.strftime("%Y-%m-%d %H:%M:%S"),
+        "time":       _pkt_ts(),
         "type":       alert_type,
         "symbol":     symbol,
         "label":      label,
@@ -411,7 +416,7 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         "symbol":      symbol,
         "folder":      folder,
         "entry_price": entry_price,
-        "entry_time":  time.strftime("%Y-%m-%d %H:%M:%S"),
+        "entry_time":  _pkt_ts(),
         "entry_ts":    now,
         "tp1":         tp_zones.get("tp1", 0),
         "tp2":         tp_zones.get("tp2", 0),
@@ -481,7 +486,7 @@ def _record_whale_copy_trade(sig: dict):
         "obi_velocity":   sig["obi_velocity"],
         "confidence":     sig["confidence"],
         "eta":            sig.get("eta", "—"),
-        "entry_time":     time.strftime("%Y-%m-%d %H:%M:%S"),
+        "entry_time":     _pkt_ts(),
         "entry_ts":       now,
         "mode":           "PAPER (WHALE COPY)",
         "status":         "OPEN",
