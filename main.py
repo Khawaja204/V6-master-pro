@@ -535,7 +535,7 @@ def whale_copy_check_loop():
                 if hit_target or hit_sl or age >= 6 * 3600:
                     exit_price = target if hit_target else (sl if hit_sl else current)
                     tr["exit_price"] = exit_price
-                    tr["exit_time"]  = time.strftime("%Y-%m-%d %H:%M:%S")
+                    tr["exit_time"]  = _pkt_ts()
                     tr["pnl_pct"]    = round((exit_price - entry_p) / entry_p * 100, 3) if entry_p else 0
                     tr["result"]     = "WIN" if hit_target else ("LOSS" if hit_sl else "TIMEOUT")
                     tr["status"]     = "CLOSED"
@@ -1366,7 +1366,7 @@ def backtest_check_loop():
                         sig["exit_price"] = min(current, sig["stop_loss"])
                     else:
                         sig["exit_price"] = current
-                    sig["exit_time"]  = time.strftime("%Y-%m-%d %H:%M:%S")
+                    sig["exit_time"]  = _pkt_ts()
                     sig["pnl_pct"]    = round((sig["exit_price"] - entry) / entry * 100, 3)
 
                     # Classify by REALIZED PnL, not merely whether tp1 was tagged

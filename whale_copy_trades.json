@@ -1,5 +1,28 @@
 [
   {
+    "id": "WC-1784528223-TRXU",
+    "symbol": "TRXUSDT",
+    "direction": "COPY_BUY",
+    "entry_price": 0.3267,
+    "wall_price": 0.3263,
+    "wall_size_usdt": 208457.0,
+    "wall_qty": 638850.7508,
+    "stop_loss": 0.3214055,
+    "target": 0.336089,
+    "obi": 0.2608,
+    "obi_velocity": 2.348,
+    "confidence": 60.8,
+    "eta": "~21.5h",
+    "entry_time": "2026-07-20 11:17:03",
+    "entry_ts": 1784528223.0653756,
+    "mode": "PAPER (WHALE COPY)",
+    "status": "OPEN",
+    "exit_price": null,
+    "exit_time": null,
+    "result": null,
+    "pnl_pct": null
+  },
+  {
     "id": "WC-1784498224-PEPE",
     "symbol": "PEPEUSDT",
     "direction": "COPY_BUY",
@@ -39,11 +62,11 @@
     "entry_time": "2026-07-19 21:10:54",
     "entry_ts": 1784495454.7890873,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 1366.3,
+    "exit_time": "2026-07-20 06:09:18",
+    "result": "TIMEOUT",
+    "pnl_pct": -0.169
   },
   {
     "id": "WC-1784490919-BANK",
@@ -85,11 +108,11 @@
     "entry_time": "2026-07-19 19:00:03",
     "entry_ts": 1784487603.723535,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 75.98,
+    "exit_time": "2026-07-20 06:09:18",
+    "result": "TIMEOUT",
+    "pnl_pct": 0.33
   },
   {
     "id": "WC-1784481972-XRPU",
@@ -108,11 +131,11 @@
     "entry_time": "2026-07-19 17:26:12",
     "entry_ts": 1784481972.925281,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 1.0886,
+    "exit_time": "2026-07-20 06:09:18",
+    "result": "TIMEOUT",
+    "pnl_pct": -0.539
   },
   {
     "id": "WC-1784481324-TRUM",
