@@ -16,11 +16,11 @@
     "entry_time": "2026-07-20 11:50:38",
     "entry_ts": 1784530238.2965484,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 2.96e-06,
+    "exit_time": "2026-07-20 06:59:19",
+    "result": "LOSS",
+    "pnl_pct": 4.594
   },
   {
     "id": "WC-1784528223-TRXU",
@@ -39,11 +39,11 @@
     "entry_time": "2026-07-20 11:17:03",
     "entry_ts": 1784528223.0653756,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 0.3264,
+    "exit_time": "2026-07-20 22:28:16",
+    "result": "TIMEOUT",
+    "pnl_pct": -0.092
   },
   {
     "id": "WC-1784498224-PEPE",
