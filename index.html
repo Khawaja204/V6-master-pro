@@ -42,6 +42,16 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 .next-pill{background:#1a1a2e;border:1px solid var(--border);padding:2px 8px;border-radius:10px;font-size:10px}
 .conn-dot{color:var(--green)}
 
+/* SIMPLE MODE */
+body.simple-active #tabs,
+body.simple-active #sniper-grid,
+body.simple-active .bot-grid,
+body.simple-active .gauge-sec,
+body.simple-active .card:not(#master-signal-card) { display:none !important }
+body.simple-active #master-signal { font-size:1.3em; padding:24px }
+body.simple-active .ms-label { font-size:24px }
+body.simple-active .ms-sub { font-size:12px }
+
 /* MASTER SIGNAL CARD */
 #master-signal{display:flex;align-items:center;justify-content:center;gap:14px;padding:10px;margin:8px;border-radius:6px;border:2px solid #555;background:#0e0e14;cursor:pointer;transition:border-color .3s}
 #master-signal.BUY{border-color:var(--green);background:#00220f}
@@ -248,7 +258,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
   </div>
   <div class="hbtns">
     <button class="hbtn focus" onclick="location.href='/focus'">FOCUS NODE</button>
-    <button class="hbtn" onclick="location.href='/v6/'">SIMPLE NODE</button>
+    <button class="hbtn" id="simple-toggle-btn" onclick="toggleSimpleMode()">SIMPLE NODE</button>
     <button class="hbtn admin" onclick="location.href='/admin'">ADMIN/QUEST</button>
     <button class="hbtn client" onclick="location.href='/client'">profile ▾</button>
   </div>
@@ -926,6 +936,16 @@ function fetchAll(){
 }
 
 let _lastMSKey='';
+function toggleSimpleMode(){
+  const active = document.body.classList.toggle('simple-active');
+  const btn = document.getElementById('simple-toggle-btn');
+  if(btn){
+    btn.textContent = active ? 'FULL NODE' : 'SIMPLE NODE';
+    btn.style.borderColor = active ? '#00ff88' : '#333';
+    btn.style.color = active ? '#00ff88' : '#aaa';
+  }
+}
+
 function updateMasterSignal(){
   const d=window._lastDD||{};
   const wc=window._lastWC||{};
@@ -1101,6 +1121,7 @@ function updateScanner(d){
     const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
     const fb=(c._folders||[]).map(f=>`<span class="fb f-${f.toLowerCase()}">${f}</span>`).join('');
     const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
+    const basisTag=`<span class="fb" style="background:#1a1a2e;color:#8888a0" title="Signal basis">${whMatch?'VMC+OBI':'VMC'}</span>`;
     let patTag='';
     if(whMatch){
       const obiV=(whMatch.obi&&whMatch.obi.obi)||0;
@@ -1120,7 +1141,7 @@ function updateScanner(d){
     return `<tr class="${rowCls}">
       <td style="color:var(--grey)">#${i+1}</td>
       <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-      <td>${fb}${patTag}</td>
+      <td>${fb}${patTag}${basisTag}</td>
       <td>${tlDot}${tl[0]?.toUpperCase()}</td>
       <td>${inst_s.toFixed(1)}</td>
       <td>${conf}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(conf,100)}%;background:${bc}"></span></span></div></td>
