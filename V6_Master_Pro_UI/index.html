@@ -1121,6 +1121,7 @@ function updateScanner(d){
     const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
     const fb=(c._folders||[]).map(f=>`<span class="fb f-${f.toLowerCase()}">${f}</span>`).join('');
     const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
+    const basisTag=`<span class="fb" style="background:#1a1a2e;color:#8888a0" title="Signal basis">${whMatch?'VMC+OBI':'VMC'}</span>`;
     let patTag='';
     if(whMatch){
       const obiV=(whMatch.obi&&whMatch.obi.obi)||0;
@@ -1140,7 +1141,7 @@ function updateScanner(d){
     return `<tr class="${rowCls}">
       <td style="color:var(--grey)">#${i+1}</td>
       <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-      <td>${fb}${patTag}</td>
+      <td>${fb}${patTag}${basisTag}</td>
       <td>${tlDot}${tl[0]?.toUpperCase()}</td>
       <td>${inst_s.toFixed(1)}</td>
       <td>${conf}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(conf,100)}%;background:${bc}"></span></span></div></td>
