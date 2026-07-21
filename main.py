@@ -23,7 +23,7 @@ from logic import (
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
     detect_whale_copy_signals, is_stablecoin_pair,
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
-    estimate_time_to_target, fetch_large_trades,
+    estimate_time_to_target, fetch_large_trades, fetch_eth_exchange_flows,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -85,6 +85,7 @@ GLOBAL_DATA = {
     "inst_signals":   [],
     "whale_copy_signals": [],
     "large_trades":   [],
+    "eth_onchain_flows": [],
     "btc":            {},
     "last_update":    None,
     "heartbeat":      None,
@@ -1104,6 +1105,14 @@ def data_refresh_loop():
                 _lt_all = _new_large_trades + GLOBAL_DATA.get("large_trades", [])
                 _lt_all.sort(key=lambda x: x["ts"], reverse=True)
                 GLOBAL_DATA["large_trades"] = _lt_all[:100]
+
+            # ── ETH ON-CHAIN EXCHANGE FLOW (Etherscan) ────────────────────────
+            _etherscan_key = os.getenv("ETHERSCAN_API_KEY", "")
+            if _etherscan_key:
+                _new_eth_flows = fetch_eth_exchange_flows(_etherscan_key)
+                if _new_eth_flows:
+                    _ef_all = _new_eth_flows + GLOBAL_DATA.get("eth_onchain_flows", [])
+                    GLOBAL_DATA["eth_onchain_flows"] = _ef_all[:50]
 
             # ── HOT COIN: decay old entries ─────────────────────────────────
             now = time.time()
@@ -2965,6 +2974,11 @@ def chart_data():
         "stop_loss": tp_z.get("stop_loss",0), "entry_low": tp_z.get("entry_low",0),
         "entry_high": tp_z.get("entry_high",0), "markers": markers, "whale_walls": whale_walls,
     })
+
+
+@app.route("/eth_onchain_data")
+def eth_onchain_data_route():
+    return jsonify({"flows": GLOBAL_DATA.get("eth_onchain_flows", [])[:30]})
 
 
 @app.route("/large_trades_data")
