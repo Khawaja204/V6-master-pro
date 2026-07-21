@@ -1121,7 +1121,9 @@ function updateScanner(d){
     const tlDot=`<span class="tl-dot ${tl==='green'?'tl-green':tl==='yellow'?'tl-yellow':'tl-red'}" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle;"></span>`;
     const fb=(c._folders||[]).map(f=>`<span class="fb f-${f.toLowerCase()}">${f}</span>`).join('');
     const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
-    const basisTag=`<span class="fb" style="background:#1a1a2e;color:#8888a0" title="Signal basis">${whMatch?'VMC+OBI':'VMC'}</span>`;
+    const isETH = (c.symbol||'').toUpperCase()==='ETHUSDT';
+    const basisTag=`<span class="fb" style="background:#1a1a2e;color:#8888a0" title="Signal basis">${whMatch?'VMC+OBI':'VMC'}</span>`+
+      (isETH?`<span class="fb" style="background:#003355;color:#66ccff" title="On-chain data source">Etherscan</span>`:'');
     let patTag='';
     if(whMatch){
       const obiV=(whMatch.obi&&whMatch.obi.obi)||0;
