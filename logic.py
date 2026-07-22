@@ -1128,7 +1128,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
         for folder, coins in vmc_data.items():
             for coin in coins[:20]:
                 row = {"Timestamp": ts, "Asset": coin["symbol"].replace("USDT",""), "Status": "ACTIVE",
-                       "Signal": folder, "Basis": "VMC", "VMC": coin["score"], "Price": coin["price"],
+                       "Signal": folder, "Basis": "Chg%+Vol+RSI", "VMC": coin["score"], "Price": coin["price"],
                        "Buy/Sale": "BUY" if folder in ["ENTRY","GOLDEN","VIP"] else "WATCH",
                        "Heatmap": "HOT" if coin["volume_usdt"] > 10_000_000 else "WARM",
                        "Slack": "", "Chg%": coin["change_pct"], "RSI": coin["rsi"],
@@ -1219,7 +1219,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 bd = v6.get("breakdown", {}) or {}
                 tp = s.get("tp_zones", {}) or {}
                 v6_rows.append([
-                    sym.replace("USDT",""), "V6-Score", s.get("folder",""), v6.get("label",""), v6.get("score",0),
+                    sym.replace("USDT",""), "Regime+Whale+RSI+MACD+SmartMoney+RR", s.get("folder",""), v6.get("label",""), v6.get("score",0),
                     bd.get("market_regime",0), bd.get("inst_whale",0), bd.get("technical",0),
                     bd.get("smart_divergence",0), bd.get("trade_engine",0),
                     s.get("rsi",0), s.get("price",0),
@@ -1279,7 +1279,7 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
             pt_rows = [["Time","Symbol","Basis","Side","AmountUSDT","Price","Qty","Strategy","Mode","Reason"]]
             for t in paper_trades[:200]:
                 pt_rows.append([
-                    t.get("time",""), t.get("symbol","").replace("USDT",""), "V6-Score", t.get("side",""),
+                    t.get("time",""), t.get("symbol","").replace("USDT",""), "Regime+Whale+RSI+MACD+SmartMoney+RR", t.get("side",""),
                     t.get("amount_usdt",0), t.get("price",0), t.get("qty",0),
                     t.get("strategy",""), t.get("mode",""), t.get("reason",""),
                 ])
