@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>V6 Master Pro</title>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -328,6 +329,8 @@ body.simple-active .ms-sub { font-size:12px }
 </div>
 <div id="chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
 <div id="chart-status" style="font-size:9px;color:#666;margin-bottom:5px"></div>
+<div style="font-size:8px;color:#f0b90b;margin-bottom:2px">📈 TradingView (full tools)</div>
+<div id="tv-chart-box" style="height:220px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
 <div id="sl-warning" style="display:none;background:#330000;border:1px solid #ff2244;color:#ff2244;font-size:10px;font-weight:bold;padding:5px 8px;border-radius:2px;margin-bottom:5px;text-align:center"></div>
 <div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px">
 <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px">
@@ -382,6 +385,14 @@ body.simple-active .ms-sub { font-size:12px }
           <div class="rsn">
             <div class="rsn-lbl">REASON</div>
             <div id="reason-txt">DUMP_PREPARATION → AVOID</div>
+          </div>
+          <div class="rsn" id="binance-trade-card" style="border-color:#f0b90b">
+            <div class="rsn-lbl" style="color:#f0b90b">📲 BINANCE TRADE PLAN</div>
+            <div id="binance-trade-txt" style="font-size:10px;line-height:1.7">—</div>
+            <a id="binance-link" href="#" target="_blank" rel="noopener"
+               style="display:block;margin-top:6px;text-align:center;background:#f0b90b;color:#000;font-weight:bold;padding:7px;border-radius:2px;text-decoration:none;font-size:10px">
+               Open on Binance →
+            </a>
           </div>
           <button class="exec-btn go pg">EXECUTE TRADE NOW</button>
           <button class="exec-btn panic">PANIC – CANCEL ALL</button>
@@ -723,6 +734,7 @@ function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const symbol=s.includes('USDT')?s:s+'USDT';
+  updateTVChart(symbol);
   const _st=document.getElementById('chart-status');
   if(_st) _st.textContent='Loading '+symbol+' '+currentTF+'...';
   updateQuickTrends(symbol);
@@ -764,6 +776,7 @@ function fetchChart(sym){
         if(lbl==='BUY') markers=[{time:t,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(v6.score||0)}];
         else if(lbl==='SELL'||lbl==='AVOID') markers=[{time:t,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:lbl+' '+Math.round(v6.score||0)}];
         const _price=candles[candles.length-1].close;
+        updateBinancePlan(symbol,lbl,tp2,_price);
         if(tp2.tp1&&tp2.stop_loss&&_price>tp2.stop_loss){
           const _rr=(tp2.tp1-_price)/(_price-tp2.stop_loss);
           if(rrEl){ rrEl.textContent=_rr.toFixed(2)+':1'; rrEl.style.color=_rr>=2?'#00ff88':_rr>=1?'#ffd700':'#ff2244'; }
@@ -811,6 +824,7 @@ function fetchChart(sym){
         if(pb){pb.textContent='LOADING…';pb.style.background='#1a1a1a';pb.style.color='#888';}
         fetch(`/live_score?symbol=${symbol}`).then(r=>r.json()).then(ls=>{
           if(!ls || ls.error){
+            updateBinancePlan(symbol,'WAIT',{},0);
             if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
             if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
             set('vmc-score','—'); set('buy-est','—'); set('sell-est','—'); set('buy-ext','—'); set('sell-ext','—');
@@ -824,6 +838,7 @@ function fetchChart(sym){
           }
           const lv6=ls.v6||{}, linst=ls.inst||{}, ltp=ls.tp_zones||{};
           const llbl=(lv6.label||'WAIT').toUpperCase();
+          updateBinancePlan(symbol,llbl,ltp,ls.price||0);
           const icons={BUY:'🟢',SELL:'🔴',WAIT:'⏳',HOLD:'🟡',AVOID:'🚫'};
           if(bs){bs.className=llbl;bs.innerHTML=(icons[llbl]||'⏳')+' '+llbl+' — SCORE: <span id="big-score">'+Math.round(lv6.score||0)+'</span>/100 <span style="font-size:9px;color:#888">(live)</span>';}
           if(pb){pb.textContent=llbl==='BUY'?'BUY – ACCUMULATION (live)':'AVOID – DUMP PREP (live)';pb.style.background=llbl==='BUY'?'#003311':'#440000';pb.style.color=llbl==='BUY'?'#00ff88':'#ff2244';}
@@ -911,6 +926,39 @@ function loadCoin(symbol){
   if(sniperTab) sniperTab.classList.add('active');
   document.getElementById('tab-sniper').classList.add('active');
   doSearch();
+}
+
+function updateTVChart(symbol){
+  const c=document.getElementById('tv-chart-box');
+  if(!c || typeof TradingView==='undefined') return;
+  c.innerHTML='';
+  try{
+    new TradingView.widget({
+      autosize:true, symbol:'BINANCE:'+symbol, interval:'15',
+      timezone:'Asia/Karachi', theme:'dark', style:'1', locale:'en',
+      toolbar_bg:'#0e0e14', enable_publishing:false, hide_legend:false,
+      save_image:false, container_id:'tv-chart-box',
+    });
+  }catch(e){console.warn('TV widget failed:',e);}
+}
+
+function updateBinancePlan(symbol,label,tp,price){
+  const sym=(symbol||'').replace('USDT','');
+  const box=document.getElementById('binance-trade-txt');
+  const link=document.getElementById('binance-link');
+  if(!box||!link) return;
+  tp=tp||{};
+  if(label==='BUY'){
+    box.innerHTML=`<b style="color:#00ff88">BUY ${sym}</b> around <b>${fmt6(tp.entry_low||price)}</b> – ${fmt6(tp.entry_high||price)}<br>`+
+      `🎯 TP1 ${fmt6(tp.tp1||0)} | TP2 ${fmt6(tp.tp2||0)} | TP3 ${fmt6(tp.tp3||0)}<br>`+
+      `🛡 SL ${fmt6(tp.stop_loss||0)}`;
+  } else if(label==='AVOID'||label==='SELL'){
+    box.innerHTML=`<b style="color:#ff2244">AVOID</b> — no clear buy setup for ${sym} right now. Don't enter.`;
+  } else {
+    box.innerHTML=`<b style="color:#ffd700">WAIT</b> — ${sym} not confirmed yet, hold off for now.`;
+  }
+  link.textContent='Open '+(symbol||'')+' on Binance →';
+  link.href='https://www.binance.com/en/trade/'+sym+'_USDT?type=spot';
 }
 
 function doSearch(){fetchChart();fetchAll();}
