@@ -490,7 +490,7 @@ body.simple-active .ms-sub { font-size:12px }
 ═══════════════════════════════ -->
 <div class="panel" id="tab-scanner">
   <div class="scan-hdr">
-    <span class="scan-title">⚡ INSTITUTIONAL &amp; WALL SCANNER TABLE</span>
+    <span class="scan-title">⚡ INSTITUTIONAL &amp; WALL SCANNER TABLE</span><br><span style="font-size:8px;color:var(--grey)">Folders(VIP/GOLDEN/BOOM/ENTRY/EXIT/STUCK/PUMP)=Chg%+Vol+RSI | Inst%=Whale+VMC+OFI | Action(V6)=5-factor score</span>
     <span class="scan-meta" id="scan-meta">Loading...</span>
   </div>
   <div style="overflow-x:auto">
@@ -525,6 +525,7 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="tl-circle YELLOW" id="tl-circle">WAIT</div>
     <div class="tl-score" id="tl-score" style="color:var(--gold)">—</div>
     <div class="tl-label">V6 54-POINT SCORE / 100</div>
+      <div style="font-size:8px;color:var(--grey);margin-bottom:8px">Basis: Regime + Whale/Inst + RSI/MACD/Volume + Smart-Money Divergence + Risk/R:R</div>
 
     <div class="tl-bars">
       <div class="tl-bar-row">
@@ -1122,7 +1123,7 @@ function updateScanner(d){
     const fb=(c._folders||[]).map(f=>`<span class="fb f-${f.toLowerCase()}">${f}</span>`).join('');
     const whMatch=(d.whale||[]).find(w=>w.symbol===c.symbol);
     const isETH = (c.symbol||'').toUpperCase()==='ETHUSDT';
-    const basisTag=`<span class="fb" style="background:#1a1a2e;color:#8888a0" title="Signal basis">${whMatch?'VMC+OBI':'VMC'}</span>`+
+    const basisTag=`<span class="fb" style="background:#1a1a2e;color:#8888a0" title="Signal basis">${whMatch?'Chg%+Vol+RSI+Walls+OBI':'Chg%+Vol+RSI'}</span>`+
       (isETH?`<span class="fb" style="background:#003355;color:#66ccff" title="On-chain data source">Etherscan</span>`:'');
     let patTag='';
     if(whMatch){
@@ -1153,7 +1154,7 @@ function updateScanner(d){
       <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>
       <td style="color:var(--green)">${tp.tp3?'▲'+fmt6(tp.tp3):'—'}</td>
-      <td><span class="at ${actCls}">${lbl}</span></td>
+      <td><span class="at ${actCls}" title="V6 Score basis: Regime+Whale+RSI+MACD+SmartMoney+R:R (5-factor /100)">${lbl}</span></td>
     </tr>`;
   }).join('');
   const _scanRows = coins.slice(0,25);

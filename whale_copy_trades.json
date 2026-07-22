@@ -16,11 +16,11 @@
     "entry_time": "2026-07-21 11:44:47",
     "entry_ts": 1784616287.8351884,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 573.29,
+    "exit_time": "2026-07-22 06:57:28",
+    "result": "TIMEOUT",
+    "pnl_pct": -0.584
   },
   {
     "id": "WC-1784587191-NEAR",
