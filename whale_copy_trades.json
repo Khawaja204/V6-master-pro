@@ -16,11 +16,11 @@
     "entry_time": "2026-07-22 10:48:39",
     "entry_ts": 1784699319.4411123,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 0.3298,
+    "exit_time": "2026-07-22 18:49:01",
+    "result": "TIMEOUT",
+    "pnl_pct": 0.243
   },
   {
     "id": "WC-1784616287-BNBU",
