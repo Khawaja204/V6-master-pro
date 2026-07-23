@@ -413,8 +413,6 @@ def calculate_54_point_score(symbol='', klines=None, order_book=None,
                               ticker=None, extra=None):
     """
     Full 54-point institutional scoring engine.
-<<<<<<< HEAD
-=======
 
     Parameters
     ----------
@@ -434,7 +432,6 @@ def calculate_54_point_score(symbol='', klines=None, order_book=None,
     -------
     dict with keys: score, signal, badge, rsi, rr, breakdown, category_scores,
                     whale_wallet, sl, tp1, tp2, tp3, atr
->>>>>>> d2c1ac82c18e370e2831c23a0a05ed14a20bb7ec
     """
     if klines     is None: klines     = []
     if order_book is None: order_book = {}
