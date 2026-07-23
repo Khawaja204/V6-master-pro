@@ -1,5 +1,28 @@
 [
   {
+    "id": "WC-1784772428-ENAU",
+    "symbol": "ENAUSDT",
+    "direction": "COPY_BUY",
+    "entry_price": 0.0901,
+    "wall_price": 0.0894,
+    "wall_size_usdt": 168105.0,
+    "wall_qty": 1880369.1275,
+    "stop_loss": 0.088059,
+    "target": 0.092082,
+    "obi": 0.147,
+    "obi_velocity": 0.6,
+    "confidence": 42.7,
+    "eta": "~1.4h",
+    "entry_time": "2026-07-23 07:07:08",
+    "entry_ts": 1784772428.8198981,
+    "mode": "PAPER (WHALE COPY)",
+    "status": "OPEN",
+    "exit_price": null,
+    "exit_time": null,
+    "result": null,
+    "pnl_pct": null
+  },
+  {
     "id": "WC-1784699319-TRXU",
     "symbol": "TRXUSDT",
     "direction": "COPY_BUY",
