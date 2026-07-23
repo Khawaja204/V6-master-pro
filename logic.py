@@ -1316,6 +1316,31 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 ])
             ws_pt.clear(); ws_pt.update("A1", pt_rows)
 
+        # ── LEGEND: one-time reference tab explaining every tab/folder's basis ──
+        try:
+            sheet.worksheet("LEGEND")
+        except Exception:
+            ws_legend = sheet.add_worksheet("LEGEND", rows=40, cols=3)
+            legend_rows = [
+                ["Tab / Folder", "Signal Basis", "Notes"],
+                ["LIVE_DASHBOARD — all VMC folders", "Price Chg% + Volume + RSI", "No whale/order-book data"],
+                ["  > VIP", "Highest overall VMC score", ""],
+                ["  > GOLDEN", "High score + RSI not yet overbought", ""],
+                ["  > BOOM", "5%+ price surge + volume spike", ""],
+                ["  > ENTRY", "RSI oversold or price near 24h low", ""],
+                ["  > EXIT", "RSI overbought or price near 24h high", ""],
+                ["  > STUCK", "Low volatility, range-bound", ""],
+                ["  > PUMP", "Strong price jump + volume", ""],
+                ["WATCH", "Raw whale wall/spoof detection", "Detection only, no score"],
+                ["V6_SIGNALS", "V6 54-point score: Regime+Whale+RSI/MACD/Volume+SmartMoney+Risk-RR", "Gates auto-trade entry"],
+                ["WHALE_COPY_SIGNALS", "Order-book Wall + OBI (live, incl. unconfirmed)", "Independent of V6 score"],
+                ["WHALE_COPY_TRADES", "Confirmed Wall+OBI (2 consecutive scans)", "Paper ledger, win/loss tracked"],
+                ["PAPER_TRADES", "Manual entries + V6-score auto-trade triggers", ""],
+                ["USERS", "Client login records", "Not a trading signal"],
+                ["ARCHIVE_LOG", "Overflow rows + per-cycle summary counts", "Not a trading signal"],
+            ]
+            ws_legend.update("A1", legend_rows)
+
         log.info(f"Sheets updated — {len(rows)-1} LIVE rows, {len(wrows)-1} WATCH rows.")
         return True
     except ImportError:
