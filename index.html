@@ -621,6 +621,16 @@ body.simple-active .ms-sub { font-size:12px }
   </div>
 
   <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">⛓️ ETH ON-CHAIN EXCHANGE FLOW (Etherscan, Binance hot wallet)</div>
+    <div style="overflow-x:auto">
+    <table class="scan-tbl">
+      <thead><tr><th>Time</th><th>ETH</th><th>Direction</th><th>Tx Hash</th></tr></thead>
+      <tbody id="eth-flow-tbody"><tr><td colspan="4" style="text-align:center;color:var(--grey);padding:12px">Loading ETH flows...</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)</div>
     <div style="overflow-x:auto">
     <table class="scan-tbl">
@@ -1007,6 +1017,7 @@ function fetchAll(){
   fetchChart();
   fetchWhaleCopy();
   fetchLargeTrades();
+  fetchEthFlow();
 }
 
 let _lastMSKey='';
@@ -1056,6 +1067,31 @@ function updateMasterSignal(){
     if(navigator.vibrate) navigator.vibrate([200,100,200]);
   }
   _lastMSKey=msKey;
+}
+
+function fetchEthFlow(){
+  fetch('/eth_onchain_data')
+    .then(r=>r.json())
+    .then(d=>{
+      const flows=d.flows||[];
+      const tbody=document.getElementById('eth-flow-tbody');
+      if(!tbody) return;
+      if(!flows.length){
+        tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--grey);padding:12px">No large ETH exchange moves detected yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML=flows.slice(0,20).map(f=>{
+        const isIn=(f.direction||'').startsWith('INFLOW');
+        const col=isIn?'var(--red)':'var(--green)';
+        const shortHash=(f.hash||'').slice(0,10)+'...';
+        return `<tr>
+          <td style="color:var(--grey);font-size:9px">${f.time||''}</td>
+          <td><b>${f.eth||0} ETH</b></td>
+          <td style="color:${col}">${f.direction||''}</td>
+          <td><a href="https://etherscan.io/tx/${f.hash||''}" target="_blank" style="color:var(--blue);font-size:9px">${shortHash}</a></td>
+        </tr>`;
+      }).join('');
+    }).catch(e=>console.error('ETH flow fetch:',e));
 }
 
 function fetchLargeTrades(){
