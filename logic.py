@@ -524,6 +524,7 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
                     exit_price = c; exit_reason = "TIMEOUT"
             if exit_price is not None:
                 pnl = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
+                pnl -= 0.001 * 2 * 100   # Binance spot fee, 0.1% per side
                 all_trades.append({
                     "symbol": sym,
                     "entry_time": pos["entry_time"],
