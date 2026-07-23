@@ -178,13 +178,19 @@ def fetch_ticker_24h(symbol: str) -> dict:
 
 
 def calculate_rsi(closes: list, period: int = 14) -> float:
+    """Wilder's RSI: initial simple-average seed over the first `period`
+    deltas, then recursively smoothed over every remaining delta — matches
+    the standard RSI formula (not a plain last-N-candle average)."""
     if len(closes) < period + 1:
         return 50.0
     deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
     gains  = [d if d > 0 else 0.0 for d in deltas]
     losses = [-d if d < 0 else 0.0 for d in deltas]
-    avg_g  = sum(gains[-period:]) / period
-    avg_l  = sum(losses[-period:]) / period
+    avg_g  = sum(gains[:period]) / period
+    avg_l  = sum(losses[:period]) / period
+    for i in range(period, len(deltas)):
+        avg_g = (avg_g * (period - 1) + gains[i]) / period
+        avg_l = (avg_l * (period - 1) + losses[i]) / period
     if avg_l == 0:
         return 100.0
     return round(100.0 - (100.0 / (1 + avg_g / avg_l)), 2)
@@ -211,16 +217,23 @@ def fetch_rsi_for_symbol(symbol: str, interval: str = "1h", limit: int = 20) -> 
 
 
 def calculate_atr(symbol: str, interval: str = "1h", period: int = 14) -> float:
+    """Wilder's ATR: simple-average seed over the first `period` true
+    ranges, then recursively smoothed — matches the standard ATR formula.
+    Fetches period*3 candles (was period+5) so the smoothing has enough
+    history to actually converge instead of just averaging the last window."""
     try:
-        klines = fetch_klines(symbol, interval, period + 5)
-        if len(klines) < 2:
+        klines = fetch_klines(symbol, interval, period * 3)
+        if len(klines) < period + 1:
             return 0.0
         trs = []
         for i in range(1, len(klines)):
             high = float(klines[i][2]); low = float(klines[i][3])
             close_prev = float(klines[i - 1][4])
             trs.append(max(high - low, abs(high - close_prev), abs(low - close_prev)))
-        return round(sum(trs[-period:]) / min(len(trs), period), 8) if trs else 0.0
+        atr = sum(trs[:period]) / period
+        for i in range(period, len(trs)):
+            atr = (atr * (period - 1) + trs[i]) / period
+        return round(atr, 8)
     except Exception:
         return 0.0
 
@@ -381,13 +394,28 @@ def fetch_klines_range(symbol: str, interval: str, start_ms: int, end_ms: int) -
 
 
 def _rsi_series(closes: list, period: int = 14) -> list:
-    rsis = [50.0] * len(closes)
-    for i in range(period, len(closes)):
-        rsis[i] = calculate_rsi(closes[i - period:i + 1], period)
+    """Wilder's RSI computed once across the whole series (recursive
+    smoothing), not by re-seeding a fresh average on every window slice."""
+    n = len(closes)
+    rsis = [50.0] * n
+    if n <= period:
+        return rsis
+    deltas = [closes[i] - closes[i - 1] for i in range(1, n)]
+    gains  = [d if d > 0 else 0.0 for d in deltas]
+    losses = [-d if d < 0 else 0.0 for d in deltas]
+    avg_g = sum(gains[:period]) / period
+    avg_l = sum(losses[:period]) / period
+    rsis[period] = 100.0 if avg_l == 0 else round(100.0 - 100.0 / (1 + avg_g / avg_l), 2)
+    for i in range(period + 1, n):
+        avg_g = (avg_g * (period - 1) + gains[i - 1]) / period
+        avg_l = (avg_l * (period - 1) + losses[i - 1]) / period
+        rsis[i] = 100.0 if avg_l == 0 else round(100.0 - 100.0 / (1 + avg_g / avg_l), 2)
     return rsis
 
 
 def _atr_series(highs: list, lows: list, closes: list, period: int = 14) -> list:
+    """Wilder's ATR computed once across the whole series (recursive
+    smoothing), not a rolling simple average of the last `period` bars."""
     n = len(closes)
     trs = [0.0] * n
     for i in range(1, n):
@@ -395,8 +423,10 @@ def _atr_series(highs: list, lows: list, closes: list, period: int = 14) -> list
                      abs(highs[i] - closes[i - 1]),
                      abs(lows[i] - closes[i - 1]))
     atrs = [0.0] * n
-    for i in range(period, n):
-        atrs[i] = sum(trs[i - period + 1:i + 1]) / period
+    if n > period:
+        atrs[period] = sum(trs[1:period + 1]) / period
+        for i in range(period + 1, n):
+            atrs[i] = (atrs[i - 1] * (period - 1) + trs[i]) / period
     return atrs
 
 
