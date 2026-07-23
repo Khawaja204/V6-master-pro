@@ -53,7 +53,7 @@
     "wall_price": 0.0894,
     "wall_size_usdt": 168105.0,
     "wall_qty": 1880369.1275,
-    "stop_loss": 0.088059,
+    "stop_loss": 0.0901,
     "target": 0.092082,
     "obi": 0.147,
     "obi_velocity": 0.6,
@@ -66,7 +66,8 @@
     "exit_price": null,
     "exit_time": null,
     "result": null,
-    "pnl_pct": null
+    "pnl_pct": null,
+    "trailing": "BREAKEVEN"
   },
   {
     "id": "WC-1784699319-TRXU",
