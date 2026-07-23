@@ -483,6 +483,8 @@ def _record_whale_copy_trade(sig: dict):
         "wall_size_usdt": sig["wall_size_usdt"],
         "wall_qty":       sig["wall_qty"],
         "stop_loss":      sig.get("stop_loss", 0),
+        "original_sl":    sig.get("stop_loss", 0),
+        "trailing":       "",
         "target":         sig.get("target", 0),
         "obi":            sig["obi"],
         "obi_velocity":   sig["obi_velocity"],
@@ -532,6 +534,18 @@ def whale_copy_check_loop():
                 entry_p = tr.get("entry_price", 0)
                 target  = tr.get("target", 0)
                 sl      = tr.get("stop_loss", 0)
+
+                # ── Trailing stop: once price crosses the halfway point to
+                # target, ratchet SL up to breakeven so a pullback can't turn
+                # a winning trade into a loss. ──
+                if entry_p and target and target > entry_p:
+                    midpoint = entry_p + 0.5 * (target - entry_p)
+                    if current >= midpoint and tr.get("trailing") != "BREAKEVEN" and sl < entry_p:
+                        sl = entry_p
+                        tr["stop_loss"] = sl
+                        tr["trailing"]  = "BREAKEVEN"
+                        changed = True
+
                 hit_target = bool(target) and current >= target
                 hit_sl     = bool(sl) and current <= sl
                 if hit_target or hit_sl or age >= 6 * 3600:
@@ -540,8 +554,13 @@ def whale_copy_check_loop():
                     tr["exit_time"]  = _pkt_ts()
                     _raw_pnl = (exit_price - entry_p) / entry_p * 100 if entry_p else 0
                     tr["pnl_pct"] = round(_raw_pnl - (BINANCE_FEE_PCT * 2 * 100), 3) if entry_p else 0
-                    tr["result"]     = "WIN" if hit_target else ("LOSS" if hit_sl else "TIMEOUT")
-                    tr["status"]     = "CLOSED"
+                    if hit_target:
+                        tr["result"] = "WIN"
+                    elif hit_sl:
+                        tr["result"] = "WIN" if tr["pnl_pct"] > 0 else "LOSS"
+                    else:
+                        tr["result"] = "TIMEOUT"
+                    tr["status"] = "CLOSED"
                     changed = True
             if changed:
                 _save_whale_copy_trades()
