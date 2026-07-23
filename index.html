@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>V6 Master Pro</title>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-<script src="https://s3.tradingview.com/tv.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -329,10 +328,6 @@ body.simple-active .ms-sub { font-size:12px }
 </div>
 <div id="chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
 <div id="chart-status" style="font-size:9px;color:#666;margin-bottom:5px"></div>
-<div style="font-size:8px;color:#f0b90b;margin-bottom:2px">📈 TradingView (full tools)</div>
-<div id="tv-chart-box" style="height:220px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
-<div style="font-size:8px;color:#f0b90b;margin:6px 0 2px">🎯 TradingView Signal (real, independent verdict)</div>
-<div id="tv-ta-widget" style="border:1px solid #1e1e2e;border-radius:2px;overflow:hidden;margin-bottom:5px;min-height:170px"></div>
 <div id="sl-warning" style="display:none;background:#330000;border:1px solid #ff2244;color:#ff2244;font-size:10px;font-weight:bold;padding:5px 8px;border-radius:2px;margin-bottom:5px;text-align:center"></div>
 <div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px">
 <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px">
@@ -631,7 +626,6 @@ body.simple-active .ms-sub { font-size:12px }
 <script>
 // ── GLOBALS ──
 let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m';
-let _lastTVSymbol='';
 
 // ── TABS ──
 function switchTab(name, el) {
@@ -737,11 +731,6 @@ function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const symbol=s.includes('USDT')?s:s+'USDT';
-  if(symbol!==_lastTVSymbol){
-    _lastTVSymbol=symbol;
-    updateTVChart(symbol);
-    updateTVSignal(symbol);
-  }
   const _st=document.getElementById('chart-status');
   if(_st) _st.textContent='Loading '+symbol+' '+currentTF+'...';
   updateQuickTrends(symbol);
@@ -782,6 +771,7 @@ function fetchChart(sym){
         const t=candles[candles.length-1].time;
         if(lbl==='BUY') markers=[{time:t,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(v6.score||0)}];
         else if(lbl==='SELL'||lbl==='AVOID') markers=[{time:t,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:lbl+' '+Math.round(v6.score||0)}];
+        else markers=[{time:t,position:'inBar',color:'#ffd700',shape:'circle',text:'WAIT '+Math.round(v6.score||0)}];
         const _price=candles[candles.length-1].close;
         updateBinancePlan(symbol,lbl,tp2,_price);
         if(tp2.tp1&&tp2.stop_loss&&_price>tp2.stop_loss){
@@ -869,6 +859,7 @@ function fetchChart(sym){
             let lmarkers=[];
             if(llbl==='BUY') lmarkers=[{time:lt,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY '+Math.round(lv6.score||0)+' (live)'}];
             else if(llbl==='SELL'||llbl==='AVOID') lmarkers=[{time:lt,position:'aboveBar',color:'#ff2244',shape:'arrowDown',text:llbl+' '+Math.round(lv6.score||0)+' (live)'}];
+            else lmarkers=[{time:lt,position:'inBar',color:'#ffd700',shape:'circle',text:'WAIT '+Math.round(lv6.score||0)+' (live)'}];
             try{candleSeries.setMarkers(lmarkers);}catch(e){}
           }
         }).catch(()=>{
@@ -876,6 +867,16 @@ function fetchChart(sym){
           if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
         });
       }
+      try{
+        const _bt=(window._lastDD&&window._lastDD.backtest)||[];
+        const _hist=_bt.filter(b=>b.symbol===symbol&&b.entry_ts&&candles.length);
+        _hist.forEach(b=>{
+          let nearest=candles[0].time, minDiff=Infinity;
+          candles.forEach(c=>{const d=Math.abs(c.time-b.entry_ts); if(d<minDiff){minDiff=d;nearest=c.time;}});
+          markers.push({time:nearest,position:'belowBar',color:'#00ff88',shape:'arrowUp',text:'BUY (past)'});
+        });
+        markers.sort((a,b)=>a.time-b.time);
+      }catch(e){}
       try{candleSeries.setMarkers(markers);}catch(e){}
       try{
         if(window._whaleLines) window._whaleLines.forEach(l=>{try{candleSeries.removePriceLine(l);}catch(e){}});
@@ -933,38 +934,6 @@ function loadCoin(symbol){
   if(sniperTab) sniperTab.classList.add('active');
   document.getElementById('tab-sniper').classList.add('active');
   doSearch();
-}
-
-function updateTVChart(symbol){
-  const c=document.getElementById('tv-chart-box');
-  if(!c || typeof TradingView==='undefined') return;
-  c.innerHTML='';
-  try{
-    new TradingView.widget({
-      autosize:true, symbol:'BINANCE:'+symbol, interval:'15',
-      timezone:'Asia/Karachi', theme:'dark', style:'1', locale:'en',
-      toolbar_bg:'#0e0e14', enable_publishing:false, hide_legend:false,
-      save_image:false, container_id:'tv-chart-box',
-    });
-  }catch(e){console.warn('TV widget failed:',e);}
-}
-
-function updateTVSignal(symbol){
-  const c=document.getElementById('tv-ta-widget');
-  if(!c) return;
-  c.innerHTML='<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>';
-  try{
-    const script=document.createElement('script');
-    script.type='text/javascript';
-    script.src='https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.min.js';
-    script.async=true;
-    script.text=JSON.stringify({
-      interval:'15m', width:'100%', isTransparent:true, height:170,
-      symbol:'BINANCE:'+symbol, showIntervalTabs:true,
-      displayMode:'single', locale:'en', colorTheme:'dark',
-    });
-    c.querySelector('.tradingview-widget-container').appendChild(script);
-  }catch(e){console.warn('TV signal widget failed:',e);}
 }
 
 function updateBinancePlan(symbol,label,tp,price){
