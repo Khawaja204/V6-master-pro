@@ -1102,7 +1102,7 @@ def data_refresh_loop():
             whale_data = process_whale_walls(CONFIG, price_map, _previous_walls)
 
             # ── WHALE COPY MODE: independent wall+OBI mirrored signals ────────
-            whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG)
+            whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG, GLOBAL_DATA.get("market_regime", "RANGING"))
             for _wcs in whale_copy_signals:
                 if _wcs.get("confirmed"):
                     _wcs_atr = calculate_atr(_wcs["symbol"])
@@ -2517,7 +2517,7 @@ def admin_refresh_scan():
             whale_data = process_whale_walls(CONFIG, price_map, _previous_walls)
 
             # ── WHALE COPY MODE: independent wall+OBI mirrored signals ────────
-            whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG)
+            whale_copy_signals = detect_whale_copy_signals(whale_data, CONFIG, GLOBAL_DATA.get("market_regime", "RANGING"))
             for _wcs in whale_copy_signals:
                 if _wcs.get("confirmed"):
                     _wcs_atr = calculate_atr(_wcs["symbol"])

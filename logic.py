@@ -1412,7 +1412,7 @@ def fetch_funding_rate(symbol: str) -> float:
     return 0.0
 
 
-def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
+def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str = "RANGING") -> list:
     """
     WHALE COPY MODE — independent of the 54-point v6 score. Directly mirrors
     a CONFIRMED whale wall's direction:
@@ -1482,7 +1482,8 @@ def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
         prev = _whale_copy_state.get(sym)
         count = (prev["count"] + 1) if (prev and prev["direction"] == direction) else 1
         _whale_copy_state[sym] = {"direction": direction, "count": count, "last_seen": now}
-        confirmed = count >= 2
+        required_confirms = 3 if market_regime == "VOLATILE" else 2
+        confirmed = count >= required_confirms
 
         wall_price     = wall.get("price_level", price)
         wall_size_usdt = wall.get("size_usdt", 0)
