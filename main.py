@@ -3219,6 +3219,11 @@ if __name__ == "__main__":
         start_health_monitor(interval=30)
     except Exception as _e:
         log.warning(f"health monitor start failed: {_e}")
+    try:
+        from logic import start_liquidation_monitor
+        start_liquidation_monitor()
+    except Exception as _e:
+        log.warning(f"liquidation monitor start failed: {_e}")
     threading.Thread(target=data_refresh_loop,   daemon=True).start()
     threading.Thread(target=heartbeat_loop,       daemon=True).start()
     threading.Thread(target=btc_monitor_loop,     daemon=True).start()

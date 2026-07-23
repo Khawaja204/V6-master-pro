@@ -6,6 +6,7 @@ All thresholds in config.json — no hardcoded values.
 """
 import time
 import os
+import json
 
 def _tg_proxies():
     p = os.getenv("TELEGRAM_PROXY")
@@ -13,6 +14,8 @@ def _tg_proxies():
 
 import logging
 import threading
+import asyncio
+import websockets
 import requests
 from requests.adapters import HTTPAdapter
 try:
@@ -1412,6 +1415,76 @@ def fetch_funding_rate(symbol: str) -> float:
     return 0.0
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# LIQUIDATION CLUSTER TRACKER — Binance Futures free public WebSocket
+# ══════════════════════════════════════════════════════════════════════════════
+
+_liquidation_events: list = []   # [{symbol, side, usdt, ts}, ...] rolling 30-min buffer
+_liq_lock = threading.Lock()
+_liq_monitor_started = False
+
+async def _liquidation_ws_loop():
+    """Binance Futures forceOrder stream: every forced liquidation across all
+    USDT-M futures symbols, no API key required. side='SELL' means a LONG
+    position was liquidated (exchange sells to close it); side='BUY' means a
+    SHORT was liquidated (exchange buys to close it)."""
+    url = "wss://fstream.binance.com/ws/!forceOrder@arr"
+    while True:
+        try:
+            async with websockets.connect(url, ping_interval=20) as ws:
+                log.info("[LIQUIDATION WS] connected")
+                async for msg in ws:
+                    try:
+                        o = json.loads(msg).get("o", {})
+                        qty   = float(o.get("q", 0))
+                        price = float(o.get("ap") or o.get("p") or 0)
+                        usdt  = qty * price
+                        if usdt < 10000:   # filter noise — only meaningful liquidations
+                            continue
+                        with _liq_lock:
+                            _liquidation_events.append({
+                                "symbol": o.get("s", ""), "side": o.get("S", ""),
+                                "usdt": round(usdt, 0), "ts": time.time(),
+                            })
+                            cutoff = time.time() - 1800
+                            _liquidation_events[:] = [e for e in _liquidation_events if e["ts"] > cutoff]
+                    except Exception as e:
+                        log.debug(f"[LIQUIDATION WS] event parse error: {e}")
+        except Exception as e:
+            log.warning(f"[LIQUIDATION WS] connection error: {e} — retrying in 10s")
+            await asyncio.sleep(10)
+
+
+def start_liquidation_monitor() -> None:
+    global _liq_monitor_started
+    with _liq_lock:
+        if _liq_monitor_started:
+            return
+        _liq_monitor_started = True
+
+    def _runner():
+        try:
+            asyncio.run(_liquidation_ws_loop())
+        except Exception as e:
+            log.warning(f"[LIQUIDATION WS] monitor thread died: {e}")
+
+    threading.Thread(target=_runner, daemon=True, name="liquidation-ws").start()
+    log.info("[LIQUIDATION WS] monitor thread started")
+
+
+def get_recent_liquidations(symbol: str, window_seconds: int = 300) -> dict:
+    """Long/short liquidation totals (USDT) for `symbol` in the last
+    `window_seconds`. long_liq = LONG positions forced closed (further
+    downside pressure risk); short_liq = SHORT positions forced closed
+    (short squeeze — bullish confirmation)."""
+    cutoff = time.time() - window_seconds
+    with _liq_lock:
+        matches = [e for e in _liquidation_events if e["symbol"] == symbol and e["ts"] > cutoff]
+    long_liq  = sum(e["usdt"] for e in matches if e["side"] == "SELL")
+    short_liq = sum(e["usdt"] for e in matches if e["side"] == "BUY")
+    return {"long_liq_usdt": round(long_liq, 0), "short_liq_usdt": round(short_liq, 0), "count": len(matches)}
+
+
 def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str = "RANGING") -> list:
     """
     WHALE COPY MODE — independent of the 54-point v6 score. Directly mirrors
@@ -1501,6 +1574,15 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
         obi_score  = min(100, abs(obi_val) * 200)
         confidence = round(min(100, (size_score + obi_score) / 2), 1)
 
+        # ── Liquidation cluster adjustment ──────────────────────────────────
+        liq = get_recent_liquidations(sym)
+        liq_threshold = wc_cfg.get("liq_cluster_threshold_usdt", 100000)
+        if direction == "COPY_BUY":
+            if liq["short_liq_usdt"] >= liq_threshold:
+                confidence = min(100, confidence + 10)   # short squeeze — bullish confirmation
+            elif liq["long_liq_usdt"] >= liq_threshold:
+                confidence = max(0, confidence - 10)     # longs getting rekt — downside momentum risk
+
         signals.append({
             "symbol":         sym,
             "direction":      direction,
@@ -1516,6 +1598,8 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
             "confirmed":      confirmed,
             "dist_pct":       wall.get("dist_pct", 0),
             "funding_rate":   funding_rate if direction == "COPY_BUY" else fetch_funding_rate(sym),
+            "long_liq_usdt":  liq["long_liq_usdt"],
+            "short_liq_usdt": liq["short_liq_usdt"],
             "detected_at":    time.strftime("%Y-%m-%d %H:%M:%S"),
         })
 
