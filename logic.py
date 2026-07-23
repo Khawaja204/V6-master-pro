@@ -1396,6 +1396,22 @@ def is_stablecoin_pair(symbol: str, price: float, config: dict = None) -> bool:
     return 0.99 <= p <= 1.01
 
 
+def fetch_funding_rate(symbol: str) -> float:
+    """Latest funding rate (%) for `symbol` from Binance Futures (free,
+    public, no key required). Positive = longs paying shorts (market
+    crowded long, dump risk); negative = crowded short. Returns 0.0 on
+    any failure (e.g. symbol has no futures market) so callers can treat
+    that as neutral rather than erroring out."""
+    try:
+        resp = requests.get("https://fapi.binance.com/fapi/v1/premiumIndex",
+                             params={"symbol": symbol}, timeout=8)
+        if resp.status_code == 200:
+            return round(float(resp.json().get("lastFundingRate", 0)) * 100, 4)
+    except Exception as e:
+        log.debug(f"Funding rate fetch failed for {symbol}: {e}")
+    return 0.0
+
+
 def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
     """
     WHALE COPY MODE — independent of the 54-point v6 score. Directly mirrors
@@ -1442,6 +1458,12 @@ def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
             continue
 
         if has_bid and obi_val > 0:
+            max_funding = wc_cfg.get("max_funding_rate_pct", 0.05)
+            funding_rate = fetch_funding_rate(sym)
+            if funding_rate > max_funding:
+                log.info(f"[WHALE COPY] {sym} BUY skipped — funding rate {funding_rate}% > {max_funding}% (overheated longs)")
+                _whale_copy_state.pop(sym, None)
+                continue
             wall      = max(bid_walls, key=lambda x: x["size_usdt"])
             direction = "COPY_BUY"
             opposite  = min(ask_walls, key=lambda x: x["dist_pct"]) if ask_walls else None
@@ -1492,6 +1514,7 @@ def detect_whale_copy_signals(whale_data: list, config: dict) -> list:
             "confidence":     confidence,
             "confirmed":      confirmed,
             "dist_pct":       wall.get("dist_pct", 0),
+            "funding_rate":   funding_rate if direction == "COPY_BUY" else fetch_funding_rate(sym),
             "detected_at":    time.strftime("%Y-%m-%d %H:%M:%S"),
         })
 
