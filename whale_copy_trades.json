@@ -1,5 +1,28 @@
 [
   {
+    "id": "WC-1784791606-APTU",
+    "symbol": "APTUSDT",
+    "direction": "COPY_BUY",
+    "entry_price": 0.618,
+    "wall_price": 0.616,
+    "wall_size_usdt": 205138.0,
+    "wall_qty": 333016.2338,
+    "stop_loss": 0.60676,
+    "target": 0.63448,
+    "obi": 0.4937,
+    "obi_velocity": 0.0,
+    "confidence": 83.6,
+    "eta": "~2.5h",
+    "entry_time": "2026-07-23 12:26:46",
+    "entry_ts": 1784791606.5403364,
+    "mode": "PAPER (WHALE COPY)",
+    "status": "OPEN",
+    "exit_price": null,
+    "exit_time": null,
+    "result": null,
+    "pnl_pct": null
+  },
+  {
     "id": "WC-1784789822-TRXU",
     "symbol": "TRXUSDT",
     "direction": "COPY_BUY",
