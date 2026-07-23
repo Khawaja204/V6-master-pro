@@ -261,6 +261,7 @@ body.simple-active .ms-sub { font-size:12px }
     <button class="hbtn" id="simple-toggle-btn" onclick="toggleSimpleMode()">SIMPLE NODE</button>
     <button class="hbtn admin" onclick="location.href='/admin'">ADMIN/QUEST</button>
     <button class="hbtn client" onclick="location.href='/client'">profile ▾</button>
+    <button class="hbtn" id="info-toggle-btn" onclick="toggleInfoPanel()">ℹ️ INFO</button>
   </div>
 </div>
 
@@ -287,6 +288,27 @@ body.simple-active .ms-sub { font-size:12px }
     <span class="ms-label" id="ms-label">WAIT</span>
     <span class="ms-sub" id="ms-sub">Loading master signal...</span>
   </div>
+</div>
+
+<!-- INFO PANEL: full basis reference for every tab/folder -->
+<div id="info-panel" style="display:none;background:#0e0e14;border-bottom:2px solid #ffd700;padding:12px;font-size:10px;line-height:1.6;color:#c9d1d9">
+  <b style="color:#ffd700">📋 Signal Basis Reference</b><br><br>
+  <b style="color:#00ff88">Web Tabs</b><br>
+  • SNIPER — searched coin's V6 54-point score (Regime+Whale+RSI/MACD/Volume+SmartMoney+Risk-RR)<br>
+  • SCANNER — Institutional Score (Whale Power+VMC+OFI) + folder tags + V6 Action badge<br>
+  • SIGNAL — top-ranked coin's V6 54-point breakdown (5 categories)<br>
+  • WHALE COPY — Order-book Wall + OBI only, 2-scan-cycle confirmation, independent of V6<br><br>
+  <b style="color:#00ff88">VMC Folders</b> (basis: Price Chg% + Volume + RSI — no whale data)<br>
+  • VIP = highest overall VMC score &nbsp; • GOLDEN = high score + RSI not overbought yet<br>
+  • BOOM = 5%+ surge + volume spike &nbsp; • ENTRY = RSI oversold / near 24h low<br>
+  • EXIT = RSI overbought / near 24h high &nbsp; • STUCK = low volatility, range-bound<br>
+  • PUMP = strong price jump + volume<br><br>
+  <b style="color:#00ff88">Google Sheet Tabs</b><br>
+  • LIVE_DASHBOARD = VMC folders (Chg%+Vol+RSI) &nbsp; • WATCH = raw whale wall/spoof detection<br>
+  • V6_SIGNALS = V6 54-point score &nbsp; • WHALE_COPY_SIGNALS = live wall+OBI (incl. unconfirmed)<br>
+  • WHALE_COPY_TRADES = confirmed wall+OBI paper ledger &nbsp; • PAPER_TRADES = manual + auto trades<br>
+  • USERS = client logins (not a signal) &nbsp; • ARCHIVE_LOG = overflow + cycle summaries (not a signal)<br>
+  • LEGEND = this same reference, on the Sheet itself
 </div>
 
 <!-- TABS -->
@@ -628,6 +650,12 @@ body.simple-active .ms-sub { font-size:12px }
 let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m';
 
 // ── TABS ──
+function toggleInfoPanel(){
+  const p=document.getElementById('info-panel');
+  if(!p) return;
+  p.style.display = (p.style.display==='none'||!p.style.display) ? 'block' : 'none';
+}
+
 function switchTab(name, el) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
