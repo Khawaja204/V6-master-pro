@@ -16,11 +16,11 @@
     "entry_time": "2026-07-23 12:26:46",
     "entry_ts": 1784791606.5403364,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 0.62,
+    "exit_time": "2026-07-24 03:33:20",
+    "result": "TIMEOUT",
+    "pnl_pct": 0.124
   },
   {
     "id": "WC-1784789822-TRXU",
@@ -39,11 +39,11 @@
     "entry_time": "2026-07-23 11:57:02",
     "entry_ts": 1784789822.5936227,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 0.3286,
+    "exit_time": "2026-07-24 03:33:20",
+    "result": "TIMEOUT",
+    "pnl_pct": -0.382
   },
   {
     "id": "WC-1784772428-ENAU",
@@ -62,11 +62,11 @@
     "entry_time": "2026-07-23 07:07:08",
     "entry_ts": 1784772428.8198981,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null,
+    "status": "CLOSED",
+    "exit_price": 0.0901,
+    "exit_time": "2026-07-24 03:33:20",
+    "result": "LOSS",
+    "pnl_pct": -0.2,
     "trailing": "BREAKEVEN"
   },
   {

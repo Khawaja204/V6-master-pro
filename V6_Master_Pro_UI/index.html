@@ -644,8 +644,8 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Conf%</th><th>Status</th><th>Time</th></tr></thead>
-        <tbody id="wc-trades-tbody"><tr><td colspan="6" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
+        <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Funding</th><th>Liq Status</th><th>Trail SL</th><th>Conf%</th><th>Status</th><th>Close Price</th><th>Time</th></tr></thead>
+        <tbody id="wc-trades-tbody"><tr><td colspan="10" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1169,15 +1169,20 @@ function updateWhaleCopy(d){
       const sym = (t.symbol||'').replace('USDT','');
       const dirCol = t.direction==='COPY_BUY' ? 'var(--green)' : 'var(--red)';
       const resCol = t.result==='WIN' ? 'var(--green)' : t.result==='LOSS' ? 'var(--red)' : 'var(--grey)';
+      const closePx = (t.exit_price!==null && t.exit_price!==undefined) ? fmt6(t.exit_price) : 'N/A';
       return `<tr>
         <td>${sym}</td>
-        <td style="color:${dirCol}">${t.direction}</td>
+        <td style="color:${dirCol}">${t.direction||'N/A'}</td>
         <td>${fmt6(t.entry_price||t.wall_price||0)}</td>
+        <td>${t.funding_rate!==undefined?t.funding_rate+'%':'0'}</td>
+        <td style="font-size:9px">${t.liq_status||'N/A'}</td>
+        <td style="font-size:9px">${t.trailing||'N/A'}</td>
         <td>${t.confidence||0}%</td>
         <td style="color:${resCol}">${t.status==='OPEN'?'OPEN':(t.result||'—')}</td>
-        <td style="color:var(--grey);font-size:9px">${t.entry_time||''}</td>
+        <td>${closePx}</td>
+        <td style="color:var(--grey);font-size:9px">${t.entry_time||'N/A'}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="6" style="color:var(--grey)">No whale copy trades yet</td></tr>';
+    }).join('') || '<tr><td colspan="10" style="color:var(--grey)">No whale copy trades yet</td></tr>';
   }
 }
 

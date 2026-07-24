@@ -474,6 +474,14 @@ def _record_whale_copy_trade(sig: dict):
     if any(t.get("symbol") == sym and t.get("status") == "OPEN" for t in WHALE_COPY_TRADES):
         return None
     _wc_dedup[sym] = now
+    _long_liq  = sig.get("long_liq_usdt", 0)
+    _short_liq = sig.get("short_liq_usdt", 0)
+    if _short_liq >= _long_liq and _short_liq > 0:
+        _liq_status = f"Short-Liq ${_short_liq:,.0f}"
+    elif _long_liq > 0:
+        _liq_status = f"Long-Liq ${_long_liq:,.0f}"
+    else:
+        _liq_status = "N/A"
     entry = {
         "id":             f"WC-{int(now)}-{sym[:4]}",
         "symbol":         sym,
@@ -489,6 +497,8 @@ def _record_whale_copy_trade(sig: dict):
         "obi":            sig["obi"],
         "obi_velocity":   sig["obi_velocity"],
         "confidence":     sig["confidence"],
+        "funding_rate":   sig.get("funding_rate", 0),
+        "liq_status":     _liq_status,
         "eta":            sig.get("eta", "—"),
         "entry_time":     _pkt_ts(),
         "entry_ts":       now,
@@ -510,7 +520,8 @@ def _record_whale_copy_trade(sig: dict):
                   f"🎯 Target: {_fmtP(sig['target'])} | 🛡 SL: {_fmtP(sig['stop_loss'])}\n"
                   f"⏱ Est. Time to Target: {sig.get('eta','—')}\n"
                   f"Confidence: {sig['confidence']}% | OBI: {sig['obi']}\n"
-                  f"📋 Wall + OBI confirmed across 2 consecutive scans")
+                  f"💰 Funding Rate: {sig.get('funding_rate',0)}% | Liq Status: {_liq_status}\n"
+                  f"📋 Wall + OBI confirmed — strict 3-scan-cycle architecture, independent of V6")
         notify_all(f"V6 Whale Copy BUY — {sym.replace('USDT','')}", wc_msg)
     return entry
 
@@ -535,16 +546,25 @@ def whale_copy_check_loop():
                 target  = tr.get("target", 0)
                 sl      = tr.get("stop_loss", 0)
 
-                # ── Trailing stop: once price crosses the halfway point to
-                # target, ratchet SL up to breakeven so a pullback can't turn
-                # a winning trade into a loss. ──
+                # ── ATR-based trailing stop: breakeven once price has moved
+                # 1x ATR in our favor, then ratchet SL to trail 1.5x ATR
+                # behind price once it's moved 2x ATR — locks in growing
+                # profit instead of sitting flat at breakeven the whole way. ──
                 if entry_p and target and target > entry_p:
-                    midpoint = entry_p + 0.5 * (target - entry_p)
-                    if current >= midpoint and tr.get("trailing") != "BREAKEVEN" and sl < entry_p:
-                        sl = entry_p
-                        tr["stop_loss"] = sl
-                        tr["trailing"]  = "BREAKEVEN"
-                        changed = True
+                    _atr = calculate_atr(tr["symbol"])
+                    if _atr > 0:
+                        if current >= entry_p + _atr and tr.get("trailing") != "BREAKEVEN" and sl < entry_p:
+                            sl = entry_p
+                            tr["stop_loss"] = sl
+                            tr["trailing"]  = "BREAKEVEN"
+                            changed = True
+                        if current >= entry_p + 2 * _atr:
+                            _trail_sl = round(current - 1.5 * _atr, 8)
+                            if _trail_sl > sl:
+                                sl = _trail_sl
+                                tr["stop_loss"] = sl
+                                tr["trailing"]  = "ATR_TRAIL"
+                                changed = True
 
                 hit_target = bool(target) and current >= target
                 hit_sl     = bool(sl) and current <= sl
@@ -562,6 +582,18 @@ def whale_copy_check_loop():
                         tr["result"] = "TIMEOUT"
                     tr["status"] = "CLOSED"
                     changed = True
+                    # ── Closure report: Telegram + Email institutional summary ──
+                    if tr.get("direction") == "COPY_BUY":
+                        _icon = "✅" if tr["result"] == "WIN" else ("❌" if tr["result"] == "LOSS" else "⏱")
+                        _close_msg = (
+                            f"{_icon} <b>WHALE COPY CLOSED — {tr['symbol'].replace('USDT','')}</b>\n"
+                            f"Result: {tr['result']} | PnL: {tr['pnl_pct']}%\n"
+                            f"Entry: {_fmtP(entry_p)} | Exit: {_fmtP(exit_price)}\n"
+                            f"Trailing: {tr.get('trailing') or 'None'} | Conf: {tr.get('confidence',0)}%\n"
+                            f"Funding Rate: {tr.get('funding_rate',0)}% | Liq Status: {tr.get('liq_status','N/A')}\n"
+                            f"⏱ Duration: {round(age/60)} min"
+                        )
+                        notify_all(f"V6 Whale Copy CLOSED — {tr['symbol'].replace('USDT','')} ({tr['result']})", _close_msg)
             if changed:
                 _save_whale_copy_trades()
                 log.info("[WHALE COPY] Trade resolutions updated")
@@ -713,14 +745,11 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
     icon = "🟢" if tl == "GREEN" else "🟡" if tl == "YELLOW" else "🔴"
     is_hot = _update_hot_coins(coin["symbol"])
     hot_tag = "\n🔥 <b>[HOT COIN]</b> — 3+ signals this hour!" if is_hot else ""
-    send_telegram(
-        f"⭐ <b>VIP SIGNAL — {coin['symbol'].replace('USDT','')}</b>{hot_tag}\n"
-        f"Price: {coin['price']} | Chg: {coin['change_pct']}%\n"
-        f"Score: {coin['score']} | RSI: {coin['rsi']}\n"
-        f"Confidence: {confidence}% | {icon} {tl}\n"
-        f"InstScore: {inst.get('inst_score','—') if inst else '—'}",
-        inline_button={"text": f"📊 Sniper: {coin['symbol'].replace('USDT','')}", "url": _dashboard_url(coin["symbol"])}
-    )
+    # NOTE: VIP/BUY Telegram ping intentionally disabled — noisy, not
+    # actionable per-signal. Dashboard history + backtest tracking below
+    # still capture every entry; Whale Copy is now the only folder that
+    # pushes live Telegram/Email notifications (plus circuit-breaker,
+    # midnight/weekly reports, and holdings sell-check).
     _record_alert("VIP", coin["symbol"], "VIP SIGNAL" + (" 🔥" if is_hot else ""),
                   coin["price"], f"Score:{coin['score']} | RSI:{coin['rsi']} | Conf:{confidence}%", tl, confidence)
     if tp_zones:
@@ -758,8 +787,8 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
                     reason += f" | ❌ REAL order FAILED: {_real_res.get('error','?')} — paper entry still recorded"
                     audit("SYSTEM", "AUTO_REAL_ENTRY", "FAILED",
                           f"sym={coin['symbol']} err={_real_res.get('error','?')}")
-            notify_trade(coin["symbol"], "BUY", strat, mode_str, reason,
-                         price=coin["price"], tp_zones=tp_zones, traffic=tl)
+            # NOTE: Telegram/Email push for auto V6-BUY entries intentionally
+            # disabled — tracked in dashboard/backtest/Sheets only now.
             audit("SYSTEM", "AUTO_ENTRY", "OPENED",
                   f"sym={coin['symbol']} traffic={tl} conf={confidence}%")
     audit("SYSTEM", "VIP_ALERT", "SENT", f"sym={coin['symbol']} score={coin['score']} conf={confidence}%")
@@ -1450,15 +1479,8 @@ def heartbeat_loop():
         GLOBAL_DATA["heartbeat"] = ts
         log.info(f"[HEARTBEAT] Uptime:{h}h{m}m | Cycles:{GLOBAL_DATA['cycle_count']} | WinRate:{GLOBAL_DATA['win_rate']}%")
         _heartbeat_iter += 1
-        if _heartbeat_iter % HEARTBEAT_SEND_EVERY == 0:
-            send_telegram(
-                f"💚 <b>V6 HEARTBEAT</b>\n"
-                f"Status: {GLOBAL_DATA['status']} | Cycles: {GLOBAL_DATA['cycle_count']}\n"
-                f"Uptime: {h}h {m}m | Exchange: {GLOBAL_DATA['active_exchange']}\n"
-                f"VIP:{len(GLOBAL_DATA['vmc'].get('VIP',[]))} GOLDEN:{len(GLOBAL_DATA['vmc'].get('GOLDEN',[]))} Whale:{len(GLOBAL_DATA['whale'])}\n"
-                f"WinRate: {GLOBAL_DATA['win_rate']}% | Streak: {_win_streak} | BTC: {GLOBAL_DATA['btc'].get('sentiment','?')}\n"
-                f"HotCoins: {len(GLOBAL_DATA['hot_coins'])} | Alerts: {len(GLOBAL_DATA['alert_history'])}"
-            )
+        # NOTE: Heartbeat Telegram ping intentionally disabled — pure noise,
+        # no actionable content. Status still visible live on /admin.
         audit("SYSTEM", "HEARTBEAT", "OK", f"uptime={h}h{m}m wins={_total_wins} losses={_total_losses}")
 
 
@@ -1471,11 +1493,7 @@ def btc_monitor_loop():
             GLOBAL_DATA["btc_pause"]    = btc["pause_entries"]
             GLOBAL_DATA["market_regime"]= btc.get("regime", "RANGING")
             if btc["pause_entries"]:
-                send_telegram(
-                    f"🔴 <b>BTC BEARISH ALERT</b>\n"
-                    f"BTC: {btc['change_pct']}% | Vol: {btc['volatility_pct']}%\n"
-                    f"Regime: {btc.get('regime','?')} — Pausing new entries"
-                )
+                # NOTE: BTC bearish Telegram ping intentionally disabled — noisy.
                 audit("SYSTEM", "BTC_PAUSE", "ACTIVATED", f"chg={btc['change_pct']}%")
         except Exception as e:
             log.warning(f"BTC monitor error: {e}")
@@ -1491,12 +1509,8 @@ def market_quiet_loop():
             silence = time.time() - _last_whale_ts
             if silence >= 7200 and not quiet_sent:
                 h = int(silence // 3600); m = int((silence % 3600) // 60)
-                send_telegram(
-                    f"😴 <b>[MARKET QUIET]</b>\n"
-                    f"No whale activity for {h}h {m}m\n"
-                    f"Monitor only — no new entries recommended"
-                )
-                audit("SYSTEM", "MARKET_QUIET", "ALERT_SENT", f"silence={h}h{m}m")
+                # NOTE: Market-quiet Telegram ping intentionally disabled — noisy.
+                audit("SYSTEM", "MARKET_QUIET", "DETECTED", f"silence={h}h{m}m")
                 quiet_sent = True
                 log.info(f"[MARKET QUIET] No whale activity for {h}h {m}m")
             elif silence < 7200:
