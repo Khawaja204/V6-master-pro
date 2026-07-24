@@ -1281,24 +1281,34 @@ def push_to_google_sheets(vmc_data: dict, whale_data: list,
                 ])
             ws_wc.clear(); ws_wc.update("A1", wc_rows)
 
-        # ── WHALE COPY TRADES (paper ledger, win/loss tracked) ────────────
+        # ── WHALE COPY TRADES (paper ledger, win/loss tracked) — exact
+        # 10-column layout: Coin, Dir, Entry, Funding Rate, Liq Status,
+        # Trailing SL, Conf%, Status, Trade Close Price, Time. Status shows
+        # the resolved result (WIN/LOSS/TIMEOUT) once CLOSED, else OPEN. ──
         if whale_copy_trades is not None:
             try:
                 ws_wct = sheet.worksheet("WHALE_COPY_TRADES")
             except Exception:
-                ws_wct = sheet.add_worksheet("WHALE_COPY_TRADES", rows=500, cols=12)
+                ws_wct = sheet.add_worksheet("WHALE_COPY_TRADES", rows=500, cols=10)
                 _add_color_rule(sheet, ws_wct, 1, "COPY_BUY", (0.72,0.93,0.72))
                 _add_color_rule(sheet, ws_wct, 1, "COPY_AVOID", (0.96,0.72,0.72))
                 _add_color_rule(sheet, ws_wct, 7, "WIN", (0.72,0.93,0.72))
                 _add_color_rule(sheet, ws_wct, 7, "LOSS", (0.96,0.72,0.72))
-            wct_rows = [["Symbol","Basis","Direction","EntryPrice","StopLoss","Target",
-                         "Confidence","Status","Result","PnL%","EntryTime","ExitTime","ETA"]]
+            wct_rows = [["Coin","Dir","Entry","Funding Rate","Liq Status","Trailing SL",
+                         "Conf%","Status","Trade Close Price","Time"]]
             for t in whale_copy_trades[:200]:
+                _status_val = t.get("result") if (t.get("status") == "CLOSED" and t.get("result")) else t.get("status", "N/A")
                 wct_rows.append([
-                    t.get("symbol","").replace("USDT",""), "OBI+Walls", t.get("direction",""), t.get("entry_price",0),
-                    t.get("stop_loss",0), t.get("target",0), t.get("confidence",0),
-                    t.get("status",""), t.get("result") or "—", t.get("pnl_pct") or "—",
-                    t.get("entry_time",""), t.get("exit_time") or "—", t.get("eta","—"),
+                    t.get("symbol","").replace("USDT",""),
+                    t.get("direction", "N/A"),
+                    t.get("entry_price", 0),
+                    t.get("funding_rate", 0),
+                    t.get("liq_status", "N/A"),
+                    t.get("trailing") or "N/A",
+                    t.get("confidence", 0),
+                    _status_val,
+                    t.get("exit_price") if t.get("exit_price") is not None else "N/A",
+                    t.get("entry_time", "N/A"),
                 ])
             ws_wct.clear(); ws_wct.update("A1", wct_rows)
 
@@ -1555,7 +1565,7 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
         prev = _whale_copy_state.get(sym)
         count = (prev["count"] + 1) if (prev and prev["direction"] == direction) else 1
         _whale_copy_state[sym] = {"direction": direction, "count": count, "last_seen": now}
-        required_confirms = 3 if market_regime == "VOLATILE" else 2
+        required_confirms = 3   # strict 3-scan-cycle confirmation, independent of V6/regime
         confirmed = count >= required_confirms
 
         wall_price     = wall.get("price_level", price)
