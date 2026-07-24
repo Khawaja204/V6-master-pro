@@ -526,6 +526,94 @@ def _record_whale_copy_trade(sig: dict):
     return entry
 
 
+_WC_LEARNING_FILE = "whale_copy_learning.json"
+_DEFAULT_WC_LEARNING = {
+    "total_closed": 0, "wins": 0, "losses": 0, "timeouts": 0, "win_rate": 0.0,
+    "avg_win_obi": 0.0, "avg_loss_obi": 0.0,
+    "avg_win_wall_usdt": 0.0, "avg_loss_wall_usdt": 0.0,
+    "avg_win_confidence": 0.0, "avg_loss_confidence": 0.0,
+    "avg_win_funding": 0.0, "avg_loss_funding": 0.0,
+    "confidence_threshold_adjustment": 0,
+    "last_adjustment": None, "adjustment_log": [],
+}
+try:
+    with open(_WC_LEARNING_FILE) as _wcf2:
+        _DEFAULT_WC_LEARNING.update(json.load(_wcf2))
+except Exception:
+    pass
+GLOBAL_DATA["whale_copy_learning"] = _DEFAULT_WC_LEARNING
+
+
+def _update_wc_learning(tr: dict):
+    """AI Intelligence & Learning Loop (Whale Copy) — after every CLOSED
+    Whale Copy trade, roll its entry metrics (OBI strength, wall size,
+    confidence, funding rate) into running win/loss averages, and every 5
+    resolved trades auto-adjust a live confidence-gate offset: raise the
+    bar (more selective) if win rate is poor, ease it (more trades) if win
+    rate is strong. Mirrors the existing V6 paper-mode learner, scoped to
+    Whale Copy's own wall+OBI metrics — kept separate since the two
+    pipelines are architecturally independent."""
+    ld = GLOBAL_DATA.get("whale_copy_learning", dict(_DEFAULT_WC_LEARNING))
+    is_win  = tr.get("result") == "WIN"
+    is_loss = tr.get("result") == "LOSS"
+    ld["total_closed"] = ld.get("total_closed", 0) + 1
+    if is_win:    ld["wins"]     = ld.get("wins", 0) + 1
+    elif is_loss: ld["losses"]   = ld.get("losses", 0) + 1
+    else:         ld["timeouts"] = ld.get("timeouts", 0) + 1
+
+    n_prior_wins   = ld.get("wins", 0)   - (1 if is_win else 0)
+    n_prior_losses = ld.get("losses", 0) - (1 if is_loss else 0)
+
+    def _roll(key, count_before, new_val):
+        old = ld.get(key, 0.0)
+        return round((old * count_before + new_val) / (count_before + 1), 4)
+
+    obi  = abs(tr.get("obi", 0) or 0)
+    wall = tr.get("wall_size_usdt", 0) or 0
+    conf = tr.get("confidence", 0) or 0
+    fund = tr.get("funding_rate", 0) or 0
+
+    if is_win:
+        ld["avg_win_obi"]        = _roll("avg_win_obi", n_prior_wins, obi)
+        ld["avg_win_wall_usdt"]  = _roll("avg_win_wall_usdt", n_prior_wins, wall)
+        ld["avg_win_confidence"] = _roll("avg_win_confidence", n_prior_wins, conf)
+        ld["avg_win_funding"]    = _roll("avg_win_funding", n_prior_wins, fund)
+    elif is_loss:
+        ld["avg_loss_obi"]        = _roll("avg_loss_obi", n_prior_losses, obi)
+        ld["avg_loss_wall_usdt"]  = _roll("avg_loss_wall_usdt", n_prior_losses, wall)
+        ld["avg_loss_confidence"] = _roll("avg_loss_confidence", n_prior_losses, conf)
+        ld["avg_loss_funding"]    = _roll("avg_loss_funding", n_prior_losses, fund)
+
+    total = ld["wins"] + ld["losses"]
+    ld["win_rate"] = round(ld["wins"] / total * 100, 1) if total else 0.0
+
+    if total > 0 and total % 5 == 0:
+        wr  = ld["win_rate"]
+        old = ld.get("confidence_threshold_adjustment", 0)
+        if wr < 40:
+            new  = min(30, old + 5)
+            note = f"[{time.strftime('%H:%M')}] WC win rate {wr}% < 40% → gate +{new} (more selective)"
+        elif wr >= 65:
+            new  = max(-10, old - 3)
+            note = f"[{time.strftime('%H:%M')}] WC win rate {wr}% ≥ 65% → gate {new} (ease up, more trades)"
+        else:
+            new  = old
+            note = f"[{time.strftime('%H:%M')}] WC win rate {wr}% stable after {total} trades"
+        ld["confidence_threshold_adjustment"] = new
+        ld.setdefault("adjustment_log", []).append(note)
+        if len(ld["adjustment_log"]) > 50:
+            ld["adjustment_log"] = ld["adjustment_log"][-50:]
+        ld["last_adjustment"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        log.info(f"[WC-LEARNING] {note}")
+
+    GLOBAL_DATA["whale_copy_learning"] = ld
+    try:
+        with open(_WC_LEARNING_FILE, "w") as _wcf3:
+            json.dump(ld, _wcf3, indent=2)
+    except Exception as e:
+        log.debug(f"Whale copy learning save failed: {e}")
+
+
 def whale_copy_check_loop():
     """Every 5 minutes: resolve OPEN whale-copy trades against target/SL."""
     global WHALE_COPY_TRADES
@@ -582,6 +670,8 @@ def whale_copy_check_loop():
                         tr["result"] = "TIMEOUT"
                     tr["status"] = "CLOSED"
                     changed = True
+                    if tr.get("direction") == "COPY_BUY":
+                        _update_wc_learning(tr)
                     # ── Closure report: Telegram + Email institutional summary ──
                     if tr.get("direction") == "COPY_BUY":
                         _icon = "✅" if tr["result"] == "WIN" else ("❌" if tr["result"] == "LOSS" else "⏱")
@@ -1139,7 +1229,8 @@ def data_refresh_loop():
                 else:
                     _wcs["eta"] = "—"
             GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
-            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50)
+            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50) + \
+                          GLOBAL_DATA.get("whale_copy_learning", {}).get("confidence_threshold_adjustment", 0)
             for sig in whale_copy_signals:
                 if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
                     _record_whale_copy_trade(sig)
@@ -2539,7 +2630,8 @@ def admin_refresh_scan():
                 else:
                     _wcs["eta"] = "—"
             GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
-            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50)
+            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50) + \
+                          GLOBAL_DATA.get("whale_copy_learning", {}).get("confidence_threshold_adjustment", 0)
             for sig in whale_copy_signals:
                 if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
                     _record_whale_copy_trade(sig)
