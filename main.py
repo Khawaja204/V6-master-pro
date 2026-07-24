@@ -3335,6 +3335,19 @@ def api_wc_learning():
     })
 
 
+
+@app.route("/api/onchain")
+def api_onchain():
+    """Serve cached on-chain exchange flow + whale trade data."""
+    from logic import get_onchain_data
+    data = get_onchain_data()
+    return jsonify({
+        "eth_flows": data.get("eth_flows", []),
+        "large_trades": data.get("large_trades", []),
+        "last_updated": time.strftime("%H:%M:%S", time.gmtime(data.get("ts", 0)))
+    })
+
+
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
     send_telegram(

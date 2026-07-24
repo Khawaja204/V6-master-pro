@@ -8,6 +8,152 @@ import time
 import os
 import json
 
+
+# ═══════════════════════════════════════════════════════════════
+# ON-CHAIN EXCHANGE FLOW & WHALE DETECTION (Etherscan + BSCscan)
+# ═══════════════════════════════════════════════════════════════
+_ONCHAIN_CACHE = {"eth_flows": [], "bsc_moves": [], "large_trades": [], "ts": 0}
+
+def _get_eth_price_usd() -> float:
+    """Quick ETH price fetch."""
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", timeout=5)
+        return float(r.json().get("price", 3500))
+    except Exception:
+        return 3500.0
+
+
+def get_eth_exchange_flow(limit: int = 10, min_usd: float = 50000) -> list:
+    """Fetch large ETH exchange flows via Etherscan (Binance hot wallets)."""
+    api_key = os.environ.get("ETHERSCAN_API_KEY", "")
+    if not api_key:
+        return []
+    
+    eth_price = _get_eth_price_usd()
+    min_eth = min_usd / eth_price
+    
+    # Binance ETH hot wallets
+    BINANCE_ETH = [
+        "0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE",
+        "0x28C6c06298d514Db089934071355E5743bf21d60",
+    ]
+    
+    flows = []
+    try:
+        addr = BINANCE_ETH[0]
+        url = (f"https://api.etherscan.io/api?module=account&action=txlist"
+               f"&address={addr}&sort=desc&apikey={api_key}")
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        
+        if data.get("status") == "1" and isinstance(data.get("result"), list):
+            for tx in data["result"]:
+                value_eth = int(tx.get("value", 0)) / 1e18
+                if value_eth < min_eth:
+                    continue
+                
+                usd_val = value_eth * eth_price
+                tx_hash = tx.get("hash", "")
+                ts = int(tx.get("timeStamp", 0))
+                time_str = time.strftime("%H:%M:%S", time.gmtime(ts)) if ts else "--:--"
+                
+                to_addr = tx.get("to", "").lower()
+                direction = "INFLOW (Deposit)" if to_addr == addr.lower() else "OUTFLOW (Withdrawal)"
+                
+                flows.append({
+                    "time": time_str,
+                    "eth": round(value_eth, 2),
+                    "direction": direction,
+                    "tx_hash": tx_hash[:14] + "..." if len(tx_hash) > 14 else tx_hash,
+                    "usd": round(usd_val, 0)
+                })
+                if len(flows) >= limit:
+                    break
+    except Exception as e:
+        log.debug(f"[OnChain] ETH flow failed: {e}")
+    
+    return flows
+
+
+def get_bsc_whale_moves(limit: int = 10, min_usd: float = 50000) -> list:
+    """Fetch large BNB moves via BSCscan."""
+    api_key = os.environ.get("BSCSCAN_API_KEY", "")
+    if not api_key:
+        return []
+    
+    bnb_price = 600.0
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", timeout=5)
+        bnb_price = float(r.json().get("price", 600))
+    except Exception:
+        pass
+    
+    min_bnb = min_usd / bnb_price
+    BINANCE_BSC = "0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE"
+    moves = []
+    
+    try:
+        url = (f"https://api.bscscan.com/api?module=account&action=txlist"
+               f"&address={BINANCE_BSC}&sort=desc&apikey={api_key}")
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        
+        if data.get("status") == "1" and isinstance(data.get("result"), list):
+            for tx in data["result"]:
+                value_bnb = int(tx.get("value", 0)) / 1e18
+                if value_bnb < min_bnb:
+                    continue
+                
+                usd_val = value_bnb * bnb_price
+                ts = int(tx.get("timeStamp", 0))
+                time_str = time.strftime("%H:%M:%S", time.gmtime(ts)) if ts else "--:--"
+                
+                moves.append({
+                    "time": time_str,
+                    "coin": "BNB",
+                    "side": "DEPOSIT",
+                    "price": round(bnb_price, 2),
+                    "size_usdt": round(usd_val, 0)
+                })
+                if len(moves) >= limit:
+                    break
+    except Exception as e:
+        log.debug(f"[OnChain] BSC whale failed: {e}")
+    
+    return moves
+
+
+def get_onchain_data(refresh: bool = False) -> dict:
+    """Cached on-chain fetcher (60s cache, rate-limit friendly)."""
+    global _ONCHAIN_CACHE
+    now = time.time()
+    
+    if not refresh and (now - _ONCHAIN_CACHE.get("ts", 0)) < 60:
+        return _ONCHAIN_CACHE
+    
+    eth_flows = get_eth_exchange_flow(limit=10)
+    bsc_moves = get_bsc_whale_moves(limit=10)
+    
+    large_trades = []
+    for f in eth_flows:
+        large_trades.append({
+            "time": f["time"], "coin": "ETH",
+            "side": "DEPOSIT" if "INFLOW" in f["direction"] else "WITHDRAWAL",
+            "price": round(_get_eth_price_usd(), 2), "size_usdt": f["usd"]
+        })
+    for m in bsc_moves:
+        large_trades.append(m)
+    
+    large_trades.sort(key=lambda x: x["time"], reverse=True)
+    
+    _ONCHAIN_CACHE = {
+        "eth_flows": eth_flows, "bsc_moves": bsc_moves,
+        "large_trades": large_trades[:15], "ts": now
+    }
+    return _ONCHAIN_CACHE
+
+
+
 def _tg_proxies():
     p = os.getenv("TELEGRAM_PROXY")
     return {"http": p, "https": p} if p else None

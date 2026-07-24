@@ -1162,6 +1162,33 @@ function updateWhaleCopy(d){
       }).join('');
     }
   }
+
+  /* ── Whale Copy AI Learning Stats ── */
+  function fetchWCLearning(){
+    fetch('/api/wc-learning').then(r=>r.json()).then(ld=>{
+      const box = document.getElementById('wc-learning-box');
+      const log = document.getElementById('wc-learning-log');
+      if(!box) return;
+      const wrCol = ld.win_rate >= 65 ? 'var(--green)' : (ld.win_rate < 40 ? 'var(--red)' : 'var(--yellow)');
+      const gateCol = ld.gate_adjustment > 0 ? 'var(--red)' : (ld.gate_adjustment < 0 ? 'var(--green)' : 'var(--grey)');
+      box.innerHTML = `
+        <div class="stat-box"><div class="stat-label">Total Closed</div><div class="stat-value">${ld.total_closed}</div></div>
+        <div class="stat-box"><div class="stat-label">Wins</div><div class="stat-value" style="color:var(--green)">${ld.wins}</div></div>
+        <div class="stat-box"><div class="stat-label">Losses</div><div class="stat-value" style="color:var(--red)">${ld.losses}</div></div>
+        <div class="stat-box"><div class="stat-label">Timeouts</div><div class="stat-value" style="color:var(--yellow)">${ld.timeouts}</div></div>
+        <div class="stat-box"><div class="stat-label">Win Rate</div><div class="stat-value" style="color:${wrCol}">${ld.win_rate}%</div></div>
+        <div class="stat-box"><div class="stat-label">Gate Adj</div><div class="stat-value" style="color:${gateCol}">${ld.gate_adjustment > 0 ? '+' : ''}${ld.gate_adjustment}</div></div>
+        <div class="stat-box"><div class="stat-label">Avg Win Conf</div><div class="stat-value">${ld.avg_win_confidence}%</div></div>
+        <div class="stat-box"><div class="stat-label">Avg Loss Conf</div><div class="stat-value">${ld.avg_loss_confidence}%</div></div>
+      `;
+      if(log && ld.adjustment_log && ld.adjustment_log.length){
+        log.innerHTML = '<b>Recent Tuning Log:</b><br>' + ld.adjustment_log.join('<br>');
+      }
+    }).catch(e=>{});
+  }
+  fetchWCLearning();
+  setInterval(fetchWCLearning, 30000);
+
   const trades = d.trades || [];
   const ttbody = document.getElementById('wc-trades-tbody');
   if(ttbody){
