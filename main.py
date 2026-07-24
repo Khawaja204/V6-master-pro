@@ -656,7 +656,7 @@ def whale_copy_check_loop():
 
                 hit_target = bool(target) and current >= target
                 hit_sl     = bool(sl) and current <= sl
-                if hit_target or hit_sl or age >= 6 * 3600:
+                if hit_target or hit_sl or age >= 12 * 3600:
                     exit_price = target if hit_target else (sl if hit_sl else current)
                     tr["exit_price"] = exit_price
                     tr["exit_time"]  = _pkt_ts()
@@ -3309,6 +3309,31 @@ def telegram_bot_loop():
 # ══════════════════════════════════════════════════════════════════════════════
 # ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
+
+
+@app.route("/api/wc-learning")
+def api_wc_learning():
+    """Whale Copy AI Learning stats for admin dashboard."""
+    ld = GLOBAL_DATA.get("whale_copy_learning", {})
+    return jsonify({
+        "total_closed": ld.get("total_closed", 0),
+        "wins": ld.get("wins", 0),
+        "losses": ld.get("losses", 0),
+        "timeouts": ld.get("timeouts", 0),
+        "win_rate": ld.get("win_rate", 0.0),
+        "avg_win_obi": ld.get("avg_win_obi", 0.0),
+        "avg_loss_obi": ld.get("avg_loss_obi", 0.0),
+        "avg_win_wall_usdt": ld.get("avg_win_wall_usdt", 0.0),
+        "avg_loss_wall_usdt": ld.get("avg_loss_wall_usdt", 0.0),
+        "avg_win_confidence": ld.get("avg_win_confidence", 0.0),
+        "avg_loss_confidence": ld.get("avg_loss_confidence", 0.0),
+        "avg_win_funding": ld.get("avg_win_funding", 0.0),
+        "avg_loss_funding": ld.get("avg_loss_funding", 0.0),
+        "gate_adjustment": ld.get("confidence_threshold_adjustment", 0),
+        "last_adjustment": ld.get("last_adjustment"),
+        "adjustment_log": ld.get("adjustment_log", [])[-10:],
+    })
+
 
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")

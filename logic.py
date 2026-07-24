@@ -25,6 +25,19 @@ except Exception:
 
 from scoring_engine import calculate_54_point_score
 
+def get_funding_rate(symbol: str) -> float:
+    """Fetch Binance Futures funding rate (%). Safe fallback = 0."""
+    try:
+        import requests
+        url = f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}"
+        r = requests.get(url, timeout=5)
+        data = r.json()
+        return round(float(data.get("lastFundingRate", 0)) * 100, 4)
+    except Exception:
+        return 0.0
+
+
+
 log = logging.getLogger(__name__)
 
 # ── Binance hosts — data-api.binance.vision first (not geo-blocked on Render US)
