@@ -42,7 +42,7 @@ def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
     try:
         addr = BINANCE_ETH[0]
         url = (f"https://api.etherscan.io/api?module=account&action=txlist"
-               f"&address={addr}&sort=desc&apikey={api_key}")
+               f"&address={addr}&sort=desc&page=1&offset=20&apikey={api_key}")
         r = requests.get(url, timeout=10)
         data = r.json()
         
@@ -70,7 +70,7 @@ def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
                 if len(flows) >= limit:
                     break
     except Exception as e:
-        log.debug(f"[OnChain] ETH flow failed: {e}")
+        log.warning(f"[OnChain] ETH flow failed: {e}")
     
     return flows
 
@@ -94,7 +94,7 @@ def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
     try:
         addr = BINANCE_ETH[0]
         url = (f"https://api.etherscan.io/api?module=account&action=tokentx"
-               f"&address={addr}&sort=desc&apikey={api_key}")
+               f"&address={addr}&sort=desc&page=1&offset=20&apikey={api_key}")
         r = requests.get(url, timeout=10)
         data = r.json()
         
@@ -153,7 +153,7 @@ def get_bsc_whale_moves(limit: int = 10, min_usd: float = 5000) -> list:
     
     try:
         url = (f"https://api.bscscan.com/api?module=account&action=txlist"
-               f"&address={BINANCE_BSC}&sort=desc&apikey={api_key}")
+               f"&address={BINANCE_BSC}&sort=desc&page=1&offset=20&apikey={api_key}")
         r = requests.get(url, timeout=10)
         data = r.json()
         
@@ -186,6 +186,15 @@ def get_onchain_data(refresh: bool = False) -> dict:
     """Cached on-chain fetcher (60s cache, rate-limit friendly)."""
     global _ONCHAIN_CACHE
     now = time.time()
+    eth_key = os.environ.get("ETHERSCAN_API_KEY", "")
+    bsc_key = os.environ.get("BSCSCAN_API_KEY", "")
+    if not eth_key and not bsc_key:
+        log.warning("[OnChain] No API keys configured — returning empty")
+        return {"eth_flows": [], "bsc_moves": [], "large_trades": [], "ts": now}
+    if not eth_key:
+        log.info("[OnChain] ETHERSCAN_API_KEY not set — skipping ETH flows")
+    if not bsc_key:
+        log.info("[OnChain] BSCSCAN_API_KEY not set — skipping BSC flows")
     
     if not refresh and (now - _ONCHAIN_CACHE.get("ts", 0)) < 60:
         return _ONCHAIN_CACHE
