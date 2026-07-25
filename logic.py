@@ -23,7 +23,7 @@ def _get_eth_price_usd() -> float:
         return 3500.0
 
 
-def get_eth_exchange_flow(limit: int = 10, min_usd: float = 50000) -> list:
+def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
     """Fetch large ETH exchange flows via Etherscan (Binance hot wallets)."""
     api_key = os.environ.get("ETHERSCAN_API_KEY", "")
     if not api_key:
@@ -75,7 +75,66 @@ def get_eth_exchange_flow(limit: int = 10, min_usd: float = 50000) -> list:
     return flows
 
 
-def get_bsc_whale_moves(limit: int = 10, min_usd: float = 50000) -> list:
+
+def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
+    """Fetch large ERC-20 token transfers (USDT, USDC) via Etherscan — exchanges mostly move tokens, not raw ETH."""
+    api_key = os.environ.get("ETHERSCAN_API_KEY", "")
+    if not api_key:
+        return []
+    
+    # Binance hot wallets
+    BINANCE_ETH = [
+        "0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE",
+        "0x28C6c06298d514Db089934071355E5743bf21d60",
+    ]
+    
+    eth_price = _get_eth_price_usd()
+    flows = []
+    
+    try:
+        addr = BINANCE_ETH[0]
+        url = (f"https://api.etherscan.io/api?module=account&action=tokentx"
+               f"&address={addr}&sort=desc&apikey={api_key}")
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        
+        if data.get("status") == "1" and isinstance(data.get("result"), list):
+            for tx in data["result"]:
+                value_raw = int(tx.get("value", 0))
+                decimals = int(tx.get("tokenDecimal", 18))
+                value_tok = value_raw / (10 ** decimals)
+                token = tx.get("tokenSymbol", "???")
+                
+                # Price estimate (rough)
+                price_map = {"USDT": 1.0, "USDC": 1.0, "DAI": 1.0, "BUSD": 1.0, "ETH": eth_price}
+                price = price_map.get(token, 1.0)
+                usd_val = value_tok * price
+                
+                if usd_val < min_usd:
+                    continue
+                
+                ts = int(tx.get("timeStamp", 0))
+                time_str = time.strftime("%H:%M:%S", time.gmtime(ts)) if ts else "--:--"
+                to_addr = tx.get("to", "").lower()
+                direction = "INFLOW (Deposit)" if to_addr == addr.lower() else "OUTFLOW (Withdrawal)"
+                
+                flows.append({
+                    "time": time_str,
+                    "eth": f"{value_tok:,.0f} {token}",
+                    "direction": direction,
+                    "tx_hash": tx.get("hash", "")[:14] + "...",
+                    "usd": round(usd_val, 0)
+                })
+                if len(flows) >= limit:
+                    break
+            log.info(f"[OnChain] ERC-20 flows fetched: {len(flows)} records")
+    except Exception as e:
+        log.warning(f"[OnChain] ERC-20 token flow failed: {e}")
+    
+    return flows
+
+
+def get_bsc_whale_moves(limit: int = 10, min_usd: float = 5000) -> list:
     """Fetch large BNB moves via BSCscan."""
     api_key = os.environ.get("BSCSCAN_API_KEY", "")
     if not api_key:
@@ -132,7 +191,10 @@ def get_onchain_data(refresh: bool = False) -> dict:
         return _ONCHAIN_CACHE
     
     eth_flows = get_eth_exchange_flow(limit=10)
+    token_flows = get_eth_token_flows(limit=10)
     bsc_moves = get_bsc_whale_moves(limit=10)
+    # Merge ETH + ERC-20 flows
+    eth_flows = eth_flows + token_flows
     
     large_trades = []
     for f in eth_flows:
