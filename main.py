@@ -3339,13 +3339,26 @@ def api_wc_learning():
 @app.route("/api/onchain")
 def api_onchain():
     """Serve cached on-chain exchange flow + whale trade data."""
-    from logic import get_onchain_data
-    data = get_onchain_data()
-    return jsonify({
-        "eth_flows": data.get("eth_flows", []),
-        "large_trades": data.get("large_trades", []),
-        "last_updated": time.strftime("%H:%M:%S", time.gmtime(data.get("ts", 0)))
-    })
+    import os
+    eth_key = os.environ.get("ETHERSCAN_API_KEY", "")
+    bsc_key = os.environ.get("BSCSCAN_API_KEY", "")
+    log.info(f"[OnChain-API] ETHERSCAN_KEY present: {bool(eth_key)} | BSCSCAN_KEY present: {bool(bsc_key)}")
+    
+    try:
+        from logic import get_onchain_data
+        log.info("[OnChain-API] Imported get_onchain_data successfully")
+        data = get_onchain_data(refresh=True)
+        log.info(f"[OnChain-API] Data returned: eth_flows={len(data.get('eth_flows',[]))} large_trades={len(data.get('large_trades',[]))}")
+        return jsonify({
+            "eth_flows": data.get("eth_flows", []),
+            "large_trades": data.get("large_trades", []),
+            "last_updated": time.strftime("%H:%M:%S", time.gmtime(data.get("ts", 0)))
+        })
+    except Exception as e:
+        log.error(f"[OnChain-API] ERROR: {e}")
+        import traceback
+        log.error(traceback.format_exc())
+        return jsonify({"error": str(e), "eth_flows": [], "large_trades": [], "last_updated": "ERROR"}), 500
 
 
 if __name__ == "__main__":

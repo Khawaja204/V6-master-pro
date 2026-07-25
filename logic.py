@@ -71,6 +71,8 @@ def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
                     break
     except Exception as e:
         log.warning(f"[OnChain] ETH flow failed: {e}")
+        import traceback
+        log.warning(traceback.format_exc())
     
     return flows
 
@@ -130,6 +132,8 @@ def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
             log.info(f"[OnChain] ERC-20 flows fetched: {len(flows)} records")
     except Exception as e:
         log.warning(f"[OnChain] ERC-20 token flow failed: {e}")
+        import traceback
+        log.warning(traceback.format_exc())
     
     return flows
 
@@ -186,6 +190,7 @@ def get_onchain_data(refresh: bool = False) -> dict:
     """Cached on-chain fetcher (60s cache, rate-limit friendly)."""
     global _ONCHAIN_CACHE
     now = time.time()
+    log.info(f"[OnChain] get_onchain_data called, refresh={refresh}, cache_age={now - _ONCHAIN_CACHE.get('ts',0):.0f}s")
     eth_key = os.environ.get("ETHERSCAN_API_KEY", "")
     bsc_key = os.environ.get("BSCSCAN_API_KEY", "")
     if not eth_key and not bsc_key:
