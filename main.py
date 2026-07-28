@@ -106,7 +106,7 @@ GLOBAL_DATA = {
     "volume_surge":   [],
     "smart_divergence": [],
     "upgrade_log":    [],
-    "paper_mode":      CONFIG.get("paper_mode", True),
+    "paper_mode":      True,  # HARDCODED SAFETY: always starts in PAPER mode; real execution blocked until API keys verified
     "price_alerts":    [],
     "learning_data":   {},
     "fund_limit_usdt": CONFIG.get("bot_fund_limit_usdt", 10.0),
@@ -292,6 +292,28 @@ try:
         WHALE_COPY_TRADES = json.load(_wcf)
 except Exception:
     pass
+# ── Backtest Signal Persistence ────────────────────────────────────────────────
+_BACKTEST_FILE = "backtest_signals.json"
+try:
+    with open(_BACKTEST_FILE) as _bsf:
+        _loaded_bt = json.load(_bsf)
+        # Only restore non-closed signals younger than 6h; closed ones persist for display
+        _now_bt = time.time()
+        BACKTEST_SIGNALS = [
+            s for s in _loaded_bt
+            if s.get("status") == "CLOSED" or (_now_bt - s.get("entry_ts", 0)) < 21600
+        ][:100]
+except Exception:
+    pass
+
+
+def _save_backtest_signals():
+    """Persist BACKTEST_SIGNALS to disk so history survives restarts."""
+    try:
+        with open(_BACKTEST_FILE, "w") as f:
+            json.dump(BACKTEST_SIGNALS[:100], f, indent=2)
+    except Exception as e:
+        log.debug(f"Backtest signals save failed: {e}")
 _wc_dedup: dict = {}
 _previous_walls    = {}
 _alert_cooldown    = {}
@@ -400,9 +422,13 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
     global BACKTEST_SIGNALS
     tm = CONFIG.get("trade_management", {})
 
-    # ── GREEN-only entries: skip YELLOW/RED signals when enabled ──────────────
-    if tm.get("green_only_entries", True) and traffic and traffic != "GREEN":
-        return None
+    # ── GREEN-only entries: skip RED signals; allow YELLOW in paper mode ────────
+    paper = GLOBAL_DATA.get("paper_mode", True)
+    if tm.get("green_only_entries", True) and traffic:
+        if traffic == "RED":
+            return None                           # always skip RED
+        if traffic == "YELLOW" and not paper:
+            return None                           # skip YELLOW in real mode only
     # ── Daily circuit-breaker: no new entries once tripped ────────────────────
     if not _entries_allowed():
         return None
@@ -1534,13 +1560,16 @@ def backtest_check_loop():
                         _total_wins += 1
                         _win_streak += 1
                         _record_trade_result(True, sig["pnl_pct"])
-                    elif age >= 4 * 3600 and sig["pnl_pct"] < 0:
-                        sig["result"] = "LOSS"; sig["status"] = "CLOSED"
-                        _total_losses += 1
-                        _win_streak = 0
-                        _record_trade_result(False, sig["pnl_pct"])
-                    elif age >= 4 * 3600:
-                        sig["result"] = "TIMEOUT"; sig["status"] = "CLOSED"
+                    else:
+                        # No SL, no TP hit after 1h — close now:
+                        # negative PnL = LOSS, positive/flat = TIMEOUT
+                        if sig["pnl_pct"] < -0.5:
+                            sig["result"] = "LOSS"; sig["status"] = "CLOSED"
+                            _total_losses += 1
+                            _win_streak = 0
+                            _record_trade_result(False, sig["pnl_pct"])
+                        else:
+                            sig["result"] = "TIMEOUT"; sig["status"] = "CLOSED"
                     changed = True
 
             if changed:
@@ -1550,6 +1579,7 @@ def backtest_check_loop():
                 GLOBAL_DATA["total_losses"] = _total_losses
                 total = _total_wins + _total_losses
                 GLOBAL_DATA["win_rate"]     = round(_total_wins / total * 100, 1) if total else 0.0
+                _save_backtest_signals()
                 log.info(f"[BACKTEST] Updated — wins:{_total_wins} losses:{_total_losses} streak:{_win_streak}")
         except Exception as e:
             log.warning(f"Backtest check error: {e}")
@@ -2286,6 +2316,10 @@ setInterval(loadHoldings, 20000);
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear backtest results + stats?')">🗑 Clear Backtest</button></form>
 <form method="POST" action="/admin/clear_whale_copy" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear all Whale Copy trades and signals?')">🐋 Clear Whale Copy</button></form>
+<form method="POST" action="/admin/kill_switch" style="display:inline;margin-left:12px">
+<button type="submit" class="btn btn-red" style="background:#8b0000;border:2px solid #ff0000;padding:8px 18px;font-weight:bold;font-size:13px"
+  onclick="return confirm('🛑 EMERGENCY KILL-SWITCH\\n\\nThis will:\\n• Cancel ALL open paper/backtest trades\\n• Force PAPER MODE on\\n• Block new entries (circuit-breaker)\\n\\nAre you sure?')">
+  🛑 PANIC — KILL ALL TRADES</button></form>
 </div></div>
 
 </div></body></html>"""
@@ -2431,6 +2465,14 @@ def admin_test_connection():
 @_admin_required
 def admin_set_mode():
     current = GLOBAL_DATA.get("paper_mode", True)
+    # SAFETY: prevent switching to REAL MODE if no Binance API keys are configured
+    if current and "BINANCE" not in _API_KEYS:
+        audit(request.remote_addr, "SET_MODE", "BLOCKED",
+              "REAL MODE blocked — no Binance API keys configured")
+        return ("<script>alert('⛔ REAL MODE BLOCKED\\n\\n"
+                "Cannot switch to REAL MODE: no Binance API key is configured.\\n"
+                "Configure API keys in Admin → API Key Management first.');"
+                "window.history.back()</script>")
     GLOBAL_DATA["paper_mode"] = not current
     mode = "PAPER" if GLOBAL_DATA["paper_mode"] else "REAL"
     # Persist to config.json so paper_mode survives server restarts
@@ -2479,6 +2521,7 @@ def admin_clear_backtest():
     BACKTEST_SIGNALS = []; _total_wins = 0; _total_losses = 0; _win_streak = 0
     GLOBAL_DATA["backtest"] = []; GLOBAL_DATA["win_streak"] = 0
     GLOBAL_DATA["total_wins"] = 0; GLOBAL_DATA["total_losses"] = 0; GLOBAL_DATA["win_rate"] = 0.0
+    _save_backtest_signals()
     audit(request.remote_addr, "CLEAR_BACKTEST", "OK", ""); return redirect("/admin")
 
 
@@ -2490,6 +2533,70 @@ def admin_clear_whale_copy():
     _save_whale_copy_trades()
     GLOBAL_DATA["whale_copy_signals"] = []
     audit(request.remote_addr, "CLEAR_WHALE_COPY", "OK", "")
+    return redirect("/admin")
+
+
+@app.route("/admin/kill_switch", methods=["POST"])
+@_admin_required
+def admin_kill_switch():
+    """Emergency kill-switch: cancels all open paper/backtest trades, forces paper
+    mode ON, and halts new auto-trade entries by tripping the circuit-breaker."""
+    global BACKTEST_SIGNALS, WHALE_COPY_TRADES, PAPER_TRADES
+    now_ts  = _pkt_ts()
+    closed_bt  = 0
+    closed_wc  = 0
+
+    # 1. Close all OPEN backtest signals
+    for s in BACKTEST_SIGNALS:
+        if s.get("status") == "OPEN":
+            s["status"]     = "CLOSED"
+            s["result"]     = "CANCELLED"
+            s["exit_time"]  = now_ts
+            s["exit_price"] = s.get("entry_price", 0)
+            s["pnl_pct"]    = 0.0
+            closed_bt += 1
+
+    # 2. Close all OPEN whale-copy trades
+    for t in WHALE_COPY_TRADES:
+        if t.get("status") == "OPEN":
+            t["status"]     = "CLOSED"
+            t["result"]     = "CANCELLED"
+            t["exit_time"]  = now_ts
+            t["exit_price"] = t.get("entry_price", 0)
+            t["pnl_pct"]    = 0.0
+            closed_wc += 1
+
+    # 3. Force paper mode ON
+    GLOBAL_DATA["paper_mode"] = True
+    CONFIG["paper_mode"]      = True
+
+    # 4. Trip the daily circuit-breaker so no new entries fire
+    _daily_stats["tripped"]       = True
+    _daily_stats["tripped_reason"] = "MANUAL KILL-SWITCH activated"
+
+    # 5. Persist changes
+    _save_backtest_signals()
+    _save_whale_copy_trades()
+    try:
+        with open("config.json", "w") as _cf:
+            json.dump(CONFIG, _cf, indent=2)
+    except Exception:
+        pass
+
+    audit(request.remote_addr, "KILL_SWITCH", "OK",
+          f"bt_closed={closed_bt} wc_closed={closed_wc}")
+
+    # 6. Telegram alert
+    _kill_msg = (
+        f"🛑 <b>EMERGENCY KILL-SWITCH ACTIVATED</b>\n"
+        f"All open trades cancelled.\n"
+        f"Backtest closed: {closed_bt} | Whale Copy closed: {closed_wc}\n"
+        f"System forced to PAPER MODE.\n"
+        f"New entries blocked until daily reset.\n"
+        f"⏱ {now_ts}"
+    )
+    send_telegram(_kill_msg)
+    log.warning(f"[KILL-SWITCH] Activated — bt_closed={closed_bt} wc_closed={closed_wc}")
     return redirect("/admin")
 
 

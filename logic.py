@@ -898,8 +898,10 @@ def compute_whale_power(walls: list, spoofing: dict, blink_to_push: bool,
     if walls:
         min_dist = min(w["dist_pct"] for w in walls)
         score += 40 if min_dist <= bonus_thresh else 30 if min_dist <= 1.0 else 20 if min_dist <= 2.0 else 10
-    if spoofing.get("bid_spoof") or spoofing.get("ask_spoof"):
-        score += 30
+    # NOTE: spoofing does NOT add to whale_power — a spoof wall is a trap,
+    # not a real institutional presence. Boosting score on spoof caused
+    # permanent AVOID/high-power readings on spoofed coins. Blink-to-push
+    # (a confirmed push after a blinking fake wall) still earns the bonus.
     if blink_to_push:
         score += 30
     return min(round(score, 1), 100.0)
@@ -1219,7 +1221,7 @@ def process_whale_walls(config: dict, price_map: dict, previous_walls: dict) -> 
 BINANCE_ETH_HOT_WALLET = "0xF977814e90dA44bFA03b6295A0616a897441aceC"
 _eth_flow_last_block: dict = {}
 
-def fetch_eth_exchange_flows(api_key: str, min_eth: float = 50.0) -> list:
+def fetch_eth_exchange_flows(api_key: str, min_eth: float = 10.0) -> list:
     """Detects large ETH transfers into/out of a known Binance hot wallet via
     Etherscan. Returns new flows since the last check. ETH/ERC-20 chain only —
     does NOT apply to BTC, BNB(native), SOL, XRP, ADA, DOGE, AVAX."""
@@ -1229,7 +1231,7 @@ def fetch_eth_exchange_flows(api_key: str, min_eth: float = 50.0) -> list:
         params = {
             "module": "account", "action": "txlist",
             "address": BINANCE_ETH_HOT_WALLET, "sort": "desc",
-            "apikey": api_key, "offset": 20, "page": 1,
+            "apikey": api_key, "offset": 50, "page": 1,
         }
         resp = requests.get("https://api.etherscan.io/api", params=params, timeout=10)
         if resp.status_code != 200:
@@ -1800,7 +1802,7 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
         prev = _whale_copy_state.get(sym)
         count = (prev["count"] + 1) if (prev and prev["direction"] == direction) else 1
         _whale_copy_state[sym] = {"direction": direction, "count": count, "last_seen": now}
-        required_confirms = 3   # strict 3-scan-cycle confirmation, independent of V6/regime
+        required_confirms = 2   # 2-scan-cycle confirmation (was 3 — too strict, signals rarely persisted long enough)
         confirmed = count >= required_confirms
 
         wall_price     = wall.get("price_level", price)

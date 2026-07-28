@@ -1,0 +1,18 @@
+{
+  "total_closed": 1,
+  "wins": 1,
+  "losses": 0,
+  "timeouts": 0,
+  "win_rate": 100.0,
+  "avg_win_obi": 0.2164,
+  "avg_loss_obi": 0.0,
+  "avg_win_wall_usdt": 328196.0,
+  "avg_loss_wall_usdt": 0.0,
+  "avg_win_confidence": 71.6,
+  "avg_loss_confidence": 0.0,
+  "avg_win_funding": -0.0063,
+  "avg_loss_funding": 0.0,
+  "confidence_threshold_adjustment": 0,
+  "last_adjustment": null,
+  "adjustment_log": []
+}

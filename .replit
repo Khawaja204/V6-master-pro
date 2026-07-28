@@ -1,46 +1,33 @@
-run = "python3 main.py"
-modules = ["python-3.11", "nodejs-20"]
+run = "python main.py && bash -c 'echo \"=== V6 Master Pro ===\" > project.txt && echo \"Generated: $(date)\" >> project.txt && echo \"\" >> project.txt && echo \"===== FILE: .env =====\" >> project.txt && cat .env 2>/dev/null >> project.txt && find . -type f \\( -name \"*.py\" -o -name \"*.js\" -o -name \"*.html\" -o -name \"*.css\" -o -name \"*.json\" -o -name \"*.txt\" -o -name \"*.sh\" \\) ! -path \"./node_modules/*\" ! -path \"./__pycache__/*\" ! -path \"./.git/*\" ! -path \"./.pythonlibs/*\" ! -path \"./.upm/*\" ! -name \"project.txt\" | sort | while read f; do echo -e \"\\n\\n===== FILE: $f =====\" >> project.txt && cat \"$f\" >> project.txt; done && echo \"✅ Auto-saved: project.txt + .env\"'"
+modules = ["python-3.11"]
 
 [[ports]]
 localPort = 8080
 externalPort = 80
 
-  [agent]
-expertMode = true
+[nix]
+packages = ["c-ares", "cacert", "cargo", "libffi", "libiconv", "libuv", "libxcrypt", "openssl", "pkg-config", "rustc"]
 
-  [nix]
-  packages = ["psmisc"]
-  channel = "stable-25_05"
+[workflows]
+runButton = "Project"
 
-  [deployment]
-deploymentTarget = "cloudrun"
-  run = ["python3", "main.py"]
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
 
-  [workflows]
-  runButton = "Project"
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
 
-  [[workflows.workflow]]
-  name = "Project"
-  mode = "parallel"
-  author = "agent"
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
 
-  [[workflows.workflow.tasks]]
-  task = "workflow.run"
-  args = "Start application"
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+waitForPort = 8080
 
-  [[workflows.workflow]]
-  name = "Start application"
-  author = "agent"
-
-  [[workflows.workflow.tasks]]
-  task = "shell.exec"
-  args = "python3 main.py"
-  waitForPort = 8080
-
-  [workflows.workflow.metadata]
-  outputType = "webview"
-
-[userenv]
-
-[userenv.shared]
-  
+[workflows.workflow.metadata]
+outputType = "console"

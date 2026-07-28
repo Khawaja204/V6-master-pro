@@ -7,3 +7,4 @@
 - [V6 modular UI](v6-modular-ui.md) — V6_Master_Pro_UI/ dashboard, served NON-destructively at /v6/ (trailing slash; legacy / untouched). NOW Tailwind single-file: CDN + embedded <style> defining injected classes; style.css unused; preserve ~43 IDs; scanner=9 cols.
 - [V6 Final Score + volume key gotcha](v6-final-score.md) — 54-pt engine (compute_v6_final_score) → BUY/WAIT/SELL; coin volume lives under `volume_usdt` not `volume`.
 - [Verifying async-SPA render](verifying-async-spa-render.md) — external_url screenshots capture before fetch resolves & cache JS; verify with jsdom-in-sandbox against the real endpoint instead.
+- [V6 Paper Safety & Backtest](v6-paper-safety.md) — paper_mode hardcoded True; REAL MODE blocked without API keys; kill switch at /admin/kill_switch; backtest persists to JSON; 1h closure.
