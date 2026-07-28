@@ -1,3 +1,4 @@
+cat > saveproj.sh << 'EOF'
 #!/bin/bash
 # V6 Master Pro - Clean Project Export Script
 # Excludes: .git, __pycache__, logs, .env, binaries, large files
@@ -18,7 +19,6 @@ TOTAL=$(find . -type f \
   ! -path "./.config/*" \
   ! -path "./.cache/*" \
   ! -path "./.upm/*" \
-  ! -path "./.local/*" \
   ! -path "./.replit/*" \
   ! -path "./logs/*" \
   ! -path "./.gitignore" \
@@ -34,11 +34,10 @@ TOTAL=$(find . -type f \
   ! -path "./*.tar.gz" \
   ! -path "./.env" \
   ! -path "./V6_Master_Pro_UI/.env" \
-  ! -path "./attached_assets/*" \
-  -size -1000k \
+  -size -1M \
   | wc -l)
 
-echo "Scanning $TOTAL files..."
+echo "Scanning $TOTAL files..." 
 
 find . -type f \
   ! -path "./.git/*" \
@@ -47,7 +46,6 @@ find . -type f \
   ! -path "./.config/*" \
   ! -path "./.cache/*" \
   ! -path "./.upm/*" \
-  ! -path "./.local/*" \
   ! -path "./.replit/*" \
   ! -path "./logs/*" \
   ! -path "./.gitignore" \
@@ -63,18 +61,12 @@ find . -type f \
   ! -path "./*.tar.gz" \
   ! -path "./.env" \
   ! -path "./V6_Master_Pro_UI/.env" \
-  ! -path "./attached_assets/*" \
-  -size -1000k \
+  -size -1M \
 | sort | while read -r file; do
-    # Skip true binary files using MIME type (avoids false-positive on "executable" label)
-    mime=$(file --mime-type -b "$file" 2>/dev/null)
-    case "$mime" in
-      text/*|application/json|application/javascript|application/x-sh)
-        ;;  # keep these
-      *)
-        continue  # skip images, compiled binaries, archives, etc.
-        ;;
-    esac
+    # Skip binary files
+    if file "$file" | grep -qE 'executable|binary|image|audio|video|archive'; then
+        continue
+    fi
     echo "" >> "$OUTPUT"
     echo "========================================" >> "$OUTPUT"
     echo "FILE: $file" >> "$OUTPUT"
@@ -91,3 +83,18 @@ if [ $(du -m "$OUTPUT" | cut -f1) -gt $MAX_SIZE_MB ]; then
     echo "⚠️  WARNING: File is larger than ${MAX_SIZE_MB}MB!"
     echo "   Consider adding more exclusions to saveproj.sh"
 fi
+EOF
+
+chmod +x saveproj.sh
+
+# Fix the alias too
+if ! grep -q "alias sp=" ~/.bashrc 2>/dev/null; then
+    echo 'alias sp="./saveproj.sh"' >> ~/.bashrc
+    echo "✅ Alias 'sp' added to ~/.bashrc"
+else
+    echo "✅ Alias 'sp' already exists"
+fi
+
+echo ""
+echo "🎉 saveproj.sh FIXED permanently!"
+echo "   Now run: sp"
