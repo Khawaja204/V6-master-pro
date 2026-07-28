@@ -12,3 +12,5 @@ project.txt
 *.zip
 *.tar.gz
 .pythonlibs/
+api_keys.json
+*.log

@@ -1,93 +1,17 @@
 #!/bin/bash
-# V6 Master Pro - Clean Project Export Script
-# Excludes: .git, __pycache__, logs, .env, binaries, large files
-
-OUTPUT="project.txt"
-MAX_SIZE_MB=5
-
-echo "=== V6 Master Pro Project Export ===" > "$OUTPUT"
-echo "Generated: $(date)" >> "$OUTPUT"
-echo "========================================" >> "$OUTPUT"
-echo "" >> "$OUTPUT"
-
-# Count total files first
-TOTAL=$(find . -type f \
-  ! -path "./.git/*" \
-  ! -path "./__pycache__/*" \
-  ! -path "./.pythonlibs/*" \
-  ! -path "./.config/*" \
-  ! -path "./.cache/*" \
-  ! -path "./.upm/*" \
-  ! -path "./.local/*" \
-  ! -path "./.replit/*" \
-  ! -path "./logs/*" \
-  ! -path "./.gitignore" \
-  ! -path "./$OUTPUT" \
-  ! -path "./project.zip" \
-  ! -path "./*.pyc" \
-  ! -path "./*.pyo" \
-  ! -path "./*.db" \
-  ! -path "./*.sqlite" \
-  ! -path "./*.sqlite3" \
-  ! -path "./*.log" \
-  ! -path "./*.zip" \
-  ! -path "./*.tar.gz" \
-  ! -path "./.env" \
-  ! -path "./V6_Master_Pro_UI/.env" \
-  ! -path "./attached_assets/*" \
-  -size -1000k \
-  | wc -l)
-
-echo "Scanning $TOTAL files..."
-
-find . -type f \
-  ! -path "./.git/*" \
-  ! -path "./__pycache__/*" \
-  ! -path "./.pythonlibs/*" \
-  ! -path "./.config/*" \
-  ! -path "./.cache/*" \
-  ! -path "./.upm/*" \
-  ! -path "./.local/*" \
-  ! -path "./.replit/*" \
-  ! -path "./logs/*" \
-  ! -path "./.gitignore" \
-  ! -path "./$OUTPUT" \
-  ! -path "./project.zip" \
-  ! -path "./*.pyc" \
-  ! -path "./*.pyo" \
-  ! -path "./*.db" \
-  ! -path "./*.sqlite" \
-  ! -path "./*.sqlite3" \
-  ! -path "./*.log" \
-  ! -path "./*.zip" \
-  ! -path "./*.tar.gz" \
-  ! -path "./.env" \
-  ! -path "./V6_Master_Pro_UI/.env" \
-  ! -path "./attached_assets/*" \
-  -size -1000k \
-| sort | while read -r file; do
-    # Skip true binary files using MIME type (avoids false-positive on "executable" label)
-    mime=$(file --mime-type -b "$file" 2>/dev/null)
-    case "$mime" in
-      text/*|application/json|application/javascript|application/x-sh)
-        ;;  # keep these
-      *)
-        continue  # skip images, compiled binaries, archives, etc.
-        ;;
-    esac
-    echo "" >> "$OUTPUT"
-    echo "========================================" >> "$OUTPUT"
-    echo "FILE: $file" >> "$OUTPUT"
-    echo "========================================" >> "$OUTPUT"
-    cat "$file" >> "$OUTPUT" 2>/dev/null || echo "[ERROR: Could not read $file]" >> "$OUTPUT"
+echo "=== V6 Master Pro Project Export ===" > project.txt
+echo "Generated: $(date)" >> project.txt
+echo "========================================" >> project.txt
+echo "" >> project.txt
+for f in main.py logic.py config.json index.html focus.html; do
+  if [ -f "$f" ]; then
+    echo "" >> project.txt
+    echo "========================================" >> project.txt
+    echo "FILE: ./$f" >> project.txt
+    echo "========================================" >> project.txt
+    cat "$f" >> project.txt
+  fi
 done
-
-SIZE=$(du -sh "$OUTPUT" | cut -f1)
-echo ""
-echo "✅ Done! project.txt generated: $SIZE"
-echo "   Files: $TOTAL | Max file size: <1MB | Binaries excluded"
-
-if [ $(du -m "$OUTPUT" | cut -f1) -gt $MAX_SIZE_MB ]; then
-    echo "⚠️  WARNING: File is larger than ${MAX_SIZE_MB}MB!"
-    echo "   Consider adding more exclusions to saveproj.sh"
-fi
+echo "" >> project.txt
+echo "=== END EXPORT ===" >> project.txt
+echo "Project exported to project.txt"
