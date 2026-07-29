@@ -1,17 +1,28 @@
 #!/bin/bash
-echo "=== V6 Master Pro Project Export ===" > project.txt
-echo "Generated: $(date)" >> project.txt
-echo "========================================" >> project.txt
-echo "" >> project.txt
-for f in main.py logic.py config.json index.html focus.html; do
-  if [ -f "$f" ]; then
-    echo "" >> project.txt
-    echo "========================================" >> project.txt
-    echo "FILE: ./$f" >> project.txt
-    echo "========================================" >> project.txt
-    cat "$f" >> project.txt
-  fi
-done
-echo "" >> project.txt
-echo "=== END EXPORT ===" >> project.txt
-echo "Project exported to project.txt"
+OUTPUT="project.txt"
+TIMESTAMP=$(date -u +"%a %b %d %I:%M:%S %p UTC %Y")
+
+FILES=(
+  "main.py" "logic.py" "config.json" "scoring_engine.py"
+  "requirements.txt" "saveproj.sh"
+  "V6_Master_Pro_UI/index.html"
+  "V6_Master_Pro_UI/script.js"
+  "V6_Master_Pro_UI/style.css"
+  "focus.html" "index.html"
+)
+
+{
+  echo "=== V6 Master Pro Project Export ==="
+  echo "Generated: $TIMESTAMP"
+  echo "========================================"
+  for f in "${FILES[@]}"; do
+    if [ -f "$f" ]; then
+      echo ""; echo "========================================"; echo "FILE: ./$f"; echo "========================================"; cat "$f"
+    else
+      echo ""; echo "========================================"; echo "FILE: ./$f [MISSING]"; echo "========================================"
+    fi
+  done
+  echo ""; echo "========================================"; echo "END OF EXPORT"; echo "========================================"
+} > "$OUTPUT"
+
+echo "✅ Exported to $OUTPUT ($(wc -l < "$OUTPUT") lines)"
