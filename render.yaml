@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: v6-master-pro
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --keep-alive 5
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      # All secrets must be added manually in the Render dashboard.
+      # See ENV_CHECKLIST.md for the full list.

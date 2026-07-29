@@ -7,6 +7,7 @@ All thresholds in config.json — no hardcoded values.
 import time
 import os
 import json
+import random
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -17,7 +18,7 @@ _ONCHAIN_CACHE = {"eth_flows": [], "bsc_moves": [], "large_trades": [], "ts": 0}
 def _get_eth_price_usd() -> float:
     """Quick ETH price fetch."""
     try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", timeout=5)
+        r = _SESSION.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", timeout=10)
         return float(r.json().get("price", 3500))
     except Exception:
         return 3500.0
@@ -55,7 +56,7 @@ def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
                 usd_val = value_eth * eth_price
                 tx_hash = tx.get("hash", "")
                 ts = int(tx.get("timeStamp", 0))
-                time_str = time.strftime("%H:%M:%S", time.gmtime(ts)) if ts else "--:--"
+                time_str = time.strftime("%H:%M:%S", time.gmtime(ts + 5 * 3600)) if ts else "--:--"
                 
                 to_addr = tx.get("to", "").lower()
                 direction = "INFLOW (Deposit)" if to_addr == addr.lower() else "OUTFLOW (Withdrawal)"
@@ -116,7 +117,7 @@ def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
                     continue
                 
                 ts = int(tx.get("timeStamp", 0))
-                time_str = time.strftime("%H:%M:%S", time.gmtime(ts)) if ts else "--:--"
+                time_str = time.strftime("%H:%M:%S", time.gmtime(ts + 5 * 3600)) if ts else "--:--"
                 to_addr = tx.get("to", "").lower()
                 direction = "INFLOW (Deposit)" if to_addr == addr.lower() else "OUTFLOW (Withdrawal)"
                 
@@ -146,7 +147,7 @@ def get_bsc_whale_moves(limit: int = 10, min_usd: float = 5000) -> list:
     
     bnb_price = 600.0
     try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", timeout=5)
+        r = _SESSION.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", timeout=10)
         bnb_price = float(r.json().get("price", 600))
     except Exception:
         pass
@@ -169,7 +170,7 @@ def get_bsc_whale_moves(limit: int = 10, min_usd: float = 5000) -> list:
                 
                 usd_val = value_bnb * bnb_price
                 ts = int(tx.get("timeStamp", 0))
-                time_str = time.strftime("%H:%M:%S", time.gmtime(ts)) if ts else "--:--"
+                time_str = time.strftime("%H:%M:%S", time.gmtime(ts + 5 * 3600)) if ts else "--:--"
                 
                 moves.append({
                     "time": time_str,
@@ -250,9 +251,8 @@ from scoring_engine import calculate_54_point_score
 def get_funding_rate(symbol: str) -> float:
     """Fetch Binance Futures funding rate (%). Safe fallback = 0."""
     try:
-        import requests
         url = f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}"
-        r = requests.get(url, timeout=5)
+        r = _SESSION.get(url, timeout=10)
         data = r.json()
         return round(float(data.get("lastFundingRate", 0)) * 100, 4)
     except Exception:
@@ -307,7 +307,7 @@ def _mark_health(ok: bool, host: str = "", error: str = "") -> None:
     with _health_lock:
         _BINANCE_HEALTH["reachable"] = ok
         if ok:
-            _BINANCE_HEALTH["last_ok"]     = time.strftime("%Y-%m-%d %H:%M:%S")
+            _BINANCE_HEALTH["last_ok"]     = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
             _BINANCE_HEALTH["active_host"] = host
             _BINANCE_HEALTH["last_error"]  = ""
         else:
@@ -320,25 +320,46 @@ def get_binance_health() -> dict:
 
 
 def _binance_get(path: str, params: dict = None, timeout: int = 10):
-    """GET with automatic host failover. 451/5xx triggers next host.
+    """GET with automatic host failover + 429 exponential backoff.
+
+    • First attempt on each host has no extra delay (speed matters for scan loop).
+    • Switching to a new host: jitter sleep of 0.5–2 s between consecutive requests.
+    • HTTP 429 on a host: up to 3 retries with 2^attempt * uniform(1,3) s backoff
+      before giving up on that host and moving to the next.
     NOTE: intentionally NOT using TELEGRAM_PROXY here — that variable is
     scoped to Telegram API calls only. Routing Binance traffic through a
     Telegram proxy (often a slow/free/dead SOCKS5) breaks market data
     entirely, which is what happened when TELEGRAM_PROXY was first set."""
     last_err = ""
-    for host in BINANCE_HOSTS:
-        try:
-            resp = _SESSION.get(host + path, params=params, timeout=timeout)
-        except requests.exceptions.RequestException as e:
-            last_err = f"{type(e).__name__}: {e}"
-            log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
-            continue
-        if resp.status_code in _RETRYABLE_STATUS:
-            last_err = f"HTTP {resp.status_code} from {host}"
-            log.warning(f"[BINANCE] {host} returned {resp.status_code}; trying next host…")
-            continue
-        _mark_health(True, host=host)
-        return resp
+    for hi, host in enumerate(BINANCE_HOSTS):
+        if hi > 0:
+            # polite jitter between host switches
+            time.sleep(random.uniform(0.5, 2.0))
+        for attempt in range(3):
+            try:
+                resp = _SESSION.get(host + path, params=params, timeout=timeout)
+            except requests.exceptions.RequestException as e:
+                last_err = f"{type(e).__name__}: {e}"
+                log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
+                break  # network error → skip remaining attempts on this host
+            if resp.status_code == 429:
+                wait = (2 ** attempt) * random.uniform(1, 3)
+                log.warning(
+                    f"[BINANCE] {host} rate-limited (429), "
+                    f"attempt {attempt + 1}/3, retrying in {wait:.1f}s…"
+                )
+                time.sleep(wait)
+                continue  # retry same host after backoff
+            if resp.status_code in _RETRYABLE_STATUS:
+                last_err = f"HTTP {resp.status_code} from {host}"
+                log.warning(f"[BINANCE] {host} returned {resp.status_code}; trying next host…")
+                break  # non-429 retryable → try next host immediately
+            _mark_health(True, host=host)
+            return resp
+        else:
+            # for-loop completed without break → all 3 attempts were 429
+            last_err = f"HTTP 429 from {host} after 3 attempts"
+            log.warning(f"[BINANCE] {host} rate-limited after 3 retries; trying next host…")
     _mark_health(False, error=last_err)
     log.error(f"[BINANCE] All hosts unreachable. Last error: {last_err}")
     return None
@@ -735,7 +756,7 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
                     e = closes[i]; a = atr[i]
                     pos = {
                         "entry_i": i, "entry_price": e,
-                        "entry_time": time.strftime("%Y-%m-%d %H:%M", time.gmtime(opens[i] / 1000)),
+                        "entry_time": time.strftime("%Y-%m-%d %H:%M", time.gmtime(opens[i] / 1000 + 5 * 3600)),
                         "sl":  e - sl_mult * a, "tp1": e + tp1_m * a,
                         "tp2": e + tp2_m * a,   "tp3": e + tp3_m * a,
                         "tp1_hit": False, "tp2_hit": False, "tp3_hit": False, "trailing": "",
@@ -766,7 +787,7 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
                 all_trades.append({
                     "symbol": sym,
                     "entry_time": pos["entry_time"],
-                    "exit_time": time.strftime("%Y-%m-%d %H:%M", time.gmtime(opens[i] / 1000)),
+                    "exit_time": time.strftime("%Y-%m-%d %H:%M", time.gmtime(opens[i] / 1000 + 5 * 3600)),
                     "exit_ts": opens[i],
                     "entry_price": round(pos["entry_price"], 8),
                     "exit_price": round(exit_price, 8),
@@ -783,7 +804,7 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
     equity = balance0; peak = balance0; max_dd = 0.0
     gross_p = 0.0; gross_l = 0.0; wins = 0; losses = 0; counted = 0; skipped = 0
     daily_losses: dict = {}; daily_start_eq: dict = {}
-    curve = [{"t": time.strftime("%Y-%m-%d", time.gmtime(start_ms / 1000)), "equity": round(equity, 2)}]
+    curve = [{"t": time.strftime("%Y-%m-%d", time.gmtime(start_ms / 1000 + 5 * 3600)), "equity": round(equity, 2)}]
     for tr in all_trades:
         day = tr["exit_time"][:10]
         day_open_eq = daily_start_eq.setdefault(day, equity)
@@ -810,8 +831,8 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
     return {
         "generated": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "symbols": symbols, "months": months, "interval": interval,
-        "start": time.strftime("%Y-%m-%d", time.gmtime(start_ms / 1000)),
-        "end":   time.strftime("%Y-%m-%d", time.gmtime(now_ms / 1000)),
+        "start": time.strftime("%Y-%m-%d", time.gmtime(start_ms / 1000 + 5 * 3600)),
+        "end":   time.strftime("%Y-%m-%d", time.gmtime(now_ms / 1000 + 5 * 3600)),
         "total_trades": counted, "skipped_by_circuit_breaker": skipped,
         "wins": wins, "losses": losses, "win_rate": win_rate,
         "profit_factor": (round(profit_factor, 2) if profit_factor != float("inf") else 999.0),
@@ -1333,7 +1354,7 @@ def fetch_btc_sentiment() -> dict:
         log.warning(f"BTC sentiment fetch failed: {e}")
         return {"price": 0, "change_pct": 0, "volume": 0, "volatility_pct": 0,
                 "sentiment": "UNKNOWN", "pause_entries": False, "regime": "RANGING",
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1653,8 +1674,8 @@ def fetch_funding_rate(symbol: str) -> float:
     any failure (e.g. symbol has no futures market) so callers can treat
     that as neutral rather than erroring out."""
     try:
-        resp = requests.get("https://fapi.binance.com/fapi/v1/premiumIndex",
-                             params={"symbol": symbol}, timeout=8)
+        resp = _SESSION.get("https://fapi.binance.com/fapi/v1/premiumIndex",
+                            params={"symbol": symbol}, timeout=10)
         if resp.status_code == 200:
             return round(float(resp.json().get("lastFundingRate", 0)) * 100, 4)
     except Exception as e:
@@ -1955,7 +1976,7 @@ def push_midnight_report(vmc_data: dict, whale_data: list, backtest: list,
         sheet  = client.open_by_key(sheet_id)
         try: ws_arch = sheet.worksheet("ARCHIVE_LOG")
         except Exception: ws_arch = sheet.add_worksheet("ARCHIVE_LOG", rows=5000, cols=10)
-        utc_ts   = time.strftime("%Y-%m-%d %H:%M:%S UTC")
+        utc_ts   = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(time.time() + 5 * 3600))
         pkt_ts   = time.strftime("%Y-%m-%d %H:%M:%S PKT", time.gmtime(time.time() + 5 * 3600))
         wins     = sum(1 for b in backtest if b.get("result") == "WIN")
         losses   = sum(1 for b in backtest if b.get("result") == "LOSS")

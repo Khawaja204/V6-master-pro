@@ -620,7 +620,7 @@ function renderDetail(sd, cd, wd) {
   // Header
   document.getElementById('d-sym').textContent   = (coin.symbol||'').replace('USDT','') + ' / USDT';
   document.getElementById('d-price').textContent = fmtP(coin.price) + ' USDT';
-  document.getElementById('d-updated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+  document.getElementById('d-updated').textContent = `Updated: ${new Date(Date.now()+5*3600*1000).toISOString().slice(11,19)}`;
 
   const badges = [];
   if (hot) badges.push('<span class="tag-box tag-hot">🔥 HOT COIN</span>');

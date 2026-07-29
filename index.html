@@ -1419,7 +1419,7 @@ function updateBottom(d){
 
 // ── CLIENT API ──
 function updateCA(d){
-  const now=new Date().toTimeString().slice(0,8);
+  const now=new Date(Date.now()+5*3600*1000).toISOString().slice(11,19);
   const tb=document.getElementById('ca-tbody');
   if(tb) tb.innerHTML=`
     <tr><td>🔸 APA / USDT</td><td class="ca-ok">Connected APIs</td><td>binanc@Binance</td><td class="ca-ok">Synced ${now} ✓</td></tr>

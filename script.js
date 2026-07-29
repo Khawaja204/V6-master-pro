@@ -401,7 +401,7 @@ function updateBacktest(d) {
 
 // ── CLIENT API ──
 function updateClientAPI(d) {
-  const now = new Date().toTimeString().slice(0,8);
+  const now = new Date(Date.now()+5*3600*1000).toISOString().slice(11,19);
   const tbody = document.getElementById('ca-tbody');
   if (tbody) {
     tbody.innerHTML = `

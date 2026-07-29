@@ -334,7 +334,7 @@ _daily_stats = {"date": "", "losses": 0, "wins": 0,
 
 
 def _today_utc() -> str:
-    return time.strftime("%Y-%m-%d", time.gmtime())
+    return time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600))
 
 
 def _reset_daily_if_needed() -> None:
@@ -629,7 +629,7 @@ def _update_wc_learning(tr: dict):
         ld.setdefault("adjustment_log", []).append(note)
         if len(ld["adjustment_log"]) > 50:
             ld["adjustment_log"] = ld["adjustment_log"][-50:]
-        ld["last_adjustment"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        ld["last_adjustment"] = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
         log.info(f"[WC-LEARNING] {note}")
 
     GLOBAL_DATA["whale_copy_learning"] = ld
@@ -970,7 +970,7 @@ def self_upgrade_cycle(inst_signals: list, whale_data: list, vmc_data: dict) -> 
     identifies system evolution opportunities. Stored in GLOBAL_DATA['upgrade_log'].
     """
     notes = []
-    ts = time.strftime("%H:%M:%S")
+    ts = time.strftime("%H:%M:%S", time.gmtime(time.time() + 5 * 3600))
 
     # 1. Win rate feedback — alert when system drifts
     total_bt = GLOBAL_DATA.get("total_wins", 0) + GLOBAL_DATA.get("total_losses", 0)
@@ -1043,7 +1043,7 @@ def check_price_alerts(all_coins: list):
         hit    = (alert["direction"] == "ABOVE" and price >= target) or \
                  (alert["direction"] == "BELOW" and price <= target)
         if hit:
-            ts  = time.strftime("%Y-%m-%d %H:%M:%S")
+            ts  = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
             sym = alert["symbol"]
             msg = (f"🎯 <b>PRICE ALERT HIT!</b>\n"
                    f"📊 {sym.replace('USDT','')} / USDT\n"
@@ -1212,7 +1212,7 @@ def update_paper_learning():
         ld.setdefault("adjustment_log", []).append(note)
         if len(ld["adjustment_log"]) > 50:
             ld["adjustment_log"] = ld["adjustment_log"][-50:]
-        ld["last_adjustment"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        ld["last_adjustment"] = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
         log.info(f"[LEARNING] {note}")
 
         # ── Ready-for-real alert ──────────────────────────────────────────────
@@ -1410,7 +1410,7 @@ def data_refresh_loop():
             GLOBAL_DATA["vmc"]          = vmc_data
             GLOBAL_DATA["whale"]        = whale_data
             GLOBAL_DATA["inst_signals"] = inst_signals
-            GLOBAL_DATA["last_update"]  = time.strftime("%Y-%m-%d %H:%M:%S")
+            GLOBAL_DATA["last_update"]  = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
             GLOBAL_DATA["status"]       = "live"
             GLOBAL_DATA["cycle_count"]  = cycle
             GLOBAL_DATA["win_streak"]   = _win_streak
@@ -1596,7 +1596,7 @@ def heartbeat_loop():
         time.sleep(interval)
         secs = int(time.time() - GLOBAL_DATA["uptime_start"])
         h, r = divmod(secs, 3600); m, s = divmod(r, 60)
-        ts   = time.strftime("%Y-%m-%d %H:%M:%S")
+        ts   = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
         GLOBAL_DATA["heartbeat"] = ts
         log.info(f"[HEARTBEAT] Uptime:{h}h{m}m | Cycles:{GLOBAL_DATA['cycle_count']} | WinRate:{GLOBAL_DATA['win_rate']}%")
         _heartbeat_iter += 1
@@ -1686,7 +1686,7 @@ def midnight_report_loop():
             wins   = _total_wins; losses = _total_losses; total = wins + losses
             wr     = round(wins / total * 100, 1) if total else 0
             top    = GLOBAL_DATA.get("top_coin_today", {})
-            utc_ts = time.strftime("%Y-%m-%d %H:%M:%S UTC")
+            utc_ts = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(time.time() + 5 * 3600))
             pkt_ts = time.strftime("%Y-%m-%d %H:%M:%S PKT", time.gmtime(time.time() + 5 * 3600))
 
             send_telegram(
@@ -2640,6 +2640,33 @@ def system_health():
     })
 
 
+# ── /health — Render / uptime-monitor compatible ───────────────────────────────
+
+@app.route("/health")
+def health_check():
+    """Lightweight liveness endpoint for Render health checks and uptime monitors.
+    Returns HTTP 200 with a small JSON payload; never raises an exception."""
+    try:
+        uptime_secs = int(time.time() - GLOBAL_DATA.get("uptime_start", time.time()))
+        hours, rem  = divmod(uptime_secs, 3600)
+        mins, secs  = divmod(rem, 60)
+        uptime_str  = f"{hours}h {mins}m {secs}s"
+        pkt_ts      = time.strftime(
+            "%Y-%m-%d %H:%M:%S PKT",
+            time.gmtime(time.time() + 5 * 3600)   # UTC+5
+        )
+        return jsonify({
+            "status":      "live",
+            "timestamp":   pkt_ts,
+            "cycle_count": GLOBAL_DATA.get("cycle_count", 0),
+            "uptime":      uptime_str,
+            "paper_mode":  GLOBAL_DATA.get("paper_mode", True),
+            "scan_status": GLOBAL_DATA.get("status", "unknown"),
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "detail": str(e)}), 200
+
+
 # ── Fund Limit ─────────────────────────────────────────────────────────────────
 
 @app.route("/admin/set_fund_limit", methods=["POST"])
@@ -2744,7 +2771,7 @@ def admin_refresh_scan():
                     _record_whale_copy_trade(sig)
             GLOBAL_DATA["vmc"]         = vmc_data
             GLOBAL_DATA["whale"]       = whale_data
-            GLOBAL_DATA["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            GLOBAL_DATA["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
             GLOBAL_DATA["status"]      = "live"
             log.info("[ADMIN] Force scan completed — data refreshed")
         except Exception as e:
@@ -2848,8 +2875,8 @@ def admin_test_telegram():
 @app.route("/admin/audit_log")
 @_admin_required
 def admin_audit_log():
-    date_from = request.args.get("date_from", time.strftime("%Y-%m-%d"))
-    date_to   = request.args.get("date_to",   time.strftime("%Y-%m-%d"))
+    date_from = request.args.get("date_from", time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600)))
+    date_to   = request.args.get("date_to",   time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600)))
     fmt       = request.args.get("fmt", "html")
     try:
         with open("system_audit.log") as f: lines = f.readlines()
@@ -2936,7 +2963,7 @@ def admin_add_client():
         return f"<script>alert('Client \"{name}\" already exists.');window.history.back()</script>"
     clients.append({"name": name, "uid": uid, "password": pwd, "status": "ACTIVE",
                     "expiry": exp, "sig_limit": lim, "role": "CLIENT",
-                    "added": time.strftime("%Y-%m-%d")})
+                    "added": time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600))})
     _save_clients(clients)
     audit(request.remote_addr, "ADD_CLIENT", "OK", f"name={name} uid={uid}")
     return redirect("/admin")
@@ -2984,7 +3011,7 @@ def admin_add_holding():
         target_pct = 15.0
     holdings = [h for h in _load_holdings() if h["symbol"] != sym]
     holdings.append({"symbol": sym, "quantity": qty, "buy_price": buy_price,
-                      "target_pct": target_pct, "added": time.strftime("%Y-%m-%d")})
+                      "target_pct": target_pct, "added": time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600))})
     _save_holdings(holdings)
     audit(request.remote_addr, "ADD_HOLDING", "OK", f"sym={sym} qty={qty}")
     return redirect("/admin")

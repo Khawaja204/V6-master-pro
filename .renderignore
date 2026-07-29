@@ -1,0 +1,33 @@
+# Secrets & local config
+.env
+V6_Master_Pro_UI/.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+v6_server.log
+error.log
+system_audit.log
+
+# Replit-specific
+.replit
+replit.nix
+.cache/
+.pythonlibs/
+.upm/
+.config/
+
+# Dev tools
+saveproj.sh
+v6-cmd.sh
+.bash_aliases
+project.txt
+project.zip
+
+# Git
+.git/
