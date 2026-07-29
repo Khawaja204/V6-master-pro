@@ -1813,9 +1813,13 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
         if direction == "COPY_BUY":
             stop_loss = round(wall_price * (1 - sl_buffer_pct / 100), 8)
             target    = opposite["price_level"] if opposite else round(wall_price * (1 + tp_fallback_pct / 100), 8)
+            if target <= wall_price:
+                target = round(wall_price * (1 + tp_fallback_pct / 100), 8)
         else:
             stop_loss = round(wall_price * (1 + sl_buffer_pct / 100), 8)
             target    = opposite["price_level"] if opposite else round(wall_price * (1 - tp_fallback_pct / 100), 8)
+            if target >= wall_price:
+                target = round(wall_price * (1 - tp_fallback_pct / 100), 8)
 
         size_score = min(100, (wall_size_usdt / min_wall_usdt) * 50) if min_wall_usdt else 0
         obi_score  = min(100, abs(obi_val) * 200)

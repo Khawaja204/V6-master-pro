@@ -612,7 +612,7 @@ body.simple-active .ms-sub { font-size:12px }
   <div style="overflow-x:auto">
   <table class="scan-tbl">
     <thead>
-      <tr><th>Coin</th><th>Dir</th><th>Wall Price</th><th>SL</th><th>Target</th><th>Size(USDT)</th><th>OBI</th><th>Rate</th><th>Conf%</th><th>News</th></tr>
+      <tr><th>Coin</th><th>Dir</th><th>Wall Price</th><th>SL</th><th>Target</th><th>ETA</th><th>Size(USDT)</th><th>OBI</th><th>Rate</th><th>Conf%</th><th>Time</th><th>News</th></tr>
     </thead>
     <tbody id="wc-tbody">
       <tr><td colspan="10" style="text-align:center;color:var(--grey);padding:20px">Loading whale copy signals...</td></tr>
@@ -1146,17 +1146,19 @@ function updateWhaleCopy(d){
           ? '<span style="color:var(--green);font-size:9px">✔ CONFIRMED</span>'
           : '<span style="color:var(--gold);font-size:9px">⏳ watching</span>';
         const newsUrl = `https://www.google.com/search?q=${encodeURIComponent(sym+' crypto news')}&tbm=nws`;
+        const targetColor = s.direction==='COPY_BUY' ? 'var(--green)' : 'var(--red)';
         return `<tr>
           <td style="cursor:pointer" onclick="loadCoin('${s.symbol}')"><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
           <td><span class="at ${dirCls}">${dirLbl}</span><br>${confBadge}</td>
           <td>${fmt6(s.wall_price||0)}</td>
           <td style="color:var(--red)">${fmt6(s.stop_loss||0)}</td>
-          <td style="color:var(--green)">${fmt6(s.target||0)}</td>
+          <td style="color:${targetColor}">${fmt6(s.target||0)}</td>
           <td>${s.eta||'—'}</td>
           <td>${fmtNum(s.wall_size_usdt||0)}</td>
           <td style="color:${(s.obi||0)>0?'var(--green)':'var(--red)'}">${(s.obi||0).toFixed(3)}</td>
           <td>${(s.obi_velocity||0).toFixed(2)}</td>
           <td>${s.confidence||0}%</td>
+          <td style="color:var(--grey);font-size:9px">${s.detected_at||'—'}</td>
           <td><a href="${newsUrl}" target="_blank" style="color:var(--blue);font-size:9px">📰 News</a></td>
         </tr>`;
       }).join('');
