@@ -9,5 +9,3 @@ services:
     envVars:
       - key: PORT
         value: 10000
-      # All secrets must be added manually in the Render dashboard.
-      # See ENV_CHECKLIST.md for the full list.
