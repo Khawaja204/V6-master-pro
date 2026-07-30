@@ -1,0 +1,110 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║           🤖 V6 MASTER PRO — AGENT INSTRUCTION & WORK LOG                   ║
+║           Generated: Thu Jul 30 07:59:14 PM UTC 2026  |  PKT: 2026-07-31 00:59:14 PKT              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 SECTION 1: PROJECT ORIGIN & INITIAL INSTRUCTIONS (Agent Start)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Project Name        : V6 Master Pro Institutional Crypto Trading Bot
+Platform            : Replit (dev) + Render (production)
+Agent First Engaged : 24-Jul-2026
+Current Version     : v8 (as of main.py header)
+User Type           : Free Kimi version (session-based, no persistent memory)
+Project Export      : saveproj.sh (sp alias) → project.txt
+Env File            : V6_Master_Pro_UI/.env
+
+🎯 ORIGINAL MANDATE (P0 — Must Have):
+   1. OCO (One-Cancels-Other) Orders
+   2. SQLite Database Migration (replace JSON files)
+   3. API Key Encryption (at-rest security)
+
+🎯 P1 — High Priority:
+   4. WebSocket Live Prices (Binance stream)
+   5. Partial Take-Profit (TP1/TP2/TP3 scaling)
+   6. Multi-Timeframe Confirmation (15m + 1h + 4h confluence)
+
+🎯 P2 — Future Backlog:
+   7. Portfolio Heatmap
+   8. Funding Rate Arbitrage
+   9. 2FA / Mobile UI
+  10. PnL Chart & Trade Journal
+  11. Enhanced API Encryption + Audit Trail
+  12. Auto-Deploy Pipeline (GitHub Actions / Render hook)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SECTION 2: AGENT SERVICES RENDERED (Backend Record)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Svc# | Date       | Category        | Status | Description
+─────┼────────────┼─────────────────┼────────┼──────────────────────────────────
+001  | 26-07-2026 | Architecture    | ✅ DONE | P0/P1 backlog finalized
+002  | 26-07-2026 | DevOps          | ✅ DONE | Replit+Render hosting setup
+003  | 27-07-2026 | Config          | ✅ DONE | saveproj.sh + 'sp' alias
+004  | 27-07-2026 | Config          | ✅ DONE | .env mapped to V6_Master_Pro_UI/.env
+005  | 28-07-2026 | Code Review     | ✅ DONE | main.py, logic.py, config.json reviewed
+006  | 28-07-2026 | Docs            | ✅ DONE | V6_Master_Pro_Backlog.md created
+007  | 29-07-2026 | DevOps          | ✅ DONE | v6-cmd.sh (11 commands)
+008  | 29-07-2026 | Security        | ✅ DONE | Admin portal + session + kill-switch
+009  | 29-07-2026 | Trading Engine  | ✅ DONE | Whale Copy Mode + ATR trailing stops
+010  | 29-07-2026 | Data Layer      | ✅ DONE | Binance 7-host failover + health monitor
+011  | 29-07-2026 | Data Layer      | ✅ DONE | Liquidation WebSocket (Binance Futures)
+012  | 29-07-2026 | UI/UX           | ✅ DONE | V6_Master_Pro_UI/ dashboard + charts
+013  | 29-07-2026 | Integrations    | ✅ DONE | Google Sheets (8 tabs) + Telegram bot
+014  | 29-07-2026 | Integrations    | ✅ DONE | Etherscan/BSCscan on-chain flows
+015  | 31-07-2026 | Documentation   | ✅ DONE | Agent Work Log system (this file)
+
+⏳ PENDING SERVICES:
+016  | --         | Trading Engine  | ⏳ PENDING | OCO Orders (P0)
+017  | --         | Database        | ⏳ PENDING | SQLite Migration (P0)
+018  | --         | Trading Engine  | ⏳ PENDING | WebSocket Price Feed (P1)
+019  | --         | Trading Engine  | ⏳ PENDING | Partial TP Auto-Scale (P1)
+020  | --         | Analysis        | ⏳ PENDING | Multi-Timeframe Confluence (P1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 SECTION 3: BILLABLE VS NON-BILLABLE BREAKDOWN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BILLABLE (Agent Development Work):
+  ✓ SVC-001~015  → Architecture, code, scripts, integrations, docs
+  ✓ Custom Scripts → saveproj.sh, v6-cmd.sh, agent_log.sh
+  ✓ Security Spec  → API encryption plan, 2FA architecture
+  ✓ DB Design      → SQLite schema for trades/signals/clients
+
+NON-BILLABLE / USER-INFRA (You manage these):
+  ○ Replit free-tier hosting
+  ○ Render free-tier deployment
+  ○ Binance Public API (free, rate-limited)
+  ○ Google Sheets API (free tier, your credentials)
+  ○ Telegram Bot API (free)
+  ○ Etherscan/BSCscan API keys (free tier, your keys)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💬 SECTION 4: CHAT INSTRUCTION HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[2026-07-24] SESSION-001 | User: 'V6 Master Pro crypto bot banana hai Replit+Render pe.'
+             → Agent: P0/P1 backlog created. Project roadmap established.
+
+[2026-07-27] SESSION-002 | User: 'saveproj.sh aur sp alias set karo.'
+             → Agent: Auto-export script ready. project.txt generates on demand.
+
+[2026-07-28] SESSION-003 | User: 'Project files review karo aur backlog update karo.'
+             → Agent: Full code audit. V6_Master_Pro_Backlog.md persisted.
+
+[2026-07-29] SESSION-004 | User: 'v6-cmd.sh banao jis mein deploy, push, status, save ho.'
+             → Agent: 11-command CLI toolkit created. ~/.bashrc workaround documented.
+
+[2026-07-29] SESSION-005 | User: 'Agent ki instructions aur services track karne wali file banao.'
+             → Agent: agent_log.sh + agent_work_log.txt created. Audit trail live.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 SECTION 5: MANUAL UPDATE LOG (User / Agent Notes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Syntax: bash agent_log.sh note 'Your note here'
+Aliases: ag-note 'Your note'  |  ag-tail  |  ag-cat
+
+[INIT] 2026-07-31 00:59:14 PKT | Log file initialized by agent.
+[MANUAL] 2026-07-31 00:59:14 PKT | Agent se OCO orders ki request ki
