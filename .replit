@@ -6,7 +6,7 @@ localPort = 8080
 externalPort = 80
 
 [nix]
-packages = ["c-ares", "cacert", "cargo", "libffi", "libiconv", "libuv", "libxcrypt", "openssl", "pkg-config", "rustc"]
+packages = ["c-ares", "cacert", "cargo", "libffi", "libiconv", "libuv", "libxcrypt", "openssl", "pkg-config", "rustc", "sqlite"]
 
 [workflows]
 runButton = "Project"
