@@ -38,6 +38,11 @@ logs() {
     tail -30 /home/runner/workspace/v6_server.log 2>/dev/null || echo "No log file found at v6_server.log"
 }
 
+v8() {
+    echo "Exporting V6 upgrade modules..."
+    bash /home/runner/workspace/v6-export.sh
+}
+
 save() {
     echo "Saving project..."
     bash /home/runner/workspace/saveproj.sh
@@ -116,4 +121,4 @@ for t, c in st['tables'].items():
     fi
 }
 
-echo "V6 commands loaded: aj | chat-log | backlog | sp | deploy | stop | restart | status | logs | save | push | full | backup | update | db-migrate | db-backup | db-status"
+echo "V6 commands loaded: aj | chat-log | backlog | sp | v8 | deploy | stop | restart | status | logs | save | push | full | backup | update | db-migrate | db-backup | db-status"

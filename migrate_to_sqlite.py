@@ -1,116 +1,74 @@
-#!/usr/bin/env python3
+"""
+migrate_to_sqlite.py — V6 Master Pro | One-time JSON -> SQLite migration
+Reads existing *.json state files and writes them via v6_database.py's
+own save_* functions (schema-correct). Safe to re-run (idempotent).
+"""
 import json
-import os
-import shutil
-try:
-    from pysqlite3 import dbapi2 as sqlite3
-except ImportError:
-    import sqlite3
 from v6_database import (
-    init_db, save_paper_trades, save_whale_copy_trades,
-    save_backtest_signals, save_learning_data, save_api_keys,
-    save_holdings, save_clients, save_wc_learning,
-    load_paper_trades, load_backtest_signals, DB_PATH
+    init_db, save_paper_trades, save_whale_copy_trades, save_backtest_signals,
+    save_api_keys, save_clients, save_holdings, save_learning_data, db_status,
 )
 
-FILES = {
-    "paper_trades": "paper_trades.json",
-    "whale_copy_trades": "whale_copy_trades.json",
-    "backtest_signals": "backtest_signals.json",
-    "learning_data": "learning_data.json",
-    "api_keys": "api_keys.json",
-    "holdings": "holdings.json",
-    "clients": "clients.json",
-    "whale_copy_learning": "whale_copy_learning.json",
-}
-
-def backup_json():
-    for name, fname in FILES.items():
-        if os.path.exists(fname):
-            shutil.copy2(fname, fname + ".bak")
-            print(f"  Backed up {fname} -> {fname}.bak")
+def _load_json(path, default):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[SKIP] {path}: {e}")
+        return default
 
 def migrate():
-    print("=" * 50)
-    print("  V6 Master Pro — JSON to SQLite Migration")
-    print("=" * 50)
-    print(f"\n  DB path: {DB_PATH}")
-    print("\n  [1/3] Backing up JSON files...")
-    backup_json()
-    print("\n  [2/3] Initializing SQLite database...")
     init_db()
-    print("\n  [3/3] Migrating data...")
-    total = 0
 
-    if os.path.exists(FILES["paper_trades"]):
-        with open(FILES["paper_trades"]) as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            save_paper_trades(data)
-            print(f"    paper_trades: {len(data)} rows")
-            total += len(data)
+    bt = _load_json("backtest_signals.json", [])
+    if bt:
+        save_backtest_signals(bt)
+        print(f"Migrated {len(bt)} backtest signals")
 
-    if os.path.exists(FILES["whale_copy_trades"]):
-        with open(FILES["whale_copy_trades"]) as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            save_whale_copy_trades(data)
-            print(f"    whale_copy_trades: {len(data)} rows")
-            total += len(data)
+    pt = _load_json("paper_trades.json", [])
+    if pt:
+        save_paper_trades(pt)
+        print(f"Migrated {len(pt)} paper trades")
 
-    if os.path.exists(FILES["backtest_signals"]):
-        with open(FILES["backtest_signals"]) as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            save_backtest_signals(data)
-            print(f"    backtest_signals: {len(data)} rows")
-            total += len(data)
+    wct = _load_json("whale_copy_trades.json", [])
+    if wct:
+        save_whale_copy_trades(wct)
+        print(f"Migrated {len(wct)} whale copy trades")
 
-    if os.path.exists(FILES["learning_data"]):
-        with open(FILES["learning_data"]) as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            save_learning_data(data)
-            print(f"    learning_data: {len(data)} keys")
-            total += 1
+    keys = _load_json("api_keys.json", {})
+    if keys:
+        try:
+            from v6_crypto import encrypt
+            enc = {}
+            for ex, k in keys.items():
+                enc[ex] = {
+                    "api_key":    encrypt(k.get("api_key", "")),
+                    "secret_key": encrypt(k.get("secret_key", "")),
+                }
+                if k.get("passphrase"):
+                    enc[ex]["passphrase"] = encrypt(k["passphrase"])
+            save_api_keys(enc)
+            print(f"Migrated {len(keys)} API keys (encrypted)")
+        except Exception as e:
+            print(f"[WARN] api_keys migration failed: {e}")
 
-    if os.path.exists(FILES["api_keys"]):
-        with open(FILES["api_keys"]) as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            save_api_keys(data)
-            print(f"    api_keys: {len(data)} exchanges")
-            total += len(data)
+    clients = _load_json("clients.json", [])
+    if clients:
+        save_clients(clients)
+        print(f"Migrated {len(clients)} clients")
 
-    if os.path.exists(FILES["holdings"]):
-        with open(FILES["holdings"]) as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            save_holdings(data)
-            print(f"    holdings: {len(data)} rows")
-            total += len(data)
+    holdings = _load_json("holdings.json", [])
+    if holdings:
+        save_holdings(holdings)
+        print(f"Migrated {len(holdings)} holdings")
 
-    if os.path.exists(FILES["clients"]):
-        with open(FILES["clients"]) as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            save_clients(data)
-            print(f"    clients: {len(data)} rows")
-            total += len(data)
+    ld = _load_json("learning_data.json", {})
+    if ld:
+        save_learning_data(ld)
+        print("Migrated learning data")
 
-    if os.path.exists(FILES["whale_copy_learning"]):
-        with open(FILES["whale_copy_learning"]) as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            save_wc_learning(data)
-            print(f"    whale_copy_learning: {len(data)} keys")
-            total += 1
-
-    pt = load_paper_trades()
-    bt = load_backtest_signals()
-    print(f"\n  Verification: {len(pt)} paper trades, {len(bt)} backtest signals loaded from DB")
-    print(f"\n  Migration complete! {total} total records migrated.")
-    print("=" * 50)
+    print("\nMigration complete!")
+    print(db_status())
 
 if __name__ == "__main__":
     migrate()

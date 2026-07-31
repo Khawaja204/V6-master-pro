@@ -39,33 +39,6 @@ except Exception as _e:
     print("[V6 UPGRADE] Import warning: %s" % _e)
     _V6_UPGRADE = False
 
-# ── V6 DB Bridge: use SQLite when available, fallback to JSON ──
-def _db_save(table: str, data):
-    if _V6_UPGRADE:
-        import v6_database as v6db
-        {"paper_trades": v6db.save_paper_trades,
-         "whale_copy_trades": v6db.save_whale_copy_trades,
-         "backtest_signals": v6db.save_backtest_signals,
-         "api_keys": v6db.save_api_keys,
-         "clients": v6db.save_clients,
-         "holdings": v6db.save_holdings,
-         "learning_data": v6db.save_learning_data,
-         "price_alerts": v6db.save_price_alerts}.get(table, lambda x: None)(data)
-
-def _db_load(table: str, default=None):
-    if _V6_UPGRADE:
-        import v6_database as v6db
-        return {"paper_trades": v6db.load_paper_trades,
-                "whale_copy_trades": v6db.load_whale_copy_trades,
-                "backtest_signals": v6db.load_backtest_signals,
-                "api_keys": v6db.load_api_keys,
-                "clients": v6db.load_clients,
-                "holdings": v6db.load_holdings,
-                "learning_data": lambda d: v6db.load_learning_data(d),
-                "price_alerts": v6db.load_price_alerts}.get(table, lambda: default or [])()
-    return default or []
-
-
 _V6_WS  = _V6_UPGRADE
 _V6_OCO = _V6_UPGRADE
 _V6_PTP = _V6_UPGRADE
@@ -178,44 +151,21 @@ _DEFAULT_LD = {
     "last_adjustment": None, "adjustment_log": [], "ready_for_real": False,
     "signal_stats": {},
 }
-_ld_loaded = {}
-if _V6_UPGRADE:
-    try:
-        _ld_loaded = _db_load("learning_data", default={})
-    except Exception as _e:
-        log.warning(f"[V6 DB] learning_data load failed: {_e}")
-if _ld_loaded:
-    _DEFAULT_LD.update(_ld_loaded)
-else:
-    try:
-        with open(_LD_FILE) as _f:
-            _ld_saved = json.load(_f)
-            _DEFAULT_LD.update(_ld_saved)
-    except Exception:
-        pass
+try:
+    with open(_LD_FILE) as _f:
+        _ld_saved = json.load(_f)
+        _DEFAULT_LD.update(_ld_saved)
+except Exception:
+    pass
 GLOBAL_DATA["learning_data"] = _DEFAULT_LD
 
 # ── API Keys (masked storage) ──────────────────────────────────────────────────
 _API_KEYS_FILE = "api_keys.json"
-_API_KEYS: dict = {}
-if _V6_UPGRADE:
-    try:
-        _enc_keys = _db_load("api_keys", default={})
-        for _ex, _k in (_enc_keys or {}).items():
-            _API_KEYS[_ex] = {
-                "api_key":    decrypt(_k.get("api_key", "")) or _k.get("api_key", ""),
-                "secret_key": decrypt(_k.get("secret_key", "")) or _k.get("secret_key", ""),
-            }
-            if _k.get("passphrase"):
-                _API_KEYS[_ex]["passphrase"] = decrypt(_k["passphrase"]) or _k["passphrase"]
-    except Exception as _e:
-        log.warning(f"[V6 DB] api_keys load failed: {_e}")
-if not _API_KEYS:
-    try:
-        with open(_API_KEYS_FILE) as _f:
-            _API_KEYS = json.load(_f)
-    except Exception:
-        _API_KEYS = {}
+try:
+    with open(_API_KEYS_FILE) as _f:
+        _API_KEYS: dict = json.load(_f)
+except Exception:
+    _API_KEYS = {}
 
 def _save_api_keys():
     try:
@@ -223,19 +173,6 @@ def _save_api_keys():
             json.dump(_API_KEYS, f, indent=2)
     except Exception as e:
         log.debug(f"API keys save failed: {e}")
-    if _V6_UPGRADE:
-        try:
-            _enc = {}
-            for _ex, _k in _API_KEYS.items():
-                _enc[_ex] = {
-                    "api_key":    encrypt(_k.get("api_key", "")),
-                    "secret_key": encrypt(_k.get("secret_key", "")),
-                }
-                if _k.get("passphrase"):
-                    _enc[_ex]["passphrase"] = encrypt(_k["passphrase"])
-            _db_save("api_keys", _enc)
-        except Exception as e:
-            log.debug(f"[V6 DB] api_keys encrypted save failed: {e}")
 
 def _mask(s: str) -> str:
     if not s or len(s) < 8: return "●" * 8
@@ -252,11 +189,6 @@ def _save_paper_trades():
             json.dump(PAPER_TRADES[-500:], f, indent=2)
     except Exception as e:
         log.debug(f"Paper trades save failed: {e}")
-    if _V6_UPGRADE:
-        try:
-            _db_save("paper_trades", PAPER_TRADES[-500:])
-        except Exception as e:
-            log.debug(f"[V6 DB] paper_trades save failed: {e}")
 
 
 def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
@@ -374,51 +306,29 @@ BACKTEST_SIGNALS   = []           # max 100 tracked signals
 # ── Paper / Manual Trades ──────────────────────────────────────────────────────
 _TRADES_FILE = "paper_trades.json"
 PAPER_TRADES: list = []
-if _V6_UPGRADE:
-    try:
-        PAPER_TRADES = _db_load("paper_trades", default=[])
-    except Exception as _e:
-        log.warning(f"[V6 DB] paper_trades load failed: {_e}")
-if not PAPER_TRADES:
-    try:
-        with open(_TRADES_FILE) as _ptf:
-            PAPER_TRADES = json.load(_ptf)
-    except Exception:
-        pass
+try:
+    with open(_TRADES_FILE) as _ptf:
+        PAPER_TRADES = json.load(_ptf)
+except Exception:
+    pass
 _WC_TRADES_FILE = "whale_copy_trades.json"
 WHALE_COPY_TRADES: list = []
-if _V6_UPGRADE:
-    try:
-        WHALE_COPY_TRADES = _db_load("whale_copy_trades", default=[])
-    except Exception as _e:
-        log.warning(f"[V6 DB] whale_copy_trades load failed: {_e}")
-if not WHALE_COPY_TRADES:
-    try:
-        with open(_WC_TRADES_FILE) as _wcf:
-            WHALE_COPY_TRADES = json.load(_wcf)
-    except Exception:
-        pass
+try:
+    with open(_WC_TRADES_FILE) as _wcf:
+        WHALE_COPY_TRADES = json.load(_wcf)
+except Exception:
+    pass
 # ── Backtest Signal Persistence ────────────────────────────────────────────────
 _BACKTEST_FILE = "backtest_signals.json"
-_loaded_bt = []
-if _V6_UPGRADE:
-    try:
-        _loaded_bt = _db_load("backtest_signals", default=[])
-    except Exception as _e:
-        log.warning(f"[V6 DB] backtest_signals load failed: {_e}")
-if not _loaded_bt:
-    try:
-        with open(_BACKTEST_FILE) as _bsf:
-            _loaded_bt = json.load(_bsf)
-    except Exception:
-        _loaded_bt = []
 try:
-    # Only restore non-closed signals younger than 6h; closed ones persist for display
-    _now_bt = time.time()
-    BACKTEST_SIGNALS = [
-        s for s in _loaded_bt
-        if s.get("status") == "CLOSED" or (_now_bt - s.get("entry_ts", 0)) < 21600
-    ][:100]
+    with open(_BACKTEST_FILE) as _bsf:
+        _loaded_bt = json.load(_bsf)
+        # Only restore non-closed signals younger than 6h; closed ones persist for display
+        _now_bt = time.time()
+        BACKTEST_SIGNALS = [
+            s for s in _loaded_bt
+            if s.get("status") == "CLOSED" or (_now_bt - s.get("entry_ts", 0)) < 21600
+        ][:100]
 except Exception:
     pass
 
@@ -430,11 +340,6 @@ def _save_backtest_signals():
             json.dump(BACKTEST_SIGNALS[:100], f, indent=2)
     except Exception as e:
         log.debug(f"Backtest signals save failed: {e}")
-    if _V6_UPGRADE:
-        try:
-            _db_save("backtest_signals", BACKTEST_SIGNALS[:100])
-        except Exception as e:
-            log.debug(f"[V6 DB] backtest_signals save failed: {e}")
 _wc_dedup: dict = {}
 _previous_walls    = {}
 _alert_cooldown    = {}
@@ -599,11 +504,6 @@ def _save_whale_copy_trades():
             json.dump(WHALE_COPY_TRADES[-500:], f, indent=2)
     except Exception as e:
         log.debug(f"Whale copy trades save failed: {e}")
-    if _V6_UPGRADE:
-        try:
-            _db_save("whale_copy_trades", WHALE_COPY_TRADES[-500:])
-        except Exception as e:
-            log.debug(f"[V6 DB] whale_copy_trades save failed: {e}")
 
 
 def _record_whale_copy_trade(sig: dict):
@@ -1025,41 +925,10 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
                     reason += f" | ⚡ REAL order placed: ${_real_amt} (orderId {_real_res.get('order_id')})"
                     audit("SYSTEM", "AUTO_REAL_ENTRY", "OPENED",
                           f"sym={coin['symbol']} amt={_real_amt} orderId={_real_res.get('order_id')}")
-                    if _V6_OCO and "BINANCE" in _API_KEYS and coin.get("price"):
-                        try:
-                            _fill_qty = round(_real_amt / coin["price"], 6)
-                            _oco_res = GLOBAL_DATA["oco_manager"].place_oco(
-                                symbol=coin["symbol"], side="SELL", quantity=_fill_qty,
-                                price=tp_zones.get("tp1", 0),
-                                stop_price=tp_zones.get("stop_loss", 0),
-                                stop_limit_price=tp_zones.get("stop_loss", 0),
-                                api_key=_API_KEYS["BINANCE"]["api_key"],
-                                secret_key=_API_KEYS["BINANCE"]["secret_key"],
-                            )
-                            if _oco_res.get("ok"):
-                                reason += " | 🎯 OCO bracket placed (TP1+SL)"
-                            audit("SYSTEM", "AUTO_OCO_BRACKET",
-                                  "OK" if _oco_res.get("ok") else "FAILED",
-                                  f"sym={coin['symbol']} qty={_fill_qty}")
-                        except Exception as _oe:
-                            log.warning(f"[V6 OCO] bracket placement failed: {_oe}")
                 else:
                     reason += f" | ❌ REAL order FAILED: {_real_res.get('error','?')} — paper entry still recorded"
                     audit("SYSTEM", "AUTO_REAL_ENTRY", "FAILED",
                           f"sym={coin['symbol']} err={_real_res.get('error','?')}")
-            if _V6_PTP:
-                try:
-                    GLOBAL_DATA["ptp_manager"].add_position(
-                        symbol=coin["symbol"], side="BUY",
-                        entry_price=coin["price"],
-                        qty=(GLOBAL_DATA.get("fund_limit_usdt", 10.0) / coin["price"]) if coin.get("price") else 0,
-                        tp1=tp_zones.get("tp1", 0), tp2=tp_zones.get("tp2", 0),
-                        tp3=tp_zones.get("tp3", 0), sl=tp_zones.get("stop_loss", 0),
-                        mode="PAPER" if GLOBAL_DATA.get("paper_mode", True) else "REAL",
-                        order_id=entry.get("id", ""),
-                    )
-                except Exception as _pe:
-                    log.debug(f"[V6 PTP] add_position failed: {_pe}")
             # NOTE: Telegram/Email push for auto V6-BUY entries intentionally
             # disabled — tracked in dashboard/backtest/Sheets only now.
             audit("SYSTEM", "AUTO_ENTRY", "OPENED",
@@ -1301,11 +1170,6 @@ def _compute_live_signal(symbol: str) -> dict:
     signal["trading_strategy_reason"] = sreason
     btc_vol = (GLOBAL_DATA.get("btc", {}) or {}).get("volatility_pct", 0) or 0
     signal["v6"] = compute_v6_final_score(signal, mkt_reg, btc_vol, "NONE", False)
-    if _V6_MTF:
-        try:
-            signal["mtf"] = get_mtf_signal(symbol, fetch_klines)
-        except Exception as _me:
-            log.debug(f"[V6 MTF] {symbol} failed: {_me}")
     return signal
 
 
@@ -1320,11 +1184,6 @@ def _save_learning_data():
             json.dump(ld, f, indent=2)
     except Exception as e:
         log.debug(f"Learning data save failed: {e}")
-    if _V6_UPGRADE:
-        try:
-            _db_save("learning_data", ld)
-        except Exception as e:
-            log.debug(f"[V6 DB] learning_data save failed: {e}")
 
 
 def update_paper_learning():
@@ -1490,12 +1349,6 @@ def data_refresh_loop():
                     inst   = compute_institutional_score(coin["score"], w_pow, obi_r, walls, CONFIG)
                     conf   = compute_confidence_score(inst, obi_r, coin["score"])
                     sizing = compute_position_size(inst, CONFIG)
-                    _mtf_result = {}
-                    if _V6_MTF:
-                        try:
-                            _mtf_result = get_mtf_signal(sym, fetch_klines)
-                        except Exception as _me:
-                            log.debug(f"[V6 MTF] {sym} failed: {_me}")
                     inst_signals.append({
                         **coin,
                         "folder":     folder,
@@ -1506,7 +1359,6 @@ def data_refresh_loop():
                         "inst":       inst,
                         "sizing":     sizing,
                         "confidence": conf,
-                        "mtf":        _mtf_result,
                     })
 
             inst_signals.sort(key=lambda x: (x["inst"]["spike"], x["confidence"]), reverse=True)
@@ -2963,15 +2815,6 @@ def admin_paper_trades_log():
     return jsonify(PAPER_TRADES[:100])
 
 
-@app.route("/admin/ptp_positions")
-@_admin_required
-def admin_ptp_positions():
-    """V6 UPGRADE: Partial-TP scale-out positions (TP1/TP2/TP3 progress)."""
-    if not _V6_PTP or "ptp_manager" not in GLOBAL_DATA:
-        return jsonify([])
-    return jsonify(GLOBAL_DATA["ptp_manager"].get_positions())
-
-
 # ── Historical Backtest (Phase 2) ───────────────────────────────────────────────
 
 _BACKTEST_CACHE = {"key": None, "report": None, "ts": 0}
@@ -3075,13 +2918,6 @@ def admin_audit_log():
 # ── Client Management Helpers ──────────────────────────────────────────────────
 
 def _load_clients() -> list:
-    if _V6_UPGRADE:
-        try:
-            rows = _db_load("clients", default=[])
-            if rows:
-                return rows
-        except Exception as e:
-            log.debug(f"[V6 DB] clients load failed: {e}")
     try:
         with open("clients.json") as f:
             return json.load(f)
@@ -3091,23 +2927,11 @@ def _load_clients() -> list:
 def _save_clients(clients: list):
     with open("clients.json", "w") as f:
         json.dump(clients, f, indent=2)
-    if _V6_UPGRADE:
-        try:
-            _db_save("clients", clients)
-        except Exception as e:
-            log.debug(f"[V6 DB] clients save failed: {e}")
 
 
 _HOLDINGS_FILE = "holdings.json"
 
 def _load_holdings() -> list:
-    if _V6_UPGRADE:
-        try:
-            rows = _db_load("holdings", default=[])
-            if rows:
-                return rows
-        except Exception as e:
-            log.debug(f"[V6 DB] holdings load failed: {e}")
     try:
         with open(_HOLDINGS_FILE) as f:
             return json.load(f)
@@ -3117,11 +2941,6 @@ def _load_holdings() -> list:
 def _save_holdings(holdings: list):
     with open(_HOLDINGS_FILE, "w") as f:
         json.dump(holdings, f, indent=2)
-    if _V6_UPGRADE:
-        try:
-            _db_save("holdings", holdings)
-        except Exception as e:
-            log.debug(f"[V6 DB] holdings save failed: {e}")
 
 
 def holdings_check_loop():
@@ -3743,13 +3562,26 @@ if __name__ == "__main__":
         )
     if _V6_PTP:
         GLOBAL_DATA["ptp_manager"] = PartialTPManager(CONFIG)
-        GLOBAL_DATA["ptp_manager"].start_monitor(fetch_ticker_price)
-        log.info("[V6 PTP] Partial-TP monitor thread started.")
     if _V6_MTF:
         GLOBAL_DATA["mtf_enabled"] = True
 
 
+    # V6 UPGRADE: WebSocket + OCO + Partial TP + Multi-Timeframe
+    if _V6_WS:
+        threading.Thread(target=start_websocket_feed, daemon=True).start()
+        log.info("[V6 WS] Price feed started.")
+    if _V6_OCO:
+        GLOBAL_DATA["oco_manager"] = OCOManager(
+            paper_mode=GLOBAL_DATA.get("paper_mode", True),
+            fund_limit_usdt=CONFIG.get("bot_fund_limit_usdt", 10.0)
+        )
+        log.info("[V6 OCO] Manager ready.")
+    if _V6_PTP:
+        GLOBAL_DATA["ptp_manager"] = PartialTPManager(CONFIG)
+        log.info("[V6 PTP] Partial TP manager ready.")
+    if _V6_MTF:
+        GLOBAL_DATA["mtf_enabled"] = True
+        log.info("[V6 MTF] Multi-timeframe enabled.")
+    # end V6 upgrade
 
-
-# end V6 upgrade
-
+
