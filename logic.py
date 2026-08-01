@@ -187,6 +187,56 @@ def get_bsc_whale_moves(limit: int = 10, min_usd: float = 5000) -> list:
     return moves
 
 
+# ── Uniswap V3 stablecoin-paired pools — used to infer large WETH buy/sell
+# via the stablecoin leg (clean USD sizing, no price lookup needed) ──
+_UNISWAP_V3_POOLS = [
+    {"name": "WETH/USDC 0.05%", "address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640", "stable": "USDC", "asset": "WETH"},
+    {"name": "WETH/USDT 0.3%",  "address": "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36", "stable": "USDT", "asset": "WETH"},
+]
+
+def get_dex_large_swaps(limit: int = 15, min_usd: float = 100000) -> list:
+    """Detect large Uniswap V3 swaps via Etherscan ERC-20 transfer tracking
+    on the pool contract's stablecoin leg. Free — reuses ETHERSCAN_API_KEY,
+    no new API/key needed. USDC/USDT into pool = someone bought WETH;
+    USDC/USDT out of pool = someone sold WETH."""
+    api_key = os.environ.get("ETHERSCAN_API_KEY", "")
+    if not api_key:
+        return []
+    swaps = []
+    for pool in _UNISWAP_V3_POOLS:
+        try:
+            url = (f"https://api.etherscan.io/api?module=account&action=tokentx"
+                   f"&address={pool['address']}&sort=desc&page=1&offset=20&apikey={api_key}")
+            r = requests.get(url, timeout=10)
+            data = r.json()
+            if data.get("status") != "1" or not isinstance(data.get("result"), list):
+                continue
+            for tx in data["result"]:
+                token = tx.get("tokenSymbol", "?")
+                if token != pool["stable"]:
+                    continue  # only the stablecoin leg — clean 1:1 USD sizing
+                decimals = int(tx.get("tokenDecimal", 6))
+                value = int(tx.get("value", 0)) / (10 ** decimals)
+                if value < min_usd:
+                    continue
+                to_addr = tx.get("to", "").lower()
+                is_in = to_addr == pool["address"].lower()
+                direction = f"BUY {pool['asset']}" if is_in else f"SELL {pool['asset']}"
+                ts = int(tx.get("timeStamp", 0))
+                swaps.append({
+                    "time": time.strftime("%H:%M:%S", time.gmtime(ts + 5*3600)) if ts else "--:--",
+                    "pool": pool["name"],
+                    "direction": direction,
+                    "usd": round(value, 0),
+                    "tx_hash": tx.get("hash", "")[:14] + "...",
+                    "ts": ts,
+                })
+        except Exception as e:
+            log.debug(f"[DEX Swaps] {pool['name']} failed: {e}")
+    swaps.sort(key=lambda x: x["ts"], reverse=True)
+    return swaps[:limit]
+
+
 def get_onchain_data(refresh: bool = False) -> dict:
     """Cached on-chain fetcher (60s cache, rate-limit friendly)."""
     global _ONCHAIN_CACHE
@@ -223,9 +273,11 @@ def get_onchain_data(refresh: bool = False) -> dict:
     
     large_trades.sort(key=lambda x: x["time"], reverse=True)
     
+    dex_swaps = get_dex_large_swaps()
+
     _ONCHAIN_CACHE = {
         "eth_flows": eth_flows, "bsc_moves": bsc_moves,
-        "large_trades": large_trades[:15], "ts": now
+        "large_trades": large_trades[:15], "dex_swaps": dex_swaps, "ts": now
     }
     return _ONCHAIN_CACHE
 

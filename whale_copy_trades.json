@@ -20,11 +20,11 @@
     "entry_time": "2026-07-31 18:22:22",
     "entry_ts": 1785504142.8296394,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 4.93e-06,
+    "exit_time": "2026-08-01 10:09:36",
+    "result": "WIN",
+    "pnl_pct": 4.694
   },
   {
     "id": "WC-1785503954-PEPE",
@@ -47,11 +47,11 @@
     "entry_time": "2026-07-31 18:19:14",
     "entry_ts": 1785503954.2737484,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 2.96e-06,
+    "exit_time": "2026-08-01 10:09:40",
+    "result": "WIN",
+    "pnl_pct": 6.659
   },
   {
     "id": "WC-1785499507-ENAU",
@@ -74,11 +74,11 @@
     "entry_time": "2026-07-31 17:05:07",
     "entry_ts": 1785499507.4741783,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 0.081,
+    "exit_time": "2026-08-01 10:09:44",
+    "result": "TIMEOUT",
+    "pnl_pct": -0.935
   },
   {
     "id": "WC-1785497192-UNIU",
@@ -101,11 +101,11 @@
     "entry_time": "2026-07-31 16:26:32",
     "entry_ts": 1785497192.6231184,
     "mode": "PAPER (WHALE COPY)",
-    "status": "OPEN",
-    "exit_price": null,
-    "exit_time": null,
-    "result": null,
-    "pnl_pct": null
+    "status": "CLOSED",
+    "exit_price": 4.30445,
+    "exit_time": "2026-08-01 10:09:48",
+    "result": "LOSS",
+    "pnl_pct": -2.082
   },
   {
     "id": "WC-1785484729-SHIB",

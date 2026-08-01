@@ -631,6 +631,16 @@ body.simple-active .ms-sub { font-size:12px }
   </div>
 
   <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">🦄 DEX LARGE SWAPS (Uniswap On-Chain, $100k+)</div>
+    <div style="overflow-x:auto">
+    <table class="scan-tbl">
+      <thead><tr><th>Time</th><th>Pool</th><th>Direction</th><th>Size(USD)</th><th>Tx</th></tr></thead>
+      <tbody id="dex-swaps-tbody"><tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">Loading DEX swaps...</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)</div>
     <div style="overflow-x:auto">
     <table class="scan-tbl">
@@ -1021,6 +1031,7 @@ function fetchAll(){
   fetchWhaleCopy();
   fetchLargeTrades();
   fetchEthFlow();
+  fetchDexSwaps();
 }
 
 let _lastMSKey='';
@@ -1095,6 +1106,31 @@ function fetchEthFlow(){
         </tr>`;
       }).join('');
     }).catch(e=>console.error('ETH flow fetch:',e));
+}
+
+function fetchDexSwaps(){
+  fetch('/api/onchain')
+    .then(r=>r.json())
+    .then(d=>{
+      const swaps=d.dex_swaps||[];
+      const tbody=document.getElementById('dex-swaps-tbody');
+      if(!tbody) return;
+      if(!swaps.length){
+        tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">No large on-chain swaps detected yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML=swaps.slice(0,15).map(s=>{
+        const isBuy=(s.direction||'').startsWith('BUY');
+        const col=isBuy?'var(--green)':'var(--red)';
+        return `<tr>
+          <td style="color:var(--grey);font-size:9px">${s.time||''}</td>
+          <td style="font-size:9px">${s.pool||''}</td>
+          <td style="color:${col};font-weight:bold">${s.direction||''}</td>
+          <td>$${(s.usd||0).toLocaleString()}</td>
+          <td><a href="https://etherscan.io/tx/" target="_blank" style="color:var(--blue);font-size:9px">${s.tx_hash||''}</a></td>
+        </tr>`;
+      }).join('');
+    }).catch(e=>console.error('DEX swaps fetch:',e));
 }
 
 function fetchLargeTrades(){

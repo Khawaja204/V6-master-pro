@@ -1,242 +1,218 @@
 """
-v6_database.py — V6 Master Pro | SQLite Migration (P0)
-Replaces JSON files with SQLite. Backward-compatible fallback.
-"""
-import os, json, time, sqlite3, threading
-from contextlib import contextmanager
+v6_database.py -- V6 Master Pro | SQLite Persistence Layer
+Replaces JSON file storage with atomic SQLite operations.
 
-DB_PATH = os.getenv("V6_DB_PATH", "v6_master.db")
+FALLBACK: If sqlite3 fails to import (e.g. Replit Nix glibc mismatch),
+          automatically falls back to JSON file storage so the bot
+          never crashes on startup.
+"""
+import os
+import json
+import time
+import threading
+from typing import Any
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v6_master.db")
 _db_lock = threading.Lock()
 
-@contextmanager
-def get_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+# ── Try to import sqlite3; if it fails, use JSON fallback ──
+try:
+    import sqlite3
+    _SQLITE_OK = True
+except ImportError as _e:
+    _SQLITE_OK = False
+    print("[V6 DB] WARNING: sqlite3 import failed -- " + str(_e))
+    print("[V6 DB] FALLBACK MODE: using JSON files instead of SQLite")
+
+
+# ── JSON Fallback Helpers ──
+_json_files = {
+    "paper_trades":       "paper_trades.json",
+    "whale_copy_trades":  "whale_copy_trades.json",
+    "backtest_signals":   "backtest_signals.json",
+    "api_keys":           "api_keys.json",
+    "clients":            "clients.json",
+    "holdings":           "holdings.json",
+    "learning_data":      "learning_data.json",
+    "price_alerts":       "price_alerts.json",
+}
+
+
+def _json_save(table: str, data: Any) -> None:
+    fname = _json_files.get(table, table + ".json")
     try:
-        yield conn
+        with open(fname, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print("[V6 DB] JSON save failed for " + table + ": " + str(e))
+
+
+def _json_load(table: str, default: Any = None) -> Any:
+    fname = _json_files.get(table, table + ".json")
+    try:
+        if os.path.exists(fname):
+            with open(fname) as f:
+                return json.load(f)
+    except Exception as e:
+        print("[V6 DB] JSON load failed for " + table + ": " + str(e))
+    return default
+
+
+# ── SQLite Core (only if sqlite3 imported successfully) ──
+if _SQLITE_OK:
+    _TABLES = {
+        "paper_trades":       "CREATE TABLE IF NOT EXISTS paper_trades (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "whale_copy_trades":  "CREATE TABLE IF NOT EXISTS whale_copy_trades (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "backtest_signals":   "CREATE TABLE IF NOT EXISTS backtest_signals (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "api_keys":           "CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "clients":            "CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "holdings":           "CREATE TABLE IF NOT EXISTS holdings (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "learning_data":      "CREATE TABLE IF NOT EXISTS learning_data (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+        "price_alerts":       "CREATE TABLE IF NOT EXISTS price_alerts (id INTEGER PRIMARY KEY, key TEXT UNIQUE, value TEXT, updated_at REAL)",
+    }
+
+    def _conn():
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
+
+    def _sql_save(table: str, data: Any) -> None:
+        with _db_lock:
+            conn = _conn()
+            try:
+                conn.execute(
+                    "INSERT INTO " + table + " (key, value, updated_at) VALUES (?, ?, ?)"
+                    " ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                    ("default", json.dumps(data), time.time()),
+                )
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
+            finally:
+                conn.close()
+
+    def _sql_load(table: str, default: Any = None) -> Any:
+        with _db_lock:
+            conn = _conn()
+            try:
+                cur = conn.execute("SELECT value FROM " + table + " WHERE key = ?", ("default",))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return json.loads(row[0])
+                return default
+            except Exception:
+                return default
+            finally:
+                conn.close()
+
+
+# ── Unified API ──
+
+def init_db() -> None:
+    if not _SQLITE_OK:
+        return
+    with _db_lock:
+        conn = _conn()
+        for sql in _TABLES.values():
+            conn.execute(sql)
         conn.commit()
-    finally:
         conn.close()
 
-def init_db():
-    with get_db() as db:
-        db.executescript("""
-        CREATE TABLE IF NOT EXISTS paper_trades (
-            id TEXT PRIMARY KEY, symbol TEXT, side TEXT, strategy TEXT,
-            amount_usdt REAL, price REAL, qty REAL, mode TEXT,
-            manual INTEGER, reason TEXT, status TEXT, time TEXT,
-            created_at INTEGER DEFAULT (strftime('%s','now'))
-        );
-        CREATE TABLE IF NOT EXISTS whale_copy_trades (
-            id TEXT PRIMARY KEY, symbol TEXT, direction TEXT,
-            entry_price REAL, wall_price REAL, wall_size_usdt REAL,
-            wall_qty REAL, stop_loss REAL, original_sl REAL,
-            trailing TEXT, target REAL, obi REAL, obi_velocity REAL,
-            confidence REAL, funding_rate REAL, liq_status TEXT,
-            eta TEXT, entry_time TEXT, entry_ts INTEGER, mode TEXT,
-            status TEXT, exit_price REAL, exit_time TEXT,
-            result TEXT, pnl_pct REAL,
-            created_at INTEGER DEFAULT (strftime('%s','now'))
-        );
-        CREATE TABLE IF NOT EXISTS backtest_signals (
-            id TEXT PRIMARY KEY, symbol TEXT, folder TEXT,
-            entry_price REAL, entry_time TEXT, entry_ts INTEGER,
-            tp1 REAL, tp2 REAL, tp3 REAL, stop_loss REAL,
-            original_sl REAL, trailing TEXT, traffic TEXT,
-            reason TEXT, confidence INTEGER, status TEXT,
-            tp1_hit INTEGER, tp2_hit INTEGER, tp3_hit INTEGER,
-            sl_hit INTEGER, exit_price REAL, exit_time TEXT,
-            result TEXT, pnl_pct REAL, learning_recorded INTEGER DEFAULT 0,
-            created_at INTEGER DEFAULT (strftime('%s','now'))
-        );
-        CREATE TABLE IF NOT EXISTS api_keys (
-            exchange TEXT PRIMARY KEY, api_key TEXT, secret_key TEXT,
-            passphrase TEXT, updated_at INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS clients (
-            name TEXT PRIMARY KEY, uid TEXT, password TEXT,
-            status TEXT, expiry TEXT, sig_limit TEXT, role TEXT,
-            added TEXT
-        );
-        CREATE TABLE IF NOT EXISTS holdings (
-            symbol TEXT PRIMARY KEY, quantity REAL, buy_price REAL,
-            target_pct REAL, added TEXT
-        );
-        CREATE TABLE IF NOT EXISTS learning_data (
-            key TEXT PRIMARY KEY, value TEXT
-        );
-        CREATE TABLE IF NOT EXISTS price_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT,
-            target_price REAL, direction TEXT, note TEXT, created_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_bt_symbol ON backtest_signals(symbol);
-        CREATE INDEX IF NOT EXISTS idx_pt_symbol ON paper_trades(symbol);
-        CREATE INDEX IF NOT EXISTS idx_wc_symbol ON whale_copy_trades(symbol);
-        """)
 
-# ── Paper Trades ──
-def save_paper_trades(trades: list):
-    with get_db() as db:
-        db.execute("DELETE FROM paper_trades")
-        for t in trades[-500:]:
-            db.execute("""
-                INSERT OR REPLACE INTO paper_trades
-                (id,symbol,side,strategy,amount_usdt,price,qty,mode,manual,reason,status,time)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (t.get("id"), t.get("symbol"), t.get("side"), t.get("strategy"),
-                  t.get("amount_usdt"), t.get("price"), t.get("qty"), t.get("mode"),
-                  int(t.get("manual", False)), t.get("reason"), t.get("status"), t.get("time")))
+def get_db():
+    if not _SQLITE_OK:
+        return None
+    return _conn()
+
+
+# Choose backend
+_save = _sql_save if _SQLITE_OK else _json_save
+_load = _sql_load if _SQLITE_OK else _json_load
+
+
+# ── Table-specific wrappers (exact names main.py expects) ──
+
+def save_paper_trades(data: list) -> None:
+    _save("paper_trades", data)
 
 def load_paper_trades() -> list:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM paper_trades ORDER BY created_at DESC LIMIT 500").fetchall()
-        return [dict(r) for r in rows]
+    return _load("paper_trades", default=[])
 
-# ── Whale Copy Trades ──
-def save_whale_copy_trades(trades: list):
-    with get_db() as db:
-        db.execute("DELETE FROM whale_copy_trades")
-        for t in trades[-500:]:
-            db.execute("""
-                INSERT OR REPLACE INTO whale_copy_trades
-                (id,symbol,direction,entry_price,wall_price,wall_size_usdt,wall_qty,
-                stop_loss,original_sl,trailing,target,obi,obi_velocity,confidence,
-                funding_rate,liq_status,eta,entry_time,entry_ts,mode,status,
-                exit_price,exit_time,result,pnl_pct)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (t.get("id"), t.get("symbol"), t.get("direction"), t.get("entry_price"),
-                  t.get("wall_price"), t.get("wall_size_usdt"), t.get("wall_qty"),
-                  t.get("stop_loss"), t.get("original_sl"), t.get("trailing"), t.get("target"),
-                  t.get("obi"), t.get("obi_velocity"), t.get("confidence"),
-                  t.get("funding_rate"), t.get("liq_status"), t.get("eta"),
-                  t.get("entry_time"), t.get("entry_ts"), t.get("mode"), t.get("status"),
-                  t.get("exit_price"), t.get("exit_time"), t.get("result"), t.get("pnl_pct")))
+
+def save_whale_copy_trades(data: list) -> None:
+    _save("whale_copy_trades", data)
 
 def load_whale_copy_trades() -> list:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM whale_copy_trades ORDER BY entry_ts DESC LIMIT 500").fetchall()
-        return [dict(r) for r in rows]
+    return _load("whale_copy_trades", default=[])
 
-# ── Backtest Signals ──
-def save_backtest_signals(signals: list):
-    with get_db() as db:
-        db.execute("DELETE FROM backtest_signals")
-        for s in signals[:100]:
-            db.execute("""
-                INSERT OR REPLACE INTO backtest_signals
-                (id,symbol,folder,entry_price,entry_time,entry_ts,tp1,tp2,tp3,
-                stop_loss,original_sl,trailing,traffic,reason,confidence,status,
-                tp1_hit,tp2_hit,tp3_hit,sl_hit,exit_price,exit_time,result,pnl_pct,learning_recorded)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (s.get("id"), s.get("symbol"), s.get("folder"), s.get("entry_price"),
-                  s.get("entry_time"), s.get("entry_ts"), s.get("tp1"), s.get("tp2"), s.get("tp3"),
-                  s.get("stop_loss"), s.get("original_sl"), s.get("trailing"), s.get("traffic"),
-                  s.get("reason"), s.get("confidence"), s.get("status"),
-                  int(s.get("tp1_hit", False)), int(s.get("tp2_hit", False)), int(s.get("tp3_hit", False)),
-                  int(s.get("sl_hit", False)), s.get("exit_price"), s.get("exit_time"),
-                  s.get("result"), s.get("pnl_pct"), int(s.get("learning_recorded", False))))
+
+def save_backtest_signals(data: list) -> None:
+    _save("backtest_signals", data)
 
 def load_backtest_signals() -> list:
-    with get_db() as db:
-        rows = db.execute("""
-            SELECT * FROM backtest_signals
-            WHERE status='CLOSED' OR (strftime('%s','now') - entry_ts) < 21600
-            ORDER BY entry_ts DESC LIMIT 100
-        """).fetchall()
-        return [dict(r) for r in rows]
+    return _load("backtest_signals", default=[])
 
-# ── API Keys ──
-def save_api_keys(keys: dict):
-    with get_db() as db:
-        db.execute("DELETE FROM api_keys")
-        for ex, k in keys.items():
-            db.execute("""
-                INSERT INTO api_keys (exchange,api_key,secret_key,passphrase,updated_at)
-                VALUES (?,?,?,?,?)
-            """, (ex, k.get("api_key"), k.get("secret_key"), k.get("passphrase"), int(time.time())))
+
+def save_api_keys(data: dict) -> None:
+    _save("api_keys", data)
 
 def load_api_keys() -> dict:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM api_keys").fetchall()
-        out = {}
-        for r in rows:
-            d = dict(r)
-            out[d["exchange"]] = {k: d[k] for k in ["api_key","secret_key","passphrase"] if d.get(k)}
-        return out
+    return _load("api_keys", default={})
 
-# ── Clients ──
-def save_clients(clients: list):
-    with get_db() as db:
-        db.execute("DELETE FROM clients")
-        for c in clients:
-            db.execute("""
-                INSERT INTO clients (name,uid,password,status,expiry,sig_limit,role,added)
-                VALUES (?,?,?,?,?,?,?,?)
-            """, (c.get("name"), c.get("uid"), c.get("password"), c.get("status"),
-                  c.get("expiry"), c.get("sig_limit"), c.get("role"), c.get("added")))
+
+def save_clients(data: list) -> None:
+    _save("clients", data)
 
 def load_clients() -> list:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM clients").fetchall()
-        return [dict(r) for r in rows]
+    return _load("clients", default=[])
 
-# ── Holdings ──
-def save_holdings(holdings: list):
-    with get_db() as db:
-        db.execute("DELETE FROM holdings")
-        for h in holdings:
-            db.execute("""
-                INSERT INTO holdings (symbol,quantity,buy_price,target_pct,added)
-                VALUES (?,?,?,?,?)
-            """, (h.get("symbol"), h.get("quantity"), h.get("buy_price"),
-                  h.get("target_pct"), h.get("added")))
+
+def save_holdings(data: list) -> None:
+    _save("holdings", data)
 
 def load_holdings() -> list:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM holdings").fetchall()
-        return [dict(r) for r in rows]
+    return _load("holdings", default=[])
 
-# ── Learning Data ──
-def save_learning_data(data: dict):
-    with get_db() as db:
-        db.execute("DELETE FROM learning_data")
-        for k, v in data.items():
-            db.execute("INSERT INTO learning_data (key,value) VALUES (?,?)", (k, json.dumps(v)))
+
+def save_learning_data(data: dict) -> None:
+    _save("learning_data", data)
 
 def load_learning_data(default: dict = None) -> dict:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM learning_data").fetchall()
-        if not rows:
-            return default or {}
-        out = {}
-        for r in rows:
-            try:
-                out[r["key"]] = json.loads(r["value"])
-            except Exception:
-                out[r["key"]] = r["value"]
-        return out
+    return _load("learning_data", default=default or {})
 
-# ── Price Alerts ──
-def save_price_alerts(alerts: list):
-    with get_db() as db:
-        db.execute("DELETE FROM price_alerts")
-        for a in alerts:
-            db.execute("""
-                INSERT INTO price_alerts (id,symbol,target_price,direction,note,created_at)
-                VALUES (?,?,?,?,?,?)
-            """, (a.get("id"), a.get("symbol"), a.get("target_price"),
-                  a.get("direction"), a.get("note"), a.get("created_at")))
+
+def save_price_alerts(data: list) -> None:
+    _save("price_alerts", data)
 
 def load_price_alerts() -> list:
-    with get_db() as db:
-        rows = db.execute("SELECT * FROM price_alerts ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+    return _load("price_alerts", default=[])
 
+
+# ── Admin diagnostics ──
 def db_status() -> dict:
-    size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
-    with get_db() as db:
-        tables = {}
-        for t in ["paper_trades","whale_copy_trades","backtest_signals","api_keys",
-                  "clients","holdings","learning_data","price_alerts"]:
-            tables[t] = db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-    return {"db_path": DB_PATH, "db_size_bytes": size, "tables": tables}
+    if not _SQLITE_OK:
+        return {
+            "db_path": "N/A (JSON fallback mode)",
+            "db_size_bytes": 0,
+            "tables": {t: "JSON" for t in _json_files.keys()},
+            "mode": "JSON_FALLBACK",
+            "note": "sqlite3 import failed -- using JSON file storage",
+        }
+    with _db_lock:
+        conn = _conn()
+        try:
+            tables = {}
+            for name in _TABLES.keys():
+                cur = conn.execute("SELECT COUNT(*) FROM " + name)
+                tables[name] = cur.fetchone()[0]
+            size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+            return {
+                "db_path": DB_PATH,
+                "db_size_bytes": size,
+                "tables": tables,
+                "mode": "SQLITE",
+            }
+        finally:
+            conn.close()

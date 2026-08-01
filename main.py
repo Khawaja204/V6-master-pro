@@ -3693,6 +3693,7 @@ def api_onchain():
         return jsonify({
             "eth_flows": data.get("eth_flows", []),
             "large_trades": data.get("large_trades", []),
+            "dex_swaps": data.get("dex_swaps", []),
             "last_updated": time.strftime("%H:%M:%S", time.gmtime(data.get("ts", 0)))
         })
     except Exception as e:
