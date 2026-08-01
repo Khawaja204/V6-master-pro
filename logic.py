@@ -42,7 +42,7 @@ def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
     flows = []
     try:
         addr = BINANCE_ETH[0]
-        url = (f"https://api.etherscan.io/api?module=account&action=txlist"
+        url = (f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist"
                f"&address={addr}&sort=desc&page=1&offset=20&apikey={api_key}")
         r = requests.get(url, timeout=10)
         data = r.json()
@@ -96,7 +96,7 @@ def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
     
     try:
         addr = BINANCE_ETH[0]
-        url = (f"https://api.etherscan.io/api?module=account&action=tokentx"
+        url = (f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=tokentx"
                f"&address={addr}&sort=desc&page=1&offset=20&apikey={api_key}")
         r = requests.get(url, timeout=10)
         data = r.json()
@@ -205,7 +205,7 @@ def get_dex_large_swaps(limit: int = 15, min_usd: float = 100000) -> list:
     swaps = []
     for pool in _UNISWAP_V3_POOLS:
         try:
-            url = (f"https://api.etherscan.io/api?module=account&action=tokentx"
+            url = (f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=tokentx"
                    f"&address={pool['address']}&sort=desc&page=1&offset=20&apikey={api_key}")
             r = requests.get(url, timeout=10)
             data = r.json()
@@ -1302,11 +1302,11 @@ def fetch_eth_exchange_flows(api_key: str, min_eth: float = 10.0) -> list:
         return []
     try:
         params = {
-            "module": "account", "action": "txlist",
+            "chainid": 1, "module": "account", "action": "txlist",
             "address": BINANCE_ETH_HOT_WALLET, "sort": "desc",
             "apikey": api_key, "offset": 50, "page": 1,
         }
-        resp = requests.get("https://api.etherscan.io/api", params=params, timeout=10)
+        resp = requests.get("https://api.etherscan.io/v2/api", params=params, timeout=10)
         if resp.status_code != 200:
             return []
         data = resp.json()

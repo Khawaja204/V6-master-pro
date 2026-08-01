@@ -1,9 +1,8 @@
 """
-v6_multitimeframe.py — V6 Master Pro | Multi-Timeframe Confluence (P1)
-15m + 1h + 4h trend alignment. Returns confluence score 0-100.
+v6_multitimeframe.py — V6 Master Pro P1
+Multi-timeframe signal confluence: 15m + 1h + 4h.
 """
 import logging
-from typing import Dict
 
 log = logging.getLogger(__name__)
 
@@ -31,92 +30,121 @@ def _rsi(closes, period=14):
         return 100.0
     return 100.0 - (100.0 / (1 + avg_g / avg_l))
 
-def _analyze_tf(klines: list) -> Dict:
-    """Returns trend analysis for a single timeframe's klines."""
-    if len(klines) < 30:
-        return {"trend": "NEUTRAL", "rsi": 50.0, "ema_fast": 0, "ema_slow": 0, "score": 0}
+def _macd(closes, fast=12, slow=26, signal=9):
+    if len(closes) < slow + signal:
+        return {"macd": 0, "signal": 0, "hist": 0}
+    ema_fast = _ema(closes, fast)
+    ema_slow = _ema(closes, slow)
+    macd_line = [f - s for f, s in zip(ema_fast, ema_slow)]
+    signal_line = _ema(macd_line, signal)
+    hist = macd_line[-1] - signal_line[-1]
+    return {"macd": macd_line[-1], "signal": signal_line[-1], "hist": hist}
+
+def _score_tf(klines, interval):
+    if not klines or len(klines) < 30:
+        return {"interval": interval, "trend": "NEUTRAL", "score": 50, "rsi": 50, "macd_hist": 0, "label": "WAIT"}
+
     closes = [float(k[4]) for k in klines]
     highs = [float(k[2]) for k in klines]
     lows = [float(k[3]) for k in klines]
-    
-    ema9 = _ema(closes, 9)[-1]
-    ema21 = _ema(closes, 21)[-1]
-    rsi_val = _rsi(closes, 14)
-    
-    # Trend direction
-    bullish = ema9 > ema21 and closes[-1] > ema9
-    bearish = ema9 < ema21 and closes[-1] < ema9
-    
-    # Momentum
-    last_3 = closes[-3:]
-    momentum_up = last_3[-1] > last_3[0]
-    
-    if bullish and momentum_up:
-        trend = "BULLISH"
-        score = 70 + min(30, (rsi_val - 30) * 0.5)  # higher score if RSI 30-70 range
-    elif bearish and not momentum_up:
-        trend = "BEARISH"
-        score = 70 + min(30, (70 - rsi_val) * 0.5)
+
+    rsi = _rsi(closes)
+    macd_d = _macd(closes)
+    ema12 = _ema(closes, 12)
+    ema26 = _ema(closes, 26)
+    ema_bull = ema12[-1] > ema26[-1] if len(ema12) == len(ema26) and len(ema12) > 0 else False
+
+    recent_highs = highs[-10:]
+    recent_lows = lows[-10:]
+    hh = max(recent_highs) == recent_highs[-1] or recent_highs[-1] > recent_highs[0]
+    ll = min(recent_lows) == recent_lows[-1] or recent_lows[-1] < recent_lows[0]
+
+    score = 50
+    score += 15 if ema_bull else -15
+    if macd_d["hist"] > 0:
+        score += 10
+    elif macd_d["hist"] < 0:
+        score -= 10
+
+    if 35 <= rsi <= 45:
+        score += 15
+    elif 55 <= rsi <= 65:
+        score -= 5
+    elif rsi > 70:
+        score -= 20
+    elif rsi < 30:
+        score += 20
+
+    if hh and not ll:
+        score += 10
+    elif ll and not hh:
+        score -= 10
+
+    score = max(0, min(100, score))
+
+    if score >= 65:
+        label = "BUY"
+    elif score <= 35:
+        label = "AVOID"
     else:
-        trend = "NEUTRAL"
-        score = 30 + abs(50 - rsi_val)
-    
-    # Cap RSI contribution
-    score = min(100, max(0, score))
-    
+        label = "WAIT"
+
     return {
-        "trend": trend,
-        "rsi": round(rsi_val, 2),
-        "ema_fast": round(ema9, 8),
-        "ema_slow": round(ema21, 8),
+        "interval": interval,
+        "trend": "BULLISH" if score > 55 else "BEARISH" if score < 45 else "NEUTRAL",
         "score": round(score, 1),
-        "momentum_up": momentum_up
+        "rsi": round(rsi, 1),
+        "macd_hist": round(macd_d["hist"], 6),
+        "label": label,
+        "ema_bull": ema_bull,
     }
 
-def get_mtf_signal(symbol: str, klines_fetcher) -> Dict:
-    """
-    klines_fetcher: callable(symbol, interval, limit) -> list of klines
-    Returns confluence analysis across 15m, 1h, 4h.
-    """
-    tf_map = {"15m": 60, "1h": 60, "4h": 60}
-    results = {}
-    
-    for tf, limit in tf_map.items():
-        try:
-            kl = klines_fetcher(symbol, tf, limit)
-            results[tf] = _analyze_tf(kl) if kl else {"trend": "NEUTRAL", "score": 0, "rsi": 50}
-        except Exception as e:
-            log.debug(f"[MTF] {symbol} {tf} failed: {e}")
-            results[tf] = {"trend": "NEUTRAL", "score": 0, "rsi": 50}
-    
-    # Confluence scoring
-    trends = [results[tf]["trend"] for tf in tf_map]
-    scores = [results[tf]["score"] for tf in tf_map]
-    avg_score = sum(scores) / len(scores) if scores else 0
-    
-    bullish_count = sum(1 for t in trends if t == "BULLISH")
-    bearish_count = sum(1 for t in trends if t == "BEARISH")
-    
-    if bullish_count >= 2:
+def get_mtf_signal(symbol: str, fetch_klines_func):
+    try:
+        k15 = fetch_klines_func(symbol, "15m", 50)
+        k1h = fetch_klines_func(symbol, "1h", 50)
+        k4h = fetch_klines_func(symbol, "4h", 50)
+    except Exception as e:
+        log.warning(f"[MTF] fetch failed {symbol}: {e}")
+        return {"error": str(e)}
+
+    s15 = _score_tf(k15, "15m")
+    s1h = _score_tf(k1h, "1h")
+    s4h = _score_tf(k4h, "4h")
+
+    weights = {"15m": 0.2, "1h": 0.35, "4h": 0.45}
+    wscore = (
+        s15["score"] * weights["15m"] +
+        s1h["score"] * weights["1h"] +
+        s4h["score"] * weights["4h"]
+    )
+
+    labels = [s15["label"], s1h["label"], s4h["label"]]
+    if all(l == "BUY" for l in labels):
+        wscore = min(100, wscore + 10)
         confluence = "STRONG_BUY"
-        confluence_score = min(100, avg_score + 15)
-    elif bullish_count == 1 and bearish_count == 0:
-        confluence = "WEAK_BUY"
-        confluence_score = avg_score
-    elif bearish_count >= 2:
+    elif all(l == "AVOID" for l in labels):
+        wscore = max(0, wscore - 10)
         confluence = "STRONG_AVOID"
-        confluence_score = min(100, avg_score + 15)
-    elif bearish_count == 1 and bullish_count == 0:
-        confluence = "WEAK_AVOID"
-        confluence_score = avg_score
+    elif labels.count("BUY") >= 2:
+        confluence = "BUY"
+    elif labels.count("AVOID") >= 2:
+        confluence = "AVOID"
     else:
         confluence = "MIXED"
-        confluence_score = avg_score * 0.7
-    
+
+    final_score = round(wscore, 1)
+    final_label = "BUY" if final_score >= 68 else "WAIT" if final_score >= 45 else "AVOID"
+
     return {
         "symbol": symbol,
         "confluence": confluence,
-        "confluence_score": round(confluence_score, 1),
-        "timeframes": results,
-        "alignment": f"{bullish_count}B/{bearish_count}A/1N" if len(trends) == 3 else "unknown"
+        "score": final_score,
+        "label": final_label,
+        "timeframes": {"15m": s15, "1h": s1h, "4h": s4h},
+        "alignment": {
+            "bullish_count": sum(1 for l in labels if l == "BUY"),
+            "bearish_count": sum(1 for l in labels if l == "AVOID"),
+            "neutral_count": sum(1 for l in labels if l == "WAIT"),
+        },
     }

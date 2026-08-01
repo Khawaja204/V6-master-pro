@@ -28,7 +28,7 @@ restart() { deploy; }
 
 status() {
     echo "V6 Master Pro status:"
-    PIDS=$(pgrep -f "python3 main.py")
+    PIDS=$(pgrep -f "main.py")
     if [ -n "$PIDS" ]; then echo "   RUNNING — PID(s): $PIDS"; else echo "   NOT RUNNING"; fi
     LOG=/home/runner/workspace/v6_server.log
     if [ -f "$LOG" ]; then echo ""; echo "   Last 5 log lines:"; tail -5 "$LOG" | sed 's/^/      /'; else echo "   (no log file yet)"; fi

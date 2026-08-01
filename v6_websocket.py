@@ -1,85 +1,104 @@
 """
-v6_websocket.py — V6 Master Pro | WebSocket Live Prices (P1)
-Binance combined stream for all USDT tickers. Falls back to REST.
+v6_websocket.py — V6 Master Pro P1
+Binance WebSocket live price feed. Auto-reconnect. Thread-safe cache.
 """
-import json, threading, time, logging
-from collections import defaultdict
+import threading
+import time
+import json
+import logging
 
 log = logging.getLogger(__name__)
 
-_ws = None
-_price_cache: dict = {}        # symbol -> {"price": float, "ts": float}
-_sub_lock = threading.Lock()
-_last_ping = 0
+try:
+    import websocket
+    _HAS_WS = True
+except ImportError:
+    _HAS_WS = False
+    log.warning("[WS] websocket-client not installed — WebSocket feed disabled")
+
+_ws_prices = {}          # symbol -> {"price": float, "ts": float}
+_ws_lock = threading.Lock()
+_ws_thread = None
+_ws_stop = threading.Event()
 
 def _on_message(ws, message):
-    global _last_ping
     try:
         data = json.loads(message)
-        if "stream" in data and "data" in data:
-            d = data["data"]
-            s = d.get("s", "")
-            p = float(d.get("c", 0))
-            if s and p:
-                _price_cache[s] = {"price": p, "ts": time.time()}
-        elif "e" in data and data["e"] == "24hrTicker":
-            s = data.get("s", "")
-            p = float(data.get("c", 0))
-            if s and p:
-                _price_cache[s] = {"price": p, "ts": time.time()}
-        _last_ping = time.time()
+        if isinstance(data, list):
+            for tick in data:
+                sym = tick.get("s", "")
+                price = float(tick.get("c", 0))
+                if sym and price:
+                    with _ws_lock:
+                        _ws_prices[sym] = {"price": price, "ts": time.time()}
+        elif isinstance(data, dict):
+            if "c" in data:
+                sym = data.get("s", "")
+                price = float(data.get("c", 0))
+                if sym and price:
+                    with _ws_lock:
+                        _ws_prices[sym] = {"price": price, "ts": time.time()}
+            elif "data" in data:
+                d = data["data"]
+                sym = d.get("s", "")
+                price = float(d.get("c", 0))
+                if sym and price:
+                    with _ws_lock:
+                        _ws_prices[sym] = {"price": price, "ts": time.time()}
     except Exception as e:
-        log.debug(f"[WS] msg error: {e}")
+        log.debug(f"[WS] message parse error: {e}")
 
 def _on_error(ws, error):
     log.warning(f"[WS] error: {error}")
 
 def _on_close(ws, close_status_code, close_msg):
-    log.warning(f"[WS] closed: {close_status_code} {close_msg}")
+    log.info(f"[WS] closed ({close_status_code})")
 
 def _on_open(ws):
-    log.info("[WS] connected to Binance stream")
-    global _last_ping
-    _last_ping = time.time()
+    log.info("[WS] connected — subscribed to !ticker@arr")
 
 def start_websocket_feed():
-    import websocket
-    global _ws
-    # Use combined stream for all miniTickers (~300ms updates)
-    url = "wss://stream.binance.com:9443/ws/!miniTicker@arr"
-    ws = websocket.WebSocketApp(
-        url, on_open=_on_open, on_message=_on_message,
-        on_error=_on_error, on_close=_on_close
-    )
-    _ws = ws
-    wst = threading.Thread(target=ws.run_forever, kwargs={"ping_interval": 20, "ping_timeout": 10})
-    wst.daemon = True
-    wst.start()
+    global _ws_thread
+    if not _HAS_WS:
+        log.warning("[WS] start_websocket_feed() called but websocket-client missing")
+        return
+    if _ws_thread and _ws_thread.is_alive():
+        log.info("[WS] already running")
+        return
+    _ws_stop.clear()
 
-    # Watchdog: reconnect if no message for 60s
-    def watchdog():
-        while True:
-            time.sleep(30)
-            if time.time() - _last_ping > 60:
-                log.warning("[WS] Watchdog: reconnecting...")
-                try:
-                    ws.close()
-                except Exception:
-                    pass
-                time.sleep(2)
-                start_websocket_feed()
-                break
-    threading.Thread(target=watchdog, daemon=True).start()
+    def _run():
+        url = "wss://stream.binance.com:9443/ws/!ticker@arr"
+        while not _ws_stop.is_set():
+            try:
+                ws = websocket.WebSocketApp(
+                    url,
+                    on_open=_on_open,
+                    on_message=_on_message,
+                    on_error=_on_error,
+                    on_close=_on_close,
+                )
+                ws.run_forever(ping_interval=20, ping_timeout=10)
+            except Exception as e:
+                log.warning(f"[WS] connection error: {e}")
+            if not _ws_stop.is_set():
+                log.info("[WS] reconnecting in 5s...")
+                time.sleep(5)
+        log.info("[WS] thread stopped")
 
-def get_ws_price(symbol: str) -> float:
-    """Return latest WebSocket price or 0 if not yet received."""
-    sym = symbol.upper()
-    entry = _price_cache.get(sym)
-    if entry and time.time() - entry["ts"] < 120:
-        return entry["price"]
-    return 0.0
+    _ws_thread = threading.Thread(target=_run, daemon=True, name="v6-ws-feed")
+    _ws_thread.start()
+    log.info("[WS] feed thread started")
 
-def get_all_ws_prices() -> dict:
-    """Return snapshot of all cached prices."""
-    now = time.time()
-    return {s: v["price"] for s, v in _price_cache.items() if now - v["ts"] < 120}
+def get_ws_price(symbol: str):
+    """Return latest WebSocket price, or None if stale (>10s)."""
+    with _ws_lock:
+        rec = _ws_prices.get(symbol.upper())
+    if not rec:
+        return None
+    if time.time() - rec["ts"] > 10:
+        return None
+    return rec["price"]
+
+def stop_websocket_feed():
+    _ws_stop.set()

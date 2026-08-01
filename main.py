@@ -61,7 +61,7 @@ def _db_load(table: str, default=None):
                 "api_keys": v6db.load_api_keys,
                 "clients": v6db.load_clients,
                 "holdings": v6db.load_holdings,
-                "learning_data": lambda d: v6db.load_learning_data(d),
+                "learning_data": v6db.load_learning_data,
                 "price_alerts": v6db.load_price_alerts}.get(table, lambda: default or [])()
     return default or []
 
@@ -3713,7 +3713,7 @@ def admin_debug_etherscan():
     if not key:
         return jsonify({"diagnosis": "ETHERSCAN_API_KEY not visible to this process"})
     addr = "0xF977814e90dA44bFA03b6295A0616a897441aceC"
-    url = (f"https://api.etherscan.io/api?module=account&action=txlist"
+    url = (f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist"
            f"&address={addr}&sort=desc&page=1&offset=10&apikey={key}")
     try:
         r = _rq.get(url, timeout=10)
@@ -3765,6 +3765,8 @@ if __name__ == "__main__":
     # ── V6 UPGRADE: WebSocket + OCO + Partial TP + Multi-Timeframe ──
     if _V6_WS:
         threading.Thread(target=start_websocket_feed, daemon=True).start()
+        log.info("[V6 WS] WebSocket feed thread started.")
+        log.info("[V6 WS] WebSocket feed thread started.")
     if _V6_OCO:
         GLOBAL_DATA["oco_manager"] = OCOManager(
             paper_mode=GLOBAL_DATA.get("paper_mode", True),
@@ -3776,6 +3778,8 @@ if __name__ == "__main__":
         log.info("[V6 PTP] Partial-TP monitor thread started.")
     if _V6_MTF:
         GLOBAL_DATA["mtf_enabled"] = True
+        log.info("[V6 MTF] Multi-timeframe module enabled.")
+        log.info("[V6 MTF] Multi-timeframe module enabled.")
 
 
 

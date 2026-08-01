@@ -82,7 +82,11 @@
     "breakeven_on_tp1": true,
     "trail_to_tp1_on_tp2": true,
     "daily_max_losses": 5,
-    "daily_max_drawdown_pct": 10.0
+    "daily_max_drawdown_pct": 10.0,
+    "partial_tp1_pct": 25,
+    "partial_tp2_pct": 35,
+    "partial_tp3_pct": 40,
+    "partial_tp_check_seconds": 10
   },
   "security": {
     "max_login_attempts": 3,
