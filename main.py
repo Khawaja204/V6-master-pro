@@ -3702,6 +3702,34 @@ def api_onchain():
         return jsonify({"error": str(e), "eth_flows": [], "large_trades": [], "last_updated": "ERROR"}), 500
 
 
+@app.route("/admin/debug_etherscan")
+@_admin_required
+def admin_debug_etherscan():
+    """TEMPORARY diagnostic — hits Etherscan directly, bypassing app cache,
+    to reveal exactly why /api/onchain returns empty. Remove once resolved."""
+    import requests as _rq
+    key = os.getenv("ETHERSCAN_API_KEY", "")
+    if not key:
+        return jsonify({"diagnosis": "ETHERSCAN_API_KEY not visible to this process"})
+    addr = "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+    url = (f"https://api.etherscan.io/api?module=account&action=txlist"
+           f"&address={addr}&sort=desc&page=1&offset=10&apikey={key}")
+    try:
+        r = _rq.get(url, timeout=10)
+        data = r.json()
+        return jsonify({
+            "key_present": True,
+            "key_last4": key[-4:],
+            "http_status": r.status_code,
+            "etherscan_status": data.get("status"),
+            "etherscan_message": data.get("message"),
+            "result_count": len(data.get("result", [])) if isinstance(data.get("result"), list) else 0,
+            "sample": data.get("result", [])[:2] if isinstance(data.get("result"), list) else data.get("result"),
+        })
+    except Exception as e:
+        return jsonify({"key_present": True, "error": str(e)})
+
+
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
     send_telegram(

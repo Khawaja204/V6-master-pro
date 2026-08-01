@@ -336,7 +336,7 @@ body.simple-active .ms-sub { font-size:12px }
     <div>
       <div class="card">
         <div class="ch">
-          <span style="color:var(--grey);font-size:10px">Selected Coin Profile</span>
+          <span style="color:var(--grey);font-size:10px">Selected Coin Profile <span id="sniper-basis-tag" style="color:#555;font-size:8px">(—)</span></span>
           <span id="profile-badge" style="background:#440000;color:var(--red);font-size:9px;padding:2px 7px;border-radius:2px;font-weight:bold">AVOID – DUMP PREP</span>
         </div>
         <div class="cb">
@@ -829,6 +829,7 @@ function fetchChart(sym){
           pb.style.background=lbl==='BUY'?'#003311':'#440000';
           pb.style.color=lbl==='BUY'?'#00ff88':'#ff2244';
         }
+        set('sniper-basis-tag', '(V6-Score, 54-pt)');
         set('vmc-score', fmt6(inst2.vmc_score||match.score||0));
         set('buy-est', fmt6(tp2.entry_low||_price||0));
         set('sell-est', fmt6(tp2.tp1||0));
@@ -860,6 +861,7 @@ function fetchChart(sym){
         if(bs){bs.className='WAIT';bs.innerHTML='⏳ Computing live score…';}
         const pb=document.getElementById('profile-badge');
         if(pb){pb.textContent='LOADING…';pb.style.background='#1a1a1a';pb.style.color='#888';}
+        set('sniper-basis-tag', '(—)');
         fetch(`/live_score?symbol=${symbol}`).then(r=>r.json()).then(ls=>{
           if(!ls || ls.error){
             updateBinancePlan(symbol,'WAIT',{},0);
@@ -880,6 +882,7 @@ function fetchChart(sym){
           const icons={BUY:'🟢',SELL:'🔴',WAIT:'⏳',HOLD:'🟡',AVOID:'🚫'};
           if(bs){bs.className=llbl;bs.innerHTML=(icons[llbl]||'⏳')+' '+llbl+' — SCORE: <span id="big-score">'+Math.round(lv6.score||0)+'</span>/100 <span style="font-size:9px;color:#888">(live)</span>';}
           if(pb){pb.textContent=llbl==='BUY'?'BUY – ACCUMULATION (live)':'AVOID – DUMP PREP (live)';pb.style.background=llbl==='BUY'?'#003311':'#440000';pb.style.color=llbl==='BUY'?'#00ff88':'#ff2244';}
+        set('sniper-basis-tag', '(V6-Score, live on-demand)');
           set('vmc-score', fmt6(linst.vmc_score||ls.score||0));
           set('buy-est', fmt6(ltp.entry_low||ls.price||0));
           set('sell-est', fmt6(ltp.tp1||0));
