@@ -467,6 +467,14 @@ def fetch_all_tickers(config: dict) -> list:
 
 
 def fetch_ticker_price(symbol: str) -> float:
+    # V6 UPGRADE: WebSocket cache first (near-instant), REST fallback.
+    try:
+        from v6_websocket import get_ws_price
+        _ws_p = get_ws_price(symbol)
+        if _ws_p:
+            return _ws_p
+    except Exception:
+        pass
     try:
         resp = _binance_get("/api/v3/ticker/price", params={"symbol": symbol}, timeout=5)
         if resp is not None and resp.status_code == 200:

@@ -213,16 +213,22 @@ if _V6_UPGRADE:
 if not _API_KEYS:
     try:
         with open(_API_KEYS_FILE) as _f:
-            _API_KEYS = json.load(_f)
+            _raw_keys = json.load(_f)
+        if _V6_UPGRADE:
+            for _ex, _k in _raw_keys.items():
+                _API_KEYS[_ex] = {
+                    "api_key":    decrypt(_k.get("api_key", "")) or _k.get("api_key", ""),
+                    "secret_key": decrypt(_k.get("secret_key", "")) or _k.get("secret_key", ""),
+                }
+                if _k.get("passphrase"):
+                    _API_KEYS[_ex]["passphrase"] = decrypt(_k["passphrase"]) or _k["passphrase"]
+        else:
+            _API_KEYS = _raw_keys
     except Exception:
         _API_KEYS = {}
 
 def _save_api_keys():
-    try:
-        with open(_API_KEYS_FILE, "w") as f:
-            json.dump(_API_KEYS, f, indent=2)
-    except Exception as e:
-        log.debug(f"API keys save failed: {e}")
+    _enc = None
     if _V6_UPGRADE:
         try:
             _enc = {}
@@ -233,9 +239,19 @@ def _save_api_keys():
                 }
                 if _k.get("passphrase"):
                     _enc[_ex]["passphrase"] = encrypt(_k["passphrase"])
+        except Exception as e:
+            log.debug(f"[V6] api_keys encryption failed: {e}")
+            _enc = None
+    try:
+        with open(_API_KEYS_FILE, "w") as f:
+            json.dump(_enc if _enc is not None else _API_KEYS, f, indent=2)
+    except Exception as e:
+        log.debug(f"API keys save failed: {e}")
+    if _V6_UPGRADE and _enc is not None:
+        try:
             _db_save("api_keys", _enc)
         except Exception as e:
-            log.debug(f"[V6 DB] api_keys encrypted save failed: {e}")
+            log.debug(f"[V6 DB] api_keys DB save failed: {e}")
 
 def _mask(s: str) -> str:
     if not s or len(s) < 8: return "●" * 8
@@ -2905,6 +2921,25 @@ def admin_manual_trade():
     if result.get("ok"):
         audit(request.remote_addr, "MANUAL_TRADE", "OK",
               f"sym={symbol} side={side} amt={amount} mode={mode_str} strategy={strategy}")
+        if (not paper_mode) and side == "BUY" and strategy == "SPOT" and _V6_OCO and "BINANCE" in _API_KEYS:
+            try:
+                _fill_price = fetch_ticker_price(symbol)
+                _atr = calculate_atr(symbol)
+                _tp_ctx2 = compute_tp_levels(_fill_price, _atr, CONFIG) if (_fill_price and _atr) else {}
+                if _tp_ctx2.get("tp1") and _tp_ctx2.get("stop_loss"):
+                    _fill_qty = round(amount / _fill_price, 6)
+                    _oco_res = GLOBAL_DATA["oco_manager"].place_oco(
+                        symbol=symbol, side="SELL", quantity=_fill_qty,
+                        price=_tp_ctx2["tp1"], stop_price=_tp_ctx2["stop_loss"],
+                        stop_limit_price=_tp_ctx2["stop_loss"],
+                        api_key=_API_KEYS["BINANCE"]["api_key"],
+                        secret_key=_API_KEYS["BINANCE"]["secret_key"],
+                    )
+                    audit(request.remote_addr, "MANUAL_OCO_BRACKET",
+                          "OK" if _oco_res.get("ok") else "FAILED",
+                          f"sym={symbol} qty={_fill_qty}")
+            except Exception as _moe:
+                log.warning(f"[V6 OCO] manual bracket failed: {_moe}")
         notify_trade(symbol, side, strategy, mode_str, reason,
                      amount=amount, tp_zones=tp_ctx or None, traffic=traffic)
         msg = f"Trade executed ({mode_str}):\\n{side} ${amount} of {symbol.replace('USDT','')}\\n\\nCheck Manual Trading panel for details."
