@@ -1,0 +1,73 @@
+=== V6 MASTER PRO — USER REQUIREMENTS ===
+Last Updated: 2026-08-01
+========================================
+
+🧑‍💻 USER PROFILE
+----------------
+• Platform    : Free Kimi version (session-based, no persistent memory)
+• Hosting     : Replit (dev) + Render (production)
+• Update Method: Shell commands only (saveproj.sh / v6-cmd.sh)
+• Share Method : project.txt file upload to agent
+
+🎯 CORE REQUIREMENT
+-------------------
+• FULLY AUTOMATED TRADING — Zero manual intervention
+• Bot must handle: Auto Entry → Auto TP/SL → Auto Exit → Auto Reports
+• User has NO time for manual trading / sniper panel clicks
+• Paper mode learning until win rate ≥ 65%, then auto-real mode suggestion
+
+📋 AUTOMATION CHECKLIST
+-----------------------
+[✅] V6 Score auto BUY signals (54-point engine)
+[✅] Whale Copy Mode (wall+OBI confirmed, auto entry)
+[✅] Partial TP Auto Scale-Out (TP1=40%, TP2=35%, TP3=25%)
+[✅] ATR Trailing Stop (breakeven → TP1 lock → ATR trail)
+[✅] Daily Circuit-Breaker (5 losses / -10% DD = auto pause)
+[✅] Auto Midnight & Weekly Telegram Reports
+[✅] Auto Paper Mode Intelligence (thresholds adjust every 10 trades)
+[⏳] OCO Bracket Orders (TP+SL auto place on real entry)
+[⏳] SQLite DB Migration (JSON → SQLite for persistence)
+[⏳] WebSocket Live Prices (faster execution)
+
+🚫 MANUAL INTERVENTION NOT REQUIRED
+-----------------------------------
+• No manual buy/sell clicks
+• No per-coin analysis by user
+• No admin portal daily checks
+• Bot runs 24/7 autonomous
+
+⚙️ SHELL COMMANDS USED
+----------------------
+• bash saveproj.sh        → Generate project.txt
+• bash v6-cmd.sh          → deploy | stop | restart | status | logs
+• source ~/v6-cmd.sh      → Load aliases per session (Replit blocks .bashrc)
+
+🔐 SAFETY GATES (Hardcoded)
+----------------------------
+• Paper mode ON by default (cannot start in real)
+• Real mode blocked until API keys configured
+• Real mode switch requires admin password + confirmation
+• Bot fund limit max per trade (default $10 USDT)
+• Green-only entries (RED signals auto skipped)
+
+📁 CRITICAL FILES
+-----------------
+• main.py              → Entry point + Flask server
+• logic.py             → Trading engine + Binance failover
+• config.json          → All thresholds (no hardcoded values)
+• v6_database.py       → SQLite persistence (P0)
+• v6_crypto.py         → API key encryption (P0)
+• v6_oco.py            → OCO bracket orders (P0)
+• v6_websocket.py      → Live price feed (P1)
+• v6_partial_tp.py     → Auto scale-out positions (P1)
+• v6_multitimeframe.py → 15m/1h/4h confluence (P1)
+
+📝 AGENT INSTRUCTION
+--------------------
+Whenever this file is present in project.txt, agent must:
+1. Treat user as FREE VERSION (no cross-session memory)
+2. All solutions must be shell-command friendly
+3. Prioritize FULL AUTOMATION over manual features
+4. Never suggest manual trading panel usage
+5. Always verify app.run() / Procfile / server binding on deploy fixes
+6. Keep paper_mode safety ON unless user explicitly requests real mode

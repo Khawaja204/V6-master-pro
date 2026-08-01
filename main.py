@@ -3781,3 +3781,9 @@ if __name__ == "__main__":
 
 # end V6 upgrade
 
+
+    # ── Start Flask Server ──
+    log.info(f"[STARTUP] Binding to 0.0.0.0:{PORT}")
+    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
+
+# end V6 upgrade
