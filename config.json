@@ -120,7 +120,17 @@
       "EURI",
       "USD1",
       "RLUSD",
-      "USDE"
+      "USDE",
+      "EUR",
+      "GBP",
+      "AUD",
+      "TRY",
+      "BRL",
+      "RUB",
+      "UAH",
+      "ZAR",
+      "JPY",
+      "MXN"
     ]
   }
 }

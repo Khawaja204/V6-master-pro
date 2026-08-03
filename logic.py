@@ -108,9 +108,13 @@ def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
                 value_tok = value_raw / (10 ** decimals)
                 token = tx.get("tokenSymbol", "???")
                 
-                # Price estimate (rough)
-                price_map = {"USDT": 1.0, "USDC": 1.0, "DAI": 1.0, "BUSD": 1.0, "ETH": eth_price}
-                price = price_map.get(token, 1.0)
+                # Only trust known major stablecoins — spam/scam tokens forge fake
+                # tickers (e.g. "Telegram @handle | text") with huge fake balances
+                # that would otherwise default-price at $1 and pass the USD filter.
+                _KNOWN_TOKENS = {"USDT": 1.0, "USDC": 1.0, "DAI": 1.0, "BUSD": 1.0}
+                if token not in _KNOWN_TOKENS or not token.isalnum() or len(token) > 10:
+                    continue
+                price = _KNOWN_TOKENS[token]
                 usd_val = value_tok * price
                 
                 if usd_val < min_usd:
@@ -1375,7 +1379,7 @@ def fetch_large_trades(symbol: str, min_usdt: float = 50000, limit: int = 200) -
                 "symbol": symbol, "price": price, "qty": qty,
                 "usdt": round(usdt, 0),
                 "side": "SELL" if t["m"] else "BUY",  # m=True: buyer is maker -> taker sold
-                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t["T"] / 1000)),
+                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t["T"] / 1000 + 5 * 3600)),
                 "ts": t["T"] / 1000,
             })
         return out
@@ -1707,7 +1711,8 @@ def match_whale_pattern(obi: float, whale_power: float, trend: str,
 _whale_copy_state: dict = {}
 
 DEFAULT_STABLECOIN_BASES = ["USDC","USDT","BUSD","DAI","TUSD","USDP","FDUSD","PYUSD",
-                            "GUSD","USDD","EURT","EURI","USD1","RLUSD","USDE"]
+                            "GUSD","USDD","EURT","EURI","USD1","RLUSD","USDE",
+                            "EUR","GBP","AUD","TRY","BRL","RUB","UAH","ZAR","JPY","MXN"]
 
 def is_stablecoin_pair(symbol: str, price: float, config: dict = None) -> bool:
     """
@@ -1932,7 +1937,7 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
             "funding_rate":   funding_rate if direction == "COPY_BUY" else fetch_funding_rate(sym),
             "long_liq_usdt":  liq["long_liq_usdt"],
             "short_liq_usdt": liq["short_liq_usdt"],
-            "detected_at":    time.strftime("%Y-%m-%d %H:%M:%S"),
+            "detected_at":    time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600)),
         })
 
     for sym in list(_whale_copy_state.keys()):

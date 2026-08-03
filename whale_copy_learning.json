@@ -1,21 +1,22 @@
 {
-  "total_closed": 16,
-  "wins": 13,
+  "total_closed": 17,
+  "wins": 14,
   "losses": 1,
   "timeouts": 2,
-  "win_rate": 92.9,
-  "avg_win_obi": 0.34,
+  "win_rate": 93.3,
+  "avg_win_obi": 0.329,
   "avg_loss_obi": 0.5146,
-  "avg_win_wall_usdt": 294839.2307,
+  "avg_win_wall_usdt": 286385.5714,
   "avg_loss_wall_usdt": 165304.0,
-  "avg_win_confidence": 71.4077,
+  "avg_win_confidence": 69.7357,
   "avg_loss_confidence": 77.6,
-  "avg_win_funding": -0.0013,
+  "avg_win_funding": -0.0005,
   "avg_loss_funding": 0.009,
-  "confidence_threshold_adjustment": -6,
-  "last_adjustment": "2026-07-31 13:06:50",
+  "confidence_threshold_adjustment": -9,
+  "last_adjustment": "2026-08-03 11:13:07",
   "adjustment_log": [
     "[18:00] WC win rate 100.0% \u2265 65% \u2192 gate -3 (ease up, more trades)",
-    "[08:06] WC win rate 100.0% \u2265 65% \u2192 gate -6 (ease up, more trades)"
+    "[08:06] WC win rate 100.0% \u2265 65% \u2192 gate -6 (ease up, more trades)",
+    "[06:13] WC win rate 93.3% \u2265 65% \u2192 gate -9 (ease up, more trades)"
   ]
 }

@@ -1113,7 +1113,7 @@ def alert_whale(whale: dict, confidence: int = 0):
         "whale_power": wp,
         "label":       whale["label"],
         "price":       whale["price"],
-        "time":        time.strftime("%Y-%m-%d %H:%M:%S"),
+        "time":        time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600)),
     })
     cutoff = time.time() - 86400
     GLOBAL_DATA["whale_24h"] = [w for w in w24 if time.time() - cutoff >= 0][:20]
@@ -3496,12 +3496,19 @@ def whale_copy_data_route():
     wins   = sum(1 for t in closed if t.get("result") == "WIN")
     losses = sum(1 for t in closed if t.get("result") == "LOSS")
     total  = wins + losses
+    _pnl_vals = [t.get("pnl_pct", 0) or 0 for t in closed]
+    _total_pnl_pct = round(sum(_pnl_vals), 3)
+    _fund = GLOBAL_DATA.get("fund_limit_usdt", 10.0)
+    _total_pnl_usdt_est = round(sum(v / 100 * _fund for v in _pnl_vals), 2)
     return jsonify({
         "signals":  GLOBAL_DATA.get("whale_copy_signals", []),
         "trades":   WHALE_COPY_TRADES[:50],
         "wins":     wins,
         "losses":   losses,
         "win_rate": round(wins / total * 100, 1) if total else 0.0,
+        "total_pnl_pct": _total_pnl_pct,
+        "total_pnl_usdt_est": _total_pnl_usdt_est,
+        "pnl_est_note": f"Estimated at ${_fund}/trade (fund_limit_usdt)",
     })
 
 
