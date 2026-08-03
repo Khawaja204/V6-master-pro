@@ -414,6 +414,17 @@ if not WHALE_COPY_TRADES:
             WHALE_COPY_TRADES = json.load(_wcf)
     except Exception:
         pass
+
+# One-time cleanup: purge any previously-recorded fiat/forex pairs (e.g. EUR)
+# that predate the whale-copy exclude_symbols fiat filter.
+_FIAT_BASES = {"EUR","GBP","AUD","TRY","BRL","RUB","UAH","ZAR","JPY","MXN"}
+def _is_fiat_symbol(_sym: str) -> bool:
+    _base = _sym[:-4] if _sym and _sym.endswith("USDT") else (_sym or "")
+    return _base in _FIAT_BASES
+_wc_before = len(WHALE_COPY_TRADES)
+WHALE_COPY_TRADES = [t for t in WHALE_COPY_TRADES if not _is_fiat_symbol(t.get("symbol", ""))]
+if len(WHALE_COPY_TRADES) != _wc_before:
+    log.info(f"[CLEANUP] Purged {_wc_before - len(WHALE_COPY_TRADES)} fiat/forex whale-copy trades (e.g. EUR)")
 # ── Backtest Signal Persistence ────────────────────────────────────────────────
 _BACKTEST_FILE = "backtest_signals.json"
 _loaded_bt = []
@@ -3492,7 +3503,8 @@ def large_trades_data_route():
 
 @app.route("/whale_copy_data")
 def whale_copy_data_route():
-    closed = [t for t in WHALE_COPY_TRADES if t.get("status") == "CLOSED"]
+    _wct = [t for t in WHALE_COPY_TRADES if not _is_fiat_symbol(t.get("symbol", ""))]
+    closed = [t for t in _wct if t.get("status") == "CLOSED"]
     wins   = sum(1 for t in closed if t.get("result") == "WIN")
     losses = sum(1 for t in closed if t.get("result") == "LOSS")
     total  = wins + losses
@@ -3502,7 +3514,7 @@ def whale_copy_data_route():
     _total_pnl_usdt_est = round(sum(v / 100 * _fund for v in _pnl_vals), 2)
     return jsonify({
         "signals":  GLOBAL_DATA.get("whale_copy_signals", []),
-        "trades":   WHALE_COPY_TRADES[:50],
+        "trades":   _wct[:50],
         "wins":     wins,
         "losses":   losses,
         "win_rate": round(wins / total * 100, 1) if total else 0.0,

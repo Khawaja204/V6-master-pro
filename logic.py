@@ -108,11 +108,13 @@ def get_eth_token_flows(limit: int = 10, min_usd: float = 5000) -> list:
                 value_tok = value_raw / (10 ** decimals)
                 token = tx.get("tokenSymbol", "???")
                 
-                # Only trust known major stablecoins — spam/scam tokens forge fake
-                # tickers (e.g. "Telegram @handle | text") with huge fake balances
-                # that would otherwise default-price at $1 and pass the USD filter.
+                # Only trust known major stablecoins with a strict symbol format —
+                # spam/scam tokens forge fake tickers (e.g. "Telegram @handle |
+                # text") with huge fake balances that would otherwise default-price
+                # at $1 and pass the USD filter. Regex + whitelist, belt-and-suspenders.
+                import re as _re
                 _KNOWN_TOKENS = {"USDT": 1.0, "USDC": 1.0, "DAI": 1.0, "BUSD": 1.0}
-                if token not in _KNOWN_TOKENS or not token.isalnum() or len(token) > 10:
+                if not _re.fullmatch(r"[A-Z0-9]{2,10}", token or "") or token not in _KNOWN_TOKENS:
                     continue
                 price = _KNOWN_TOKENS[token]
                 usd_val = value_tok * price
