@@ -2219,12 +2219,9 @@ If it goes red, this free Render instance can spin down after 15 min of no traff
 <div style="margin-top:14px;border-top:1px solid #21262d;padding-top:10px">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
   <span style="color:#8b949e;font-size:11px">📜 Startup + Ping History (last 50)</span>
-  <span style="display:flex;gap:6px">
-    <a href="/admin/uptime_log_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:3px 10px;font-size:10px;text-decoration:none">⬇ Download Full CSV</a>
-    <button onclick="loadUptimeLog()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 10px;font-size:10px">↻ Refresh</button>
-  </span>
+  <button onclick="loadUptimeLog()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 10px;font-size:10px">↻ Refresh</button>
 </div>
-<table class="ca-tbl"><thead><tr><th>Time (PKT)</th><th>Event</th><th>PID</th><th>Source IP</th><th>Gap Since Prev</th><th>Status</th></tr></thead>
+<table class="ca-tbl"><thead><tr><th>Time (PKT)</th><th>Event</th><th>Gap Since Prev</th><th>Status</th></tr></thead>
 <tbody id="uptime-log-tbody"><tr><td colspan="4" style="color:#555">Click Refresh to load…</td></tr></tbody>
 </table>
 </div>
@@ -2245,8 +2242,6 @@ function loadUptimeLog(){
       return `<tr style="${isDown?'background:#2d0000':''}">
         <td>${e.pkt||'—'}</td>
         <td style="color:${evColor};font-weight:bold">${e.type}${e.note?' ('+e.note+')':''}</td>
-        <td style="color:#8b949e;font-size:10px">${e.pid||'—'}</td>
-        <td style="color:#8b949e;font-size:10px">${e.source_ip||'—'}</td>
         <td style="${isDown?'color:#FF4500;font-weight:bold':''}">${gapTxt}</td>
         <td style="font-size:10px">${statusTxt}</td>
       </tr>`;
@@ -3129,15 +3124,14 @@ def system_health():
 _last_external_ping = {"ts": None}
 _UPTIME_LOG_FILE = "uptime_log.jsonl"
 
-def _log_uptime_event(event_type: str, note: str = "", source_ip: str = ""):
+def _log_uptime_event(event_type: str, note: str = ""):
     """Appends one line to uptime_log.jsonl — rolling record of every
     process STARTUP and every external PING (e.g. UptimeRobot hitting
     /health). Capped at the last 2000 entries so the file never grows
     unbounded. Used to diagnose Render spin-downs/restarts after the fact."""
     try:
         entry = {"type": event_type, "ts": time.time(),
-                 "pkt": _pkt_ts(), "note": note,
-                 "pid": os.getpid(), "source_ip": source_ip}
+                 "pkt": _pkt_ts(), "note": note}
         lines = []
         try:
             with open(_UPTIME_LOG_FILE) as f:
@@ -3157,7 +3151,7 @@ def health_check():
     """Lightweight liveness endpoint for Render health checks and uptime monitors.
     Returns HTTP 200 with a small JSON payload; never raises an exception."""
     _last_external_ping["ts"] = time.time()
-    _log_uptime_event("PING", source_ip=request.remote_addr or "")
+    _log_uptime_event("PING")
     try:
         uptime_secs = int(time.time() - GLOBAL_DATA.get("uptime_start", time.time()))
         hours, rem  = divmod(uptime_secs, 3600)
@@ -3661,31 +3655,6 @@ def admin_uptime_log():
     out.reverse()
     return jsonify({"entries": out, "gap_threshold_min": gap_threshold_min,
                     "total_logged": len(lines)})
-
-
-@app.route("/admin/uptime_log_csv")
-@_admin_required
-def admin_uptime_log_csv():
-    """Full uptime_log.jsonl as a downloadable CSV — for sharing/archiving."""
-    try:
-        with open(_UPTIME_LOG_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    entries = []
-    for l in lines:
-        try:
-            entries.append(json.loads(l))
-        except Exception:
-            continue
-    rows = ["pkt,type,pid,source_ip,note"]
-    for e in entries:
-        rows.append(",".join(str(e.get(c, "")).replace(",", ";") for c in
-                    ("pkt", "type", "pid", "source_ip", "note")))
-    return Response("\n".join(rows), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment;filename=uptime_log.csv"})
-
-
 
 
 @app.route("/admin/uptime_monitor_status")
@@ -4311,7 +4280,7 @@ def admin_debug_etherscan():
 
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
-    _log_uptime_event("STARTUP", note=f"port={PORT}", source_ip="local")
+    _log_uptime_event("STARTUP", note=f"port={PORT}")
     send_telegram(
         f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
         f"PORT:{PORT} | Exchange:BINANCE\n"

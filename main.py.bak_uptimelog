@@ -2216,44 +2216,7 @@ input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6
 This tracks whether your external uptime monitor (e.g. UptimeRobot) is actively hitting <code>/health</code> on schedule.
 If it goes red, this free Render instance can spin down after 15 min of no traffic — recheck your monitor is active there.
 </p>
-<div style="margin-top:14px;border-top:1px solid #21262d;padding-top:10px">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-  <span style="color:#8b949e;font-size:11px">📜 Startup + Ping History (last 50)</span>
-  <span style="display:flex;gap:6px">
-    <a href="/admin/uptime_log_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:3px 10px;font-size:10px;text-decoration:none">⬇ Download Full CSV</a>
-    <button onclick="loadUptimeLog()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 10px;font-size:10px">↻ Refresh</button>
-  </span>
 </div>
-<table class="ca-tbl"><thead><tr><th>Time (PKT)</th><th>Event</th><th>PID</th><th>Source IP</th><th>Gap Since Prev</th><th>Status</th></tr></thead>
-<tbody id="uptime-log-tbody"><tr><td colspan="4" style="color:#555">Click Refresh to load…</td></tr></tbody>
-</table>
-</div>
-</div>
-
-<script>
-function loadUptimeLog(){
-  const tb=document.getElementById('uptime-log-tbody');
-  tb.innerHTML='<tr><td colspan="4" style="color:#d29922">Loading…</td></tr>';
-  fetch('/admin/uptime_log?limit=50').then(r=>r.json()).then(d=>{
-    const es=d.entries||[];
-    if(!es.length){ tb.innerHTML='<tr><td colspan="4" style="color:#555">No entries logged yet.</td></tr>'; return; }
-    tb.innerHTML=es.map(e=>{
-      const isDown=e.likely_downtime;
-      const evColor=e.type==='STARTUP'?'#FFD700':'#3fb950';
-      const gapTxt=e.gap_min_since_prev!==null?e.gap_min_since_prev+' min':'—';
-      const statusTxt=isDown?'🔴 Likely downtime gap':(e.type==='STARTUP'?'🟡 Process (re)started':'🟢 Normal');
-      return `<tr style="${isDown?'background:#2d0000':''}">
-        <td>${e.pkt||'—'}</td>
-        <td style="color:${evColor};font-weight:bold">${e.type}${e.note?' ('+e.note+')':''}</td>
-        <td style="color:#8b949e;font-size:10px">${e.pid||'—'}</td>
-        <td style="color:#8b949e;font-size:10px">${e.source_ip||'—'}</td>
-        <td style="${isDown?'color:#FF4500;font-weight:bold':''}">${gapTxt}</td>
-        <td style="font-size:10px">${statusTxt}</td>
-      </tr>`;
-    }).join('');
-  }).catch(e=>{ tb.innerHTML=`<tr><td colspan="4" style="color:#FF4500">Failed: ${e}</td></tr>`; });
-}
-</script>
 
 <!-- ══ CONNECTION STATUS ══ -->
 <div class="card"><h3>🔌 CONNECTION STATUS</h3>
@@ -3127,37 +3090,12 @@ def system_health():
 # ── /health — Render / uptime-monitor compatible ───────────────────────────────
 
 _last_external_ping = {"ts": None}
-_UPTIME_LOG_FILE = "uptime_log.jsonl"
-
-def _log_uptime_event(event_type: str, note: str = "", source_ip: str = ""):
-    """Appends one line to uptime_log.jsonl — rolling record of every
-    process STARTUP and every external PING (e.g. UptimeRobot hitting
-    /health). Capped at the last 2000 entries so the file never grows
-    unbounded. Used to diagnose Render spin-downs/restarts after the fact."""
-    try:
-        entry = {"type": event_type, "ts": time.time(),
-                 "pkt": _pkt_ts(), "note": note,
-                 "pid": os.getpid(), "source_ip": source_ip}
-        lines = []
-        try:
-            with open(_UPTIME_LOG_FILE) as f:
-                lines = f.readlines()
-        except Exception:
-            pass
-        lines.append(json.dumps(entry) + "\n")
-        lines = lines[-2000:]
-        with open(_UPTIME_LOG_FILE, "w") as f:
-            f.writelines(lines)
-    except Exception as e:
-        log.debug(f"uptime log write failed: {e}")
-
 
 @app.route("/health")
 def health_check():
     """Lightweight liveness endpoint for Render health checks and uptime monitors.
     Returns HTTP 200 with a small JSON payload; never raises an exception."""
     _last_external_ping["ts"] = time.time()
-    _log_uptime_event("PING", source_ip=request.remote_addr or "")
     try:
         uptime_secs = int(time.time() - GLOBAL_DATA.get("uptime_start", time.time()))
         hours, rem  = divmod(uptime_secs, 3600)
@@ -3626,66 +3564,6 @@ def admin_delete_holding():
     _save_holdings(holdings)
     audit(request.remote_addr, "DELETE_HOLDING", "OK", f"sym={sym}")
     return redirect("/admin")
-
-
-@app.route("/admin/uptime_log")
-@_admin_required
-def admin_uptime_log():
-    """Returns the last N uptime_log entries plus computed gaps between
-    consecutive entries — any gap over gap_threshold_min likely means the
-    server was asleep/down during that window."""
-    try:
-        limit = int(request.args.get("limit", 100))
-    except Exception:
-        limit = 100
-    gap_threshold_min = 20
-    try:
-        with open(_UPTIME_LOG_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    entries = []
-    for l in lines[-limit:]:
-        try:
-            entries.append(json.loads(l))
-        except Exception:
-            continue
-    # newest first for display, but compute gaps in chronological order first
-    out = []
-    for i, e in enumerate(entries):
-        gap_min = None
-        if i > 0:
-            gap_min = round((e["ts"] - entries[i-1]["ts"]) / 60, 1)
-        out.append({**e, "gap_min_since_prev": gap_min,
-                    "likely_downtime": bool(gap_min and gap_min >= gap_threshold_min)})
-    out.reverse()
-    return jsonify({"entries": out, "gap_threshold_min": gap_threshold_min,
-                    "total_logged": len(lines)})
-
-
-@app.route("/admin/uptime_log_csv")
-@_admin_required
-def admin_uptime_log_csv():
-    """Full uptime_log.jsonl as a downloadable CSV — for sharing/archiving."""
-    try:
-        with open(_UPTIME_LOG_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    entries = []
-    for l in lines:
-        try:
-            entries.append(json.loads(l))
-        except Exception:
-            continue
-    rows = ["pkt,type,pid,source_ip,note"]
-    for e in entries:
-        rows.append(",".join(str(e.get(c, "")).replace(",", ";") for c in
-                    ("pkt", "type", "pid", "source_ip", "note")))
-    return Response("\n".join(rows), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment;filename=uptime_log.csv"})
-
-
 
 
 @app.route("/admin/uptime_monitor_status")
@@ -4311,7 +4189,6 @@ def admin_debug_etherscan():
 
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
-    _log_uptime_event("STARTUP", note=f"port={PORT}", source_ip="local")
     send_telegram(
         f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
         f"PORT:{PORT} | Exchange:BINANCE\n"
