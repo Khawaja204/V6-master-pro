@@ -147,39 +147,5 @@
       "JPY",
       "MXN"
     ]
-  },
-  "bots": {
-    "v6": {
-      "enabled": true,
-      "mode": "paper",
-      "fund_limit_usdt": 10.0,
-      "daily_max_losses": 3,
-      "daily_max_drawdown_pct": 10.0
-    },
-    "wall": {
-      "enabled": true,
-      "mode": "paper",
-      "fund_limit_usdt": 10.0,
-      "daily_max_losses": 3,
-      "daily_max_drawdown_pct": 10.0
-    },
-    "combo": {
-      "enabled": true,
-      "mode": "paper",
-      "fund_limit_usdt": 10.0,
-      "daily_max_losses": 3,
-      "daily_max_drawdown_pct": 10.0,
-      "min_v6_score": 68,
-      "min_wall_confidence": 50,
-      "exit_uses_v6_only": true,
-      "ignore_wall_exits": true,
-      "max_open_positions": 3,
-      "dedup_seconds": 1800
-    }
-  },
-  "execution_guard": {
-    "max_slippage_pct": 0.3,
-    "max_order_delay_seconds": 5,
-    "reject_on_stale_price_seconds": 10
   }
 }

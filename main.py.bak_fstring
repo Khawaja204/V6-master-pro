@@ -21,7 +21,7 @@ from logic import (
     detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines,
     fetch_macd_for_symbol, compute_v6_final_score,
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
-    detect_whale_copy_signals, is_stablecoin_pair,
+    detect_whale_copy_signals, is_stablecoin_pair, detect_combo_signals,
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
     estimate_time_to_target, fetch_large_trades, fetch_eth_exchange_flows,
 )
@@ -310,47 +310,11 @@ def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
     return {"ok": True, "trade": rec}
 
 
-def _execution_guard(symbol: str, expected_price: float = None) -> dict:
-    """Pre-trade guard for REAL orders — protects against stale prices and
-    excessive slippage before any exchange order is placed.
-    Config: execution_guard.max_slippage_pct / max_order_delay_seconds.
-    Returns {"ok", "price", "error"}."""
-    eg = CONFIG.get("execution_guard", {})
-    max_slip  = eg.get("max_slippage_pct", 0.3)
-    max_delay = eg.get("max_order_delay_seconds", 5)
-
-    t0 = time.time()
-    live_price = fetch_ticker_price(symbol)
-    fetch_elapsed = time.time() - t0
-
-    if not live_price:
-        return {"ok": False, "price": 0, "error": "Could not fetch a live price for guard check"}
-
-    if fetch_elapsed > max_delay:
-        return {"ok": False, "price": live_price,
-                "error": f"Price fetch took {fetch_elapsed:.2f}s > {max_delay}s limit — aborting stale execution"}
-
-    if expected_price and expected_price > 0:
-        slip_pct = abs(live_price - expected_price) / expected_price * 100
-        if slip_pct > max_slip:
-            return {"ok": False, "price": live_price,
-                    "error": f"Slippage {slip_pct:.3f}% > {max_slip}% limit (expected {expected_price}, live {live_price})"}
-
-    return {"ok": True, "price": live_price, "error": ""}
-
-
-def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float, expected_price: float = None) -> dict:
-    """Execute a real Binance MARKET order via REST API (HMAC-signed).
-    Runs through _execution_guard() first — aborts on stale price fetch
-    or excessive slippage vs. the signal's expected entry price."""
+def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float) -> dict:
+    """Execute a real Binance MARKET order via REST API (HMAC-signed)."""
     ex = "BINANCE"
     if ex not in _API_KEYS:
         return {"ok": False, "error": "No Binance API key configured in Admin Portal → API Key Management"}
-    guard = _execution_guard(symbol, expected_price)
-    if not guard["ok"]:
-        log.warning(f"[EXEC-GUARD] {symbol} {side} blocked: {guard['error']}")
-        audit("SYSTEM", "EXEC_GUARD_BLOCK", "BLOCKED", f"sym={symbol} side={side} err={guard['error']}")
-        return {"ok": False, "error": f"Execution guard: {guard['error']}"}
     try:
         import hmac as _hmac, hashlib as _hl, urllib.parse as _up
         import requests as _rq
@@ -381,17 +345,12 @@ def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float, expec
 
 def _execute_real_binance_spot_grid(symbol: str, amount_usdt: float,
                                      levels: int = 5, spacing_pct: float = 0.5) -> dict:
-    """Place a grid of LIMIT BUY orders below current price on Binance.
-    Runs through _execution_guard() first for staleness protection."""
+    """Place a grid of LIMIT BUY orders below current price on Binance."""
     ex = "BINANCE"
     if ex not in _API_KEYS:
         return {"ok": False, "error": "No Binance API key configured"}
-    guard = _execution_guard(symbol)
-    if not guard["ok"]:
-        log.warning(f"[EXEC-GUARD] {symbol} GRID blocked: {guard['error']}")
-        audit("SYSTEM", "EXEC_GUARD_BLOCK", "BLOCKED", f"sym={symbol} side=GRID err={guard['error']}")
-        return {"ok": False, "error": f"Execution guard: {guard['error']}"}
-    price = guard["price"]
+    from logic import fetch_ticker_price as _ftp
+    price = _ftp(symbol)
     if not price:
         return {"ok": False, "error": "Cannot fetch current price for grid"}
     try:
@@ -475,6 +434,61 @@ def _save_combo_trades():
     except Exception as e:
         log.debug(f"Combo trades save failed: {e}")
 
+
+def _record_combo_trade(combo: dict):
+    """COMBO BOT — opens only when V6-BUY and Wall-COPY_BUY agree on the
+    same coin. Independent daily circuit-breaker ("combo"), independent
+    dedup window, and its own max_open_positions cap so it never crowds
+    out the other two bots\' capital. Exit is handled solely by
+    combo_check_loop using V6\'s ATR trailing rules."""
+    global COMBO_TRADES
+    combo_cfg = CONFIG.get("bots", {}).get("combo", {})
+    if not combo_cfg.get("enabled", True):
+        return None
+    if not _entries_allowed("combo"):
+        return None
+    sym = combo["symbol"]
+    now = time.time()
+    dedup_secs = combo_cfg.get("dedup_seconds", 1800)
+    if now - _combo_dedup.get(sym, 0) < dedup_secs:
+        return None
+    open_ct = sum(1 for t in COMBO_TRADES if t.get("status") == "OPEN")
+    if open_ct >= combo_cfg.get("max_open_positions", 3):
+        return None
+    if any(t.get("symbol") == sym and t.get("status") == "OPEN" for t in COMBO_TRADES):
+        return None
+    _combo_dedup[sym] = now
+
+    entry_price = combo.get("entry_low") or combo.get("price", 0)
+    trade_id = f"CB-{int(now)}-{sym[:4]}"
+    rec = {
+        "id": trade_id, "symbol": sym, "entry_price": entry_price,
+        "entry_time": _pkt_ts(), "entry_ts": now,
+        "v6_score": combo.get("v6_score", 0),
+        "wall_confidence": combo.get("wall_confidence", 0),
+        "stop_loss": combo.get("stop_loss", 0), "original_sl": combo.get("stop_loss", 0),
+        "trailing": "", "tp1": combo.get("tp1", 0), "tp2": combo.get("tp2", 0),
+        "tp3": combo.get("tp3", 0),
+        "tp1_hit": False, "tp2_hit": False, "tp3_hit": False,
+        "reason": combo.get("reason", ""),
+        "mode": "PAPER (COMBO)" if combo_cfg.get("mode", "paper") == "paper" else "REAL (COMBO)",
+        "status": "OPEN", "exit_price": None, "exit_time": None,
+        "result": None, "pnl_pct": None,
+    }
+    COMBO_TRADES.insert(0, rec)
+    if len(COMBO_TRADES) > 500:
+        COMBO_TRADES.pop()
+    _save_combo_trades()
+    log.info(f"[COMBO] BUY {sym} @ {entry_price} (V6:{rec[\'v6_score\']} Wall:{rec[\'wall_confidence\']}%)")
+    combo_msg = (f"🎯 <b>COMBO CONFLUENCE BUY — {sym.replace(\'USDT\',\'\')}</b>\n"
+                 f"V6 Score: {rec[\'v6_score\']} | Wall Conf: {rec[\'wall_confidence\']}%\n"
+                 f"Entry: {_fmtP(entry_price)}\n"
+                 f"🎯 TP1 {_fmtP(rec[\'tp1\'])} | TP2 {_fmtP(rec[\'tp2\'])} | TP3 {_fmtP(rec[\'tp3\'])}\n"
+                 f"🛡 SL {_fmtP(rec[\'stop_loss\'])}\n"
+                 f"📋 Both engines agree — independent 3rd bot, exit via V6 ATR only")
+    notify_all(f"V6 Combo BUY — {sym.replace(\'USDT\',\'\')}", combo_msg)
+    return rec
+
 # One-time cleanup: purge any previously-recorded fiat/forex pairs (e.g. EUR)
 # that predate the whale-copy exclude_symbols fiat filter.
 _FIAT_BASES = {"EUR","GBP","AUD","TRY","BRL","RUB","UAH","ZAR","JPY","MXN"}
@@ -523,6 +537,7 @@ def _save_backtest_signals():
         except Exception as e:
             log.debug(f"[V6 DB] backtest_signals save failed: {e}")
 _wc_dedup: dict = {}
+_combo_dedup: dict = {}
 _previous_walls    = {}
 _alert_cooldown    = {}
 _login_attempts    = {}
@@ -943,6 +958,76 @@ def whale_copy_check_loop():
             log.warning(f"Whale copy check error: {e}")
 
 
+def combo_check_loop():
+    """Every 5 minutes: resolve OPEN combo trades using V6\'s own ATR
+    trailing-stop rules (breakeven on TP1, trail to TP1 on TP2) — combo
+    exits are deliberately independent of the Wall bot\'s signals."""
+    global COMBO_TRADES
+    while True:
+        time.sleep(300)
+        try:
+            changed = False
+            tm = CONFIG.get("trade_management", {})
+            for tr in COMBO_TRADES:
+                if tr.get("status") != "OPEN":
+                    continue
+                age = time.time() - tr.get("entry_ts", time.time())
+                if age < 300:
+                    continue
+                current = fetch_ticker_price(tr["symbol"])
+                if not current:
+                    continue
+                entry = tr.get("entry_price", 0)
+
+                if tr["tp1"] and current >= tr["tp1"]: tr["tp1_hit"] = True
+                if tr["tp2"] and current >= tr["tp2"]: tr["tp2_hit"] = True
+                if tr["tp3"] and current >= tr["tp3"]: tr["tp3_hit"] = True
+
+                if tm.get("trailing_stop_enabled", True):
+                    if tr["tp2_hit"] and tm.get("trail_to_tp1_on_tp2", True) and tr["tp1"]:
+                        if tr["stop_loss"] < tr["tp1"]:
+                            tr["stop_loss"] = tr["tp1"]; tr["trailing"] = "TP1"
+                    elif tr["tp1_hit"] and tm.get("breakeven_on_tp1", True):
+                        if tr["stop_loss"] < entry:
+                            tr["stop_loss"] = entry; tr["trailing"] = "BREAKEVEN"
+
+                sl_hit = bool(tr["stop_loss"]) and current <= tr["stop_loss"]
+                trailing_exit = sl_hit and tr["tp1_hit"] and tr.get("trailing")
+
+                if age >= 3600 or trailing_exit or tr["tp3_hit"]:
+                    exit_price = min(current, tr["stop_loss"]) if (sl_hit and tr["stop_loss"]) else current
+                    tr["exit_price"] = exit_price
+                    tr["exit_time"] = _pkt_ts()
+                    raw_pnl = (exit_price - entry) / entry * 100 if entry else 0
+                    tr["pnl_pct"] = round(raw_pnl - (BINANCE_FEE_PCT * 2 * 100), 3)
+
+                    if sl_hit:
+                        tr["result"] = "WIN" if tr["pnl_pct"] > 0 else "LOSS"
+                    elif tr["tp1_hit"]:
+                        tr["result"] = "WIN"
+                    else:
+                        tr["result"] = "LOSS" if tr["pnl_pct"] < -0.5 else "TIMEOUT"
+                    tr["status"] = "CLOSED"
+                    _record_trade_result(tr["result"] == "WIN", tr["pnl_pct"], bot="combo")
+                    changed = True
+
+                    icon = "✅" if tr["result"] == "WIN" else ("❌" if tr["result"] == "LOSS" else "⏱")
+                    close_msg = (
+                        f"{icon} <b>COMBO CLOSED — {tr[\'symbol\'].replace(\'USDT\',\'\')}</b>\n"
+                        f"Result: {tr[\'result\']} | PnL: {tr[\'pnl_pct\']}%\n"
+                        f"Entry: {_fmtP(entry)} | Exit: {_fmtP(exit_price)}\n"
+                        f"Trailing: {tr.get(\'trailing\') or \'None\'}\n"
+                        f"⏱ Duration: {round(age/60)} min"
+                    )
+                    notify_all(f"V6 Combo CLOSED — {tr[\'symbol\'].replace(\'USDT\',\'\')} ({tr[\'result\']})", close_msg)
+
+            if changed:
+                _save_combo_trades()
+                log.info("[COMBO] Trade resolutions updated")
+        except Exception as e:
+            log.warning(f"Combo check error: {e}")
+
+
 def _update_hot_coins(symbol: str) -> bool:
     """Returns True if coin just became HOT (3+ signals in 60 min)."""
     now = time.time()
@@ -1119,7 +1204,7 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
             # logic — it simply mirrors whatever the paper bot just decided.
             if not GLOBAL_DATA.get("paper_mode", True):
                 _real_amt = GLOBAL_DATA.get("fund_limit_usdt", 10.0)
-                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt, expected_price=coin.get("price"))
+                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt)
                 if _real_res.get("ok"):
                     mode_str = "REAL (AUTO)"
                     reason += f" | ⚡ REAL order placed: ${_real_amt} (orderId {_real_res.get('order_id')})"
@@ -1681,6 +1766,12 @@ def data_refresh_loop():
                     s["symbol"] in _surge_set,
                 )
 
+            # ── COMBO BOT: V6-BUY + Wall-COPY_BUY confluence on same coin ──
+            combo_signals = detect_combo_signals(inst_signals, whale_copy_signals, CONFIG)
+            GLOBAL_DATA["combo_signals"] = combo_signals
+            for _cb in combo_signals:
+                _record_combo_trade(_cb)
+
             GLOBAL_DATA["vmc"]          = vmc_data
             GLOBAL_DATA["whale"]        = whale_data
             GLOBAL_DATA["inst_signals"] = inst_signals
@@ -1948,6 +2039,43 @@ def weekly_report_loop():
             audit("SYSTEM", "WEEKLY_REPORT", "ERROR", str(e))
 
 
+_STRATEGY_NOTES_FILE = "strategy_notes.json"
+
+def _write_daily_strategy_note():
+    """Daily performance snapshot for all 3 bots — rolling array in
+    strategy_notes.json (kept last 90 days), one entry per calendar day."""
+    try:
+        try:
+            with open(_STRATEGY_NOTES_FILE) as f:
+                notes = json.load(f)
+        except Exception:
+            notes = []
+
+        def _snap(bot_key):
+            st = _daily_stats_by_bot.get(bot_key, {})
+            return {"wins": st.get("wins", 0), "losses": st.get("losses", 0),
+                    "realized_pnl_pct": st.get("realized_pnl_pct", 0.0),
+                    "tripped": st.get("tripped", False),
+                    "tripped_reason": st.get("tripped_reason", "")}
+
+        wc_closed    = [t for t in WHALE_COPY_TRADES if t.get("status") == "CLOSED"]
+        combo_closed = [t for t in COMBO_TRADES if t.get("status") == "CLOSED"]
+        entry = {
+            "date": _today_utc(), "generated_at": _pkt_ts(),
+            "v6":    {**_snap("v6"),    "total_closed": _total_wins + _total_losses},
+            "wall":  {**_snap("wall"),  "total_closed": len(wc_closed)},
+            "combo": {**_snap("combo"), "total_closed": len(combo_closed)},
+        }
+        notes = [n for n in notes if n.get("date") != entry["date"]]
+        notes.append(entry)
+        notes = notes[-90:]
+        with open(_STRATEGY_NOTES_FILE, "w") as f:
+            json.dump(notes, f, indent=2)
+        log.info(f"[STRATEGY-NOTES] Daily snapshot written for {entry[\'date\']}")
+    except Exception as e:
+        log.warning(f"Daily strategy note write failed: {e}")
+
+
 def midnight_report_loop():
     """Fires a midnight report every 24h at UTC+5 (PKT) midnight."""
     while True:
@@ -1983,6 +2111,7 @@ def midnight_report_loop():
                     GLOBAL_DATA["vmc"], GLOBAL_DATA["whale"], BACKTEST_SIGNALS,
                     GOOGLE_CREDENTIALS, GOOGLE_SHEET_ID
                 )
+            _write_daily_strategy_note()
             # Reset daily counters
             _today_coin_counts.clear()
             GLOBAL_DATA["today_signals"] = 0
@@ -2237,32 +2366,6 @@ function refreshHealth(){
 }
 refreshHealth();
 setInterval(refreshHealth, 15000);
-
-function refreshBotCmp(){
-  fetch('/admin/bot_comparison',{cache:'no-store'}).then(r=>r.json()).then(d=>{
-    const tb=document.getElementById('bot-cmp-tbody');
-    if(!tb) return;
-    const rows=['v6','wall','combo'].map(k=>{
-      const b=d[k]||{};
-      const modeColor=b.mode==='real'?'#FF4500':'#3fb950';
-      const modeLabel=b.mode==='real'?'⚡ REAL':'📄 PAPER';
-      const circ=b.circuit||{};
-      const circLabel=circ.tripped?('🛑 TRIPPED: '+(circ.reason||'')):('✅ OK ('+(circ.losses_today||0)+'L today)');
-      const circColor=circ.tripped?'#FF4500':'#3fb950';
-      return '<tr><td style="color:#FFD700;font-weight:bold">'+k.toUpperCase()+'</td>'+
-        '<td style="color:'+modeColor+'">'+modeLabel+'</td>'+
-        '<td>$'+(b.fund_limit||0)+'</td>'+
-        '<td>'+(b.open||0)+'</td>'+
-        '<td>'+(b.wins||0)+'W / '+(b.losses||0)+'L</td>'+
-        '<td style="color:'+(b.win_rate>=50?'#3fb950':'#d29922')+'">'+(b.win_rate||0)+'%</td>'+
-        '<td style="color:'+circColor+';font-size:10px">'+circLabel+'</td>'+
-        '<td style="color:#555;font-size:10px">use form below</td></tr>';
-    });
-    tb.innerHTML=rows.join('');
-  }).catch(()=>{});
-}
-refreshBotCmp();
-setInterval(refreshBotCmp, 15000);
 </script></div>
 
 <!-- ══ RISK CALCULATOR + FUND LIMIT ══ -->
@@ -2284,34 +2387,6 @@ setInterval(refreshBotCmp, 15000);
 <small style="color:#555">Bot will NEVER place a trade larger than this limit regardless of account size</small></form>
 </div>
 </div></div>
-
-<!-- ══ 3-BOT CONTROL PANEL ══ -->
-<div class="card"><h3>🤖 3-BOT CONTROL PANEL</h3>
-<table class="ca-tbl" style="width:100%;font-size:11px">
-<thead><tr><th>Bot</th><th>Mode</th><th>Fund/Trade</th><th>Open</th><th>W/L</th><th>Win%</th><th>Circuit</th><th>Controls</th></tr></thead>
-<tbody id="bot-cmp-tbody"><tr><td colspan="8" style="color:#555">Loading…</td></tr></tbody>
-</table>
-<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-<button onclick="refreshBotCmp()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:5px 12px;font-size:11px">↻ Refresh</button>
-</div>
-<div id="bot-cmp-forms" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-{% for b in ['v6','wall','combo'] %}
-<form method="POST" action="/admin/set_bot_config" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:10px">
-<input type="hidden" name="bot" value="{{ b }}"/>
-<div style="color:#FFD700;font-weight:bold;font-size:12px;margin-bottom:6px">{{ b.upper() }} BOT</div>
-<label style="color:#8b949e;font-size:10px">Mode</label>
-<select name="mode" style="width:100%;margin-bottom:6px">
-<option value="paper" {{ 'selected' if bots_cfg.get(b,{}).get('mode','paper')=='paper' else '' }}>📄 PAPER</option>
-<option value="real" {{ 'selected' if bots_cfg.get(b,{}).get('mode','paper')=='real' else '' }}>⚡ REAL</option>
-</select>
-<label style="color:#8b949e;font-size:10px">Fund/Trade (USDT)</label>
-<input type="number" name="fund_limit" value="{{ bots_cfg.get(b,{}).get('fund_limit_usdt',10) }}" step="0.01" min="1" style="width:100%;margin-bottom:8px"/>
-<button type="submit" class="btn btn-blue" style="width:100%;padding:6px"
-  onclick="return confirm('Update {{ b.upper() }} bot config?')">Save</button>
-</form>
-{% endfor %}
-</div>
-</div>
 
 <!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
@@ -2704,7 +2779,6 @@ def admin_portal():
         ld=GLOBAL_DATA.get("learning_data", {}),
         clients=[type('C', (), c)() for c in _load_clients()],
         fund_limit=CONFIG.get("bot_fund_limit_usdt", 10.0),
-        bots_cfg=CONFIG.get("bots", {}),
     )
 
 
@@ -2931,52 +3005,6 @@ def admin_kill_switch():
 
 # ── System Health (public, used by admin portal JS) ────────────────────────────
 
-@app.route("/admin/bot_comparison")
-@_admin_required
-def admin_bot_comparison():
-    """Live comparison stats for the 3-bot admin table."""
-    v6_closed = _total_wins + _total_losses
-    v6_wr = round(_total_wins / v6_closed * 100, 1) if v6_closed else 0.0
-
-    wc_closed = [t for t in WHALE_COPY_TRADES if t.get("status") == "CLOSED"]
-    wc_wins = sum(1 for t in wc_closed if t.get("result") == "WIN")
-    wc_wr = round(wc_wins / len(wc_closed) * 100, 1) if wc_closed else 0.0
-
-    cb_closed = [t for t in COMBO_TRADES if t.get("status") == "CLOSED"]
-    cb_wins = sum(1 for t in cb_closed if t.get("result") == "WIN")
-    cb_wr = round(cb_wins / len(cb_closed) * 100, 1) if cb_closed else 0.0
-
-    def _cb_stats(bot):
-        s = _daily_stats_by_bot.get(bot, {})
-        return {"tripped": s.get("tripped", False), "reason": s.get("tripped_reason", ""),
-                "losses_today": s.get("losses", 0), "pnl_today": s.get("realized_pnl_pct", 0.0)}
-
-    bots_cfg = CONFIG.get("bots", {})
-    return jsonify({
-        "v6": {
-            "mode": bots_cfg.get("v6", {}).get("mode", "paper"),
-            "fund_limit": bots_cfg.get("v6", {}).get("fund_limit_usdt", 10),
-            "open": sum(1 for b in BACKTEST_SIGNALS if b.get("status") == "OPEN"),
-            "closed": v6_closed, "wins": _total_wins, "losses": _total_losses,
-            "win_rate": v6_wr, "circuit": _cb_stats("v6"),
-        },
-        "wall": {
-            "mode": bots_cfg.get("wall", {}).get("mode", "paper"),
-            "fund_limit": bots_cfg.get("wall", {}).get("fund_limit_usdt", 10),
-            "open": sum(1 for t in WHALE_COPY_TRADES if t.get("status") == "OPEN"),
-            "closed": len(wc_closed), "wins": wc_wins, "losses": len(wc_closed) - wc_wins,
-            "win_rate": wc_wr, "circuit": _cb_stats("wall"),
-        },
-        "combo": {
-            "mode": bots_cfg.get("combo", {}).get("mode", "paper"),
-            "fund_limit": bots_cfg.get("combo", {}).get("fund_limit_usdt", 10),
-            "open": sum(1 for t in COMBO_TRADES if t.get("status") == "OPEN"),
-            "closed": len(cb_closed), "wins": cb_wins, "losses": len(cb_closed) - cb_wins,
-            "win_rate": cb_wr, "circuit": _cb_stats("combo"),
-        },
-    })
-
-
 @app.route("/system_health")
 def system_health():
     tg_ok = bool(BOT_TOKEN and CHAT_ID)
@@ -3044,42 +3072,6 @@ def health_check():
 
 # ── Fund Limit ─────────────────────────────────────────────────────────────────
 
-@app.route("/admin/set_bot_config", methods=["POST"])
-@_admin_required
-def admin_set_bot_config():
-    """Per-bot mode (paper/real) + fund limit for v6 / wall / combo."""
-    bot = request.form.get("bot", "").strip().lower()
-    if bot not in ("v6", "wall", "combo"):
-        return redirect("/admin")
-    mode = request.form.get("mode", "paper").strip().lower()
-    if mode not in ("paper", "real"):
-        mode = "paper"
-    try:
-        limit = float(request.form.get("fund_limit", 10))
-    except Exception:
-        limit = 10.0
-    if limit <= 0:
-        return "<script>alert('Fund limit must be > 0');window.history.back()</script>"
-
-    CONFIG.setdefault("bots", {}).setdefault(bot, {})
-    # SAFETY: block switching to REAL if no Binance API key configured
-    if mode == "real" and CONFIG["bots"][bot].get("mode", "paper") == "paper" and "BINANCE" not in _API_KEYS:
-        audit(request.remote_addr, "SET_BOT_CONFIG", "BLOCKED", f"bot={bot} — no Binance API keys")
-        return ("<script>alert('⛔ REAL MODE BLOCKED\\n\\n"
-                f"Cannot switch {bot.upper()} bot to REAL — no Binance API key configured.');"
-                "window.history.back()</script>")
-
-    CONFIG["bots"][bot]["mode"] = mode
-    CONFIG["bots"][bot]["fund_limit_usdt"] = limit
-    try:
-        with open("config.json", "w") as f:
-            json.dump(CONFIG, f, indent=2)
-    except Exception as e:
-        log.debug(f"bot config save failed: {e}")
-    audit(request.remote_addr, "SET_BOT_CONFIG", "OK", f"bot={bot} mode={mode} limit={limit}")
-    return redirect("/admin")
-
-
 @app.route("/admin/set_fund_limit", methods=["POST"])
 @_admin_required
 def admin_set_fund_limit():
@@ -3136,8 +3128,7 @@ def admin_manual_trade():
         result   = _execute_real_binance_spot_grid(symbol, amount)
         mode_str = "REAL SPOT GRID"
     else:
-        result   = _execute_real_binance_spot(symbol, side, amount,
-                                               expected_price=(inst_s.get("price") if inst_s else None))
+        result   = _execute_real_binance_spot(symbol, side, amount)
         mode_str = "REAL SPOT"
 
     if result.get("ok"):
@@ -4023,6 +4014,7 @@ if __name__ == "__main__":
     threading.Thread(target=weekly_report_loop,   daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
+    threading.Thread(target=combo_check_loop,      daemon=True).start()
     threading.Thread(target=holdings_check_loop,   daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()

@@ -310,47 +310,11 @@ def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
     return {"ok": True, "trade": rec}
 
 
-def _execution_guard(symbol: str, expected_price: float = None) -> dict:
-    """Pre-trade guard for REAL orders — protects against stale prices and
-    excessive slippage before any exchange order is placed.
-    Config: execution_guard.max_slippage_pct / max_order_delay_seconds.
-    Returns {"ok", "price", "error"}."""
-    eg = CONFIG.get("execution_guard", {})
-    max_slip  = eg.get("max_slippage_pct", 0.3)
-    max_delay = eg.get("max_order_delay_seconds", 5)
-
-    t0 = time.time()
-    live_price = fetch_ticker_price(symbol)
-    fetch_elapsed = time.time() - t0
-
-    if not live_price:
-        return {"ok": False, "price": 0, "error": "Could not fetch a live price for guard check"}
-
-    if fetch_elapsed > max_delay:
-        return {"ok": False, "price": live_price,
-                "error": f"Price fetch took {fetch_elapsed:.2f}s > {max_delay}s limit — aborting stale execution"}
-
-    if expected_price and expected_price > 0:
-        slip_pct = abs(live_price - expected_price) / expected_price * 100
-        if slip_pct > max_slip:
-            return {"ok": False, "price": live_price,
-                    "error": f"Slippage {slip_pct:.3f}% > {max_slip}% limit (expected {expected_price}, live {live_price})"}
-
-    return {"ok": True, "price": live_price, "error": ""}
-
-
-def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float, expected_price: float = None) -> dict:
-    """Execute a real Binance MARKET order via REST API (HMAC-signed).
-    Runs through _execution_guard() first — aborts on stale price fetch
-    or excessive slippage vs. the signal's expected entry price."""
+def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float) -> dict:
+    """Execute a real Binance MARKET order via REST API (HMAC-signed)."""
     ex = "BINANCE"
     if ex not in _API_KEYS:
         return {"ok": False, "error": "No Binance API key configured in Admin Portal → API Key Management"}
-    guard = _execution_guard(symbol, expected_price)
-    if not guard["ok"]:
-        log.warning(f"[EXEC-GUARD] {symbol} {side} blocked: {guard['error']}")
-        audit("SYSTEM", "EXEC_GUARD_BLOCK", "BLOCKED", f"sym={symbol} side={side} err={guard['error']}")
-        return {"ok": False, "error": f"Execution guard: {guard['error']}"}
     try:
         import hmac as _hmac, hashlib as _hl, urllib.parse as _up
         import requests as _rq
@@ -381,17 +345,12 @@ def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float, expec
 
 def _execute_real_binance_spot_grid(symbol: str, amount_usdt: float,
                                      levels: int = 5, spacing_pct: float = 0.5) -> dict:
-    """Place a grid of LIMIT BUY orders below current price on Binance.
-    Runs through _execution_guard() first for staleness protection."""
+    """Place a grid of LIMIT BUY orders below current price on Binance."""
     ex = "BINANCE"
     if ex not in _API_KEYS:
         return {"ok": False, "error": "No Binance API key configured"}
-    guard = _execution_guard(symbol)
-    if not guard["ok"]:
-        log.warning(f"[EXEC-GUARD] {symbol} GRID blocked: {guard['error']}")
-        audit("SYSTEM", "EXEC_GUARD_BLOCK", "BLOCKED", f"sym={symbol} side=GRID err={guard['error']}")
-        return {"ok": False, "error": f"Execution guard: {guard['error']}"}
-    price = guard["price"]
+    from logic import fetch_ticker_price as _ftp
+    price = _ftp(symbol)
     if not price:
         return {"ok": False, "error": "Cannot fetch current price for grid"}
     try:
@@ -1119,7 +1078,7 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
             # logic — it simply mirrors whatever the paper bot just decided.
             if not GLOBAL_DATA.get("paper_mode", True):
                 _real_amt = GLOBAL_DATA.get("fund_limit_usdt", 10.0)
-                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt, expected_price=coin.get("price"))
+                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt)
                 if _real_res.get("ok"):
                     mode_str = "REAL (AUTO)"
                     reason += f" | ⚡ REAL order placed: ${_real_amt} (orderId {_real_res.get('order_id')})"
@@ -3136,8 +3095,7 @@ def admin_manual_trade():
         result   = _execute_real_binance_spot_grid(symbol, amount)
         mode_str = "REAL SPOT GRID"
     else:
-        result   = _execute_real_binance_spot(symbol, side, amount,
-                                               expected_price=(inst_s.get("price") if inst_s else None))
+        result   = _execute_real_binance_spot(symbol, side, amount)
         mode_str = "REAL SPOT"
 
     if result.get("ok"):

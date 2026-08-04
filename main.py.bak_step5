@@ -310,47 +310,11 @@ def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
     return {"ok": True, "trade": rec}
 
 
-def _execution_guard(symbol: str, expected_price: float = None) -> dict:
-    """Pre-trade guard for REAL orders — protects against stale prices and
-    excessive slippage before any exchange order is placed.
-    Config: execution_guard.max_slippage_pct / max_order_delay_seconds.
-    Returns {"ok", "price", "error"}."""
-    eg = CONFIG.get("execution_guard", {})
-    max_slip  = eg.get("max_slippage_pct", 0.3)
-    max_delay = eg.get("max_order_delay_seconds", 5)
-
-    t0 = time.time()
-    live_price = fetch_ticker_price(symbol)
-    fetch_elapsed = time.time() - t0
-
-    if not live_price:
-        return {"ok": False, "price": 0, "error": "Could not fetch a live price for guard check"}
-
-    if fetch_elapsed > max_delay:
-        return {"ok": False, "price": live_price,
-                "error": f"Price fetch took {fetch_elapsed:.2f}s > {max_delay}s limit — aborting stale execution"}
-
-    if expected_price and expected_price > 0:
-        slip_pct = abs(live_price - expected_price) / expected_price * 100
-        if slip_pct > max_slip:
-            return {"ok": False, "price": live_price,
-                    "error": f"Slippage {slip_pct:.3f}% > {max_slip}% limit (expected {expected_price}, live {live_price})"}
-
-    return {"ok": True, "price": live_price, "error": ""}
-
-
-def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float, expected_price: float = None) -> dict:
-    """Execute a real Binance MARKET order via REST API (HMAC-signed).
-    Runs through _execution_guard() first — aborts on stale price fetch
-    or excessive slippage vs. the signal's expected entry price."""
+def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float) -> dict:
+    """Execute a real Binance MARKET order via REST API (HMAC-signed)."""
     ex = "BINANCE"
     if ex not in _API_KEYS:
         return {"ok": False, "error": "No Binance API key configured in Admin Portal → API Key Management"}
-    guard = _execution_guard(symbol, expected_price)
-    if not guard["ok"]:
-        log.warning(f"[EXEC-GUARD] {symbol} {side} blocked: {guard['error']}")
-        audit("SYSTEM", "EXEC_GUARD_BLOCK", "BLOCKED", f"sym={symbol} side={side} err={guard['error']}")
-        return {"ok": False, "error": f"Execution guard: {guard['error']}"}
     try:
         import hmac as _hmac, hashlib as _hl, urllib.parse as _up
         import requests as _rq
@@ -381,17 +345,12 @@ def _execute_real_binance_spot(symbol: str, side: str, amount_usdt: float, expec
 
 def _execute_real_binance_spot_grid(symbol: str, amount_usdt: float,
                                      levels: int = 5, spacing_pct: float = 0.5) -> dict:
-    """Place a grid of LIMIT BUY orders below current price on Binance.
-    Runs through _execution_guard() first for staleness protection."""
+    """Place a grid of LIMIT BUY orders below current price on Binance."""
     ex = "BINANCE"
     if ex not in _API_KEYS:
         return {"ok": False, "error": "No Binance API key configured"}
-    guard = _execution_guard(symbol)
-    if not guard["ok"]:
-        log.warning(f"[EXEC-GUARD] {symbol} GRID blocked: {guard['error']}")
-        audit("SYSTEM", "EXEC_GUARD_BLOCK", "BLOCKED", f"sym={symbol} side=GRID err={guard['error']}")
-        return {"ok": False, "error": f"Execution guard: {guard['error']}"}
-    price = guard["price"]
+    from logic import fetch_ticker_price as _ftp
+    price = _ftp(symbol)
     if not price:
         return {"ok": False, "error": "Cannot fetch current price for grid"}
     try:
@@ -1119,7 +1078,7 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
             # logic — it simply mirrors whatever the paper bot just decided.
             if not GLOBAL_DATA.get("paper_mode", True):
                 _real_amt = GLOBAL_DATA.get("fund_limit_usdt", 10.0)
-                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt, expected_price=coin.get("price"))
+                _real_res = _execute_real_binance_spot(coin["symbol"], "BUY", _real_amt)
                 if _real_res.get("ok"):
                     mode_str = "REAL (AUTO)"
                     reason += f" | ⚡ REAL order placed: ${_real_amt} (orderId {_real_res.get('order_id')})"
@@ -2237,32 +2196,6 @@ function refreshHealth(){
 }
 refreshHealth();
 setInterval(refreshHealth, 15000);
-
-function refreshBotCmp(){
-  fetch('/admin/bot_comparison',{cache:'no-store'}).then(r=>r.json()).then(d=>{
-    const tb=document.getElementById('bot-cmp-tbody');
-    if(!tb) return;
-    const rows=['v6','wall','combo'].map(k=>{
-      const b=d[k]||{};
-      const modeColor=b.mode==='real'?'#FF4500':'#3fb950';
-      const modeLabel=b.mode==='real'?'⚡ REAL':'📄 PAPER';
-      const circ=b.circuit||{};
-      const circLabel=circ.tripped?('🛑 TRIPPED: '+(circ.reason||'')):('✅ OK ('+(circ.losses_today||0)+'L today)');
-      const circColor=circ.tripped?'#FF4500':'#3fb950';
-      return '<tr><td style="color:#FFD700;font-weight:bold">'+k.toUpperCase()+'</td>'+
-        '<td style="color:'+modeColor+'">'+modeLabel+'</td>'+
-        '<td>$'+(b.fund_limit||0)+'</td>'+
-        '<td>'+(b.open||0)+'</td>'+
-        '<td>'+(b.wins||0)+'W / '+(b.losses||0)+'L</td>'+
-        '<td style="color:'+(b.win_rate>=50?'#3fb950':'#d29922')+'">'+(b.win_rate||0)+'%</td>'+
-        '<td style="color:'+circColor+';font-size:10px">'+circLabel+'</td>'+
-        '<td style="color:#555;font-size:10px">use form below</td></tr>';
-    });
-    tb.innerHTML=rows.join('');
-  }).catch(()=>{});
-}
-refreshBotCmp();
-setInterval(refreshBotCmp, 15000);
 </script></div>
 
 <!-- ══ RISK CALCULATOR + FUND LIMIT ══ -->
@@ -2284,34 +2217,6 @@ setInterval(refreshBotCmp, 15000);
 <small style="color:#555">Bot will NEVER place a trade larger than this limit regardless of account size</small></form>
 </div>
 </div></div>
-
-<!-- ══ 3-BOT CONTROL PANEL ══ -->
-<div class="card"><h3>🤖 3-BOT CONTROL PANEL</h3>
-<table class="ca-tbl" style="width:100%;font-size:11px">
-<thead><tr><th>Bot</th><th>Mode</th><th>Fund/Trade</th><th>Open</th><th>W/L</th><th>Win%</th><th>Circuit</th><th>Controls</th></tr></thead>
-<tbody id="bot-cmp-tbody"><tr><td colspan="8" style="color:#555">Loading…</td></tr></tbody>
-</table>
-<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-<button onclick="refreshBotCmp()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:5px 12px;font-size:11px">↻ Refresh</button>
-</div>
-<div id="bot-cmp-forms" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-{% for b in ['v6','wall','combo'] %}
-<form method="POST" action="/admin/set_bot_config" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:10px">
-<input type="hidden" name="bot" value="{{ b }}"/>
-<div style="color:#FFD700;font-weight:bold;font-size:12px;margin-bottom:6px">{{ b.upper() }} BOT</div>
-<label style="color:#8b949e;font-size:10px">Mode</label>
-<select name="mode" style="width:100%;margin-bottom:6px">
-<option value="paper" {{ 'selected' if bots_cfg.get(b,{}).get('mode','paper')=='paper' else '' }}>📄 PAPER</option>
-<option value="real" {{ 'selected' if bots_cfg.get(b,{}).get('mode','paper')=='real' else '' }}>⚡ REAL</option>
-</select>
-<label style="color:#8b949e;font-size:10px">Fund/Trade (USDT)</label>
-<input type="number" name="fund_limit" value="{{ bots_cfg.get(b,{}).get('fund_limit_usdt',10) }}" step="0.01" min="1" style="width:100%;margin-bottom:8px"/>
-<button type="submit" class="btn btn-blue" style="width:100%;padding:6px"
-  onclick="return confirm('Update {{ b.upper() }} bot config?')">Save</button>
-</form>
-{% endfor %}
-</div>
-</div>
 
 <!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
@@ -2704,7 +2609,6 @@ def admin_portal():
         ld=GLOBAL_DATA.get("learning_data", {}),
         clients=[type('C', (), c)() for c in _load_clients()],
         fund_limit=CONFIG.get("bot_fund_limit_usdt", 10.0),
-        bots_cfg=CONFIG.get("bots", {}),
     )
 
 
@@ -2931,52 +2835,6 @@ def admin_kill_switch():
 
 # ── System Health (public, used by admin portal JS) ────────────────────────────
 
-@app.route("/admin/bot_comparison")
-@_admin_required
-def admin_bot_comparison():
-    """Live comparison stats for the 3-bot admin table."""
-    v6_closed = _total_wins + _total_losses
-    v6_wr = round(_total_wins / v6_closed * 100, 1) if v6_closed else 0.0
-
-    wc_closed = [t for t in WHALE_COPY_TRADES if t.get("status") == "CLOSED"]
-    wc_wins = sum(1 for t in wc_closed if t.get("result") == "WIN")
-    wc_wr = round(wc_wins / len(wc_closed) * 100, 1) if wc_closed else 0.0
-
-    cb_closed = [t for t in COMBO_TRADES if t.get("status") == "CLOSED"]
-    cb_wins = sum(1 for t in cb_closed if t.get("result") == "WIN")
-    cb_wr = round(cb_wins / len(cb_closed) * 100, 1) if cb_closed else 0.0
-
-    def _cb_stats(bot):
-        s = _daily_stats_by_bot.get(bot, {})
-        return {"tripped": s.get("tripped", False), "reason": s.get("tripped_reason", ""),
-                "losses_today": s.get("losses", 0), "pnl_today": s.get("realized_pnl_pct", 0.0)}
-
-    bots_cfg = CONFIG.get("bots", {})
-    return jsonify({
-        "v6": {
-            "mode": bots_cfg.get("v6", {}).get("mode", "paper"),
-            "fund_limit": bots_cfg.get("v6", {}).get("fund_limit_usdt", 10),
-            "open": sum(1 for b in BACKTEST_SIGNALS if b.get("status") == "OPEN"),
-            "closed": v6_closed, "wins": _total_wins, "losses": _total_losses,
-            "win_rate": v6_wr, "circuit": _cb_stats("v6"),
-        },
-        "wall": {
-            "mode": bots_cfg.get("wall", {}).get("mode", "paper"),
-            "fund_limit": bots_cfg.get("wall", {}).get("fund_limit_usdt", 10),
-            "open": sum(1 for t in WHALE_COPY_TRADES if t.get("status") == "OPEN"),
-            "closed": len(wc_closed), "wins": wc_wins, "losses": len(wc_closed) - wc_wins,
-            "win_rate": wc_wr, "circuit": _cb_stats("wall"),
-        },
-        "combo": {
-            "mode": bots_cfg.get("combo", {}).get("mode", "paper"),
-            "fund_limit": bots_cfg.get("combo", {}).get("fund_limit_usdt", 10),
-            "open": sum(1 for t in COMBO_TRADES if t.get("status") == "OPEN"),
-            "closed": len(cb_closed), "wins": cb_wins, "losses": len(cb_closed) - cb_wins,
-            "win_rate": cb_wr, "circuit": _cb_stats("combo"),
-        },
-    })
-
-
 @app.route("/system_health")
 def system_health():
     tg_ok = bool(BOT_TOKEN and CHAT_ID)
@@ -3044,42 +2902,6 @@ def health_check():
 
 # ── Fund Limit ─────────────────────────────────────────────────────────────────
 
-@app.route("/admin/set_bot_config", methods=["POST"])
-@_admin_required
-def admin_set_bot_config():
-    """Per-bot mode (paper/real) + fund limit for v6 / wall / combo."""
-    bot = request.form.get("bot", "").strip().lower()
-    if bot not in ("v6", "wall", "combo"):
-        return redirect("/admin")
-    mode = request.form.get("mode", "paper").strip().lower()
-    if mode not in ("paper", "real"):
-        mode = "paper"
-    try:
-        limit = float(request.form.get("fund_limit", 10))
-    except Exception:
-        limit = 10.0
-    if limit <= 0:
-        return "<script>alert('Fund limit must be > 0');window.history.back()</script>"
-
-    CONFIG.setdefault("bots", {}).setdefault(bot, {})
-    # SAFETY: block switching to REAL if no Binance API key configured
-    if mode == "real" and CONFIG["bots"][bot].get("mode", "paper") == "paper" and "BINANCE" not in _API_KEYS:
-        audit(request.remote_addr, "SET_BOT_CONFIG", "BLOCKED", f"bot={bot} — no Binance API keys")
-        return ("<script>alert('⛔ REAL MODE BLOCKED\\n\\n"
-                f"Cannot switch {bot.upper()} bot to REAL — no Binance API key configured.');"
-                "window.history.back()</script>")
-
-    CONFIG["bots"][bot]["mode"] = mode
-    CONFIG["bots"][bot]["fund_limit_usdt"] = limit
-    try:
-        with open("config.json", "w") as f:
-            json.dump(CONFIG, f, indent=2)
-    except Exception as e:
-        log.debug(f"bot config save failed: {e}")
-    audit(request.remote_addr, "SET_BOT_CONFIG", "OK", f"bot={bot} mode={mode} limit={limit}")
-    return redirect("/admin")
-
-
 @app.route("/admin/set_fund_limit", methods=["POST"])
 @_admin_required
 def admin_set_fund_limit():
@@ -3136,8 +2958,7 @@ def admin_manual_trade():
         result   = _execute_real_binance_spot_grid(symbol, amount)
         mode_str = "REAL SPOT GRID"
     else:
-        result   = _execute_real_binance_spot(symbol, side, amount,
-                                               expected_price=(inst_s.get("price") if inst_s else None))
+        result   = _execute_real_binance_spot(symbol, side, amount)
         mode_str = "REAL SPOT"
 
     if result.get("ok"):

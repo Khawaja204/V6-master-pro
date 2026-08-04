@@ -1,0 +1,50 @@
+{
+  "created_at": "2026-08-03",
+  "notes": [
+    "3-Bot Architecture initialized: V6 Score Bot | Wall/OBI Bot | Combo Confluence Bot",
+    "Combo Bot entry rule: V6 BUY + Wall COPY_BUY on same coin simultaneously",
+    "Combo Bot exit rule: managed exclusively by V6 ATR-based partial TP + trailing stop",
+    "Each bot has independent circuit breaker: 3 daily losses max",
+    "Paper testing phase target: 7-14 days before switching any bot to real mode"
+  ],
+  "daily_summary_logs": [],
+  "bot_performance": {
+    "v6": {
+      "total_trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate": 0.0,
+      "total_pnl_pct": 0.0,
+      "total_pnl_usdt": 0.0,
+      "max_drawdown_pct": 0.0,
+      "current_streak": 0,
+      "best_streak": 0,
+      "worst_streak": 0
+    },
+    "wall": {
+      "total_trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate": 0.0,
+      "total_pnl_pct": 0.0,
+      "total_pnl_usdt": 0.0,
+      "max_drawdown_pct": 0.0,
+      "current_streak": 0,
+      "best_streak": 0,
+      "worst_streak": 0
+    },
+    "combo": {
+      "total_trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "win_rate": 0.0,
+      "total_pnl_pct": 0.0,
+      "total_pnl_usdt": 0.0,
+      "max_drawdown_pct": 0.0,
+      "current_streak": 0,
+      "best_streak": 0,
+      "worst_streak": 0
+    }
+  },
+  "settings_history": []
+}

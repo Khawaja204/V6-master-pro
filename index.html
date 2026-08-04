@@ -1238,30 +1238,6 @@ function updateWhaleCopy(d){
   setInterval(fetchWCLearning, 30000);
 
 
-  /* ── On-Chain Exchange Flow & Whale Trades ── */
-  function fetchOnChain(){
-    fetch('/api/onchain').then(r=>r.json()).then(d=>{
-      // ETH On-Chain Exchange Flow
-      const ethBody = document.getElementById('eth-flow-tbody');
-      if(ethBody && d.eth_flows){
-        ethBody.innerHTML = d.eth_flows.map(f=>{
-          const dirCol = f.direction.includes('INFLOW') ? 'var(--red)' : 'var(--green)';
-          return `<tr><td style="font-size:9px">${f.time}</td><td>${f.eth}</td><td style="color:${dirCol};font-size:9px">${f.direction}</td><td style="font-size:8px;color:var(--grey)">${f.tx_hash}</td></tr>`;
-        }).join('') || '<tr><td colspan="4" style="color:var(--grey)">No large ETH exchange moves detected</td></tr>';
-      }
-      // Large Trades (Exchange Whale Orders)
-      const ltBody = document.getElementById('large-trades-tbody');
-      if(ltBody && d.large_trades){
-        ltBody.innerHTML = d.large_trades.map(t=>{
-          const sideCol = t.side==='DEPOSIT' ? 'var(--red)' : (t.side==='WITHDRAWAL' ? 'var(--green)' : 'var(--grey)');
-          return `<tr><td style="font-size:9px">${t.time}</td><td>${t.coin}</td><td style="color:${sideCol};font-size:9px">${t.side}</td><td>${fmt6(t.price)}</td><td style="color:var(--yellow)">$${t.size_usdt.toLocaleString()}</td></tr>`;
-        }).join('') || '<tr><td colspan="5" style="color:var(--grey)">No large trades detected yet</td></tr>';
-      }
-    }).catch(e=>{});
-  }
-  fetchOnChain();
-  setInterval(fetchOnChain, 60000);
-
   const trades = d.trades || [];
   const ttbody = document.getElementById('wc-trades-tbody');
   if(ttbody){
