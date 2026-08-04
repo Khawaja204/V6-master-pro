@@ -2697,7 +2697,7 @@ def admin_portal():
         exchange=GLOBAL_DATA.get("active_exchange", "BINANCE"),
         exchanges=["BINANCE","KUCOIN","BITMART","MEXC"],
         hot_coins=GLOBAL_DATA["hot_coins"], alerts=GLOBAL_DATA["alert_history"],
-        audit_preview=preview, today=time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600)),
+        audit_preview=preview, today=time.strftime("%Y-%m-%d"),
         paper_mode=GLOBAL_DATA.get("paper_mode", True),
         price_alerts=GLOBAL_DATA.get("price_alerts", []),
         saved_keys=saved_keys_masked,

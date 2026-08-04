@@ -343,7 +343,7 @@ body.simple-active .ms-sub { font-size:12px }
         </div>
         <div class="cb">
           <div class="search-row">
-            <input class="s-inp" id="coin-inp" value="BTC / USDT" placeholder="🔍 Coin pair"/>
+            <input class="s-inp" id="coin-inp" value="XPL / USDT" placeholder="🔍 Coin pair"/>
             <button class="s-btn" onclick="doSearch()">Search</button>
           </div>
           <div style="display:flex;gap:4px;margin-bottom:5px">
@@ -851,7 +851,7 @@ function updateQuickTrends(symbol){
 }
 
 function fetchChart(sym){
-  const s=(sym||document.getElementById('coin-inp')?.value||'BTCUSDT')
+  const s=(sym||document.getElementById('coin-inp')?.value||'XPLUSDT')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const symbol=s.includes('USDT')?s:s+'USDT';
   const _st=document.getElementById('chart-status');
@@ -1464,7 +1464,7 @@ function updateWhaleCopy(d){
 // ── STATUS BAR ──
 function updateSB(d){
   const btc=d.btc||{};
-  set('sb-cycle', (d.cycle_count!==undefined && d.cycle_count!==null)?d.cycle_count:'—');
+  set('sb-cycle', d.cycle_count||'—');
   const reg=d.market_regime||'—';
   const rEl=document.getElementById('sb-regime');
   if(rEl){rEl.textContent=reg;rEl.className='sbv '+(reg.includes('BEAR')?'bear':reg.includes('BULL')?'bull':'rng');}
