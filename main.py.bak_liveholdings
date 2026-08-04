@@ -2575,41 +2575,6 @@ loadHoldings();
 setInterval(loadHoldings, 20000);
 </script>
 
-<!-- ══ LIVE BINANCE HOLDINGS (real account balances, read-only) ══ -->
-<div class="card"><h3>🏦 LIVE BINANCE HOLDINGS <span style="font-size:10px;color:#555;font-weight:normal">(real account balances — read-only)</span></h3>
-<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Pulled directly from your connected Binance API key. Requires "Enable Reading" permission — no trading is performed here.</p>
-<button onclick="loadLiveHoldings()" class="btn btn-blue" style="padding:6px 14px;font-size:11px;margin-bottom:10px">↻ Fetch Live Holdings</button>
-<table class="ca-tbl"><thead><tr><th>Asset</th><th>Free</th><th>Locked</th><th>Total</th><th>Est. USD</th></tr></thead>
-<tbody id="live-holdings-tbody"><tr><td colspan="5" style="color:#555">Click "Fetch Live Holdings" to load — requires a saved Binance API key above.</td></tr></tbody>
-</table>
-</div>
-<script>
-function loadLiveHoldings(){
-  const tb=document.getElementById('live-holdings-tbody');
-  tb.innerHTML='<tr><td colspan="5" style="color:#d29922">⏳ Fetching from Binance…</td></tr>';
-  fetch('/admin/live_binance_holdings').then(r=>r.json()).then(d=>{
-    if(d.error){
-      tb.innerHTML=`<tr><td colspan="5" style="color:#FF4500">❌ ${d.error}</td></tr>`;
-      return;
-    }
-    const hs=d.holdings||[];
-    if(!hs.length){
-      tb.innerHTML='<tr><td colspan="5" style="color:#555">No non-zero balances found on this account.</td></tr>';
-      return;
-    }
-    tb.innerHTML=hs.map(h=>`<tr>
-      <td style="color:#FFD700;font-weight:bold">${h.asset}</td>
-      <td>${h.free}</td>
-      <td>${h.locked}</td>
-      <td>${h.total}</td>
-      <td style="color:#3fb950">${h.usd_value!==null?'$'+h.usd_value:'—'}</td>
-    </tr>`).join('');
-  }).catch(e=>{
-    tb.innerHTML=`<tr><td colspan="5" style="color:#FF4500">Request failed: ${e}</td></tr>`;
-  });
-}
-</script>
-
 <!-- ══ HOT COINS ══ -->
 <div class="card"><h3>🔥 HOT COINS (3+ signals/hr)</h3>
 <table><thead><tr><th>Symbol</th><th>Count</th><th>Since</th></tr></thead><tbody>
@@ -3525,53 +3490,6 @@ def admin_delete_holding():
     _save_holdings(holdings)
     audit(request.remote_addr, "DELETE_HOLDING", "OK", f"sym={sym}")
     return redirect("/admin")
-
-
-@app.route("/admin/live_binance_holdings")
-@_admin_required
-def admin_live_binance_holdings():
-    """Fetches REAL account balances directly from the connected Binance
-    API key — read-only, no trading. Requires 'Enable Reading' permission."""
-    ex = "BINANCE"
-    if ex not in _API_KEYS:
-        return jsonify({"error": "No Binance API key configured", "holdings": []})
-    try:
-        import hmac as _hmac, hashlib as _hl, urllib.parse as _up
-        import requests as _rq
-        key = _API_KEYS[ex]["api_key"]
-        sec = _API_KEYS[ex]["secret_key"]
-        ts  = int(time.time() * 1000)
-        qs  = f"timestamp={ts}"
-        sig = _hmac.new(sec.encode(), qs.encode(), _hl.sha256).hexdigest()
-        r   = _rq.get(f"https://api.binance.com/api/v3/account?{qs}&signature={sig}",
-                      headers={"X-MBX-APIKEY": key}, timeout=10)
-        data = r.json()
-        if r.status_code != 200:
-            return jsonify({"error": data.get("msg", f"Binance HTTP {r.status_code}"), "holdings": []})
-
-        balances = [b for b in data.get("balances", [])
-                    if float(b.get("free", 0)) + float(b.get("locked", 0)) > 0]
-        out = []
-        for b in balances:
-            asset = b["asset"]
-            total = round(float(b["free"]) + float(b["locked"]), 8)
-            usd_val = None
-            if asset == "USDT":
-                usd_val = total
-            else:
-                price = fetch_ticker_price(f"{asset}USDT")
-                if price:
-                    usd_val = round(total * price, 2)
-            out.append({
-                "asset": asset, "free": float(b["free"]), "locked": float(b["locked"]),
-                "total": total, "usd_value": usd_val,
-            })
-        out.sort(key=lambda x: x.get("usd_value") or 0, reverse=True)
-        audit(request.remote_addr, "LIVE_HOLDINGS_FETCH", "OK", f"assets={len(out)}")
-        return jsonify({"holdings": out, "fetched_at": _pkt_ts()})
-    except Exception as e:
-        log.warning(f"Live Binance holdings fetch failed: {e}")
-        return jsonify({"error": str(e), "holdings": []})
 
 
 @app.route("/admin/holdings_status")
