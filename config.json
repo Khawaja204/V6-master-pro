@@ -85,7 +85,8 @@
     "partial_tp1_pct": 25,
     "partial_tp2_pct": 35,
     "partial_tp3_pct": 40,
-    "partial_tp_check_seconds": 10
+    "partial_tp_check_seconds": 10,
+    "weekly_max_drawdown_pct": 20.0
   },
   "security": {
     "max_login_attempts": 3,

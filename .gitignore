@@ -27,3 +27,5 @@ strategy_notes.json
 v6_master.db
 api_keys.json
 uptime_log.jsonl
+weekly_circuit_state.json
+whale_history.jsonl

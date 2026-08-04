@@ -548,65 +548,6 @@ def _blank_bot_stats() -> dict:
 _daily_stats_by_bot = {b: _blank_bot_stats() for b in _BOT_NAMES}
 _daily_stats = _daily_stats_by_bot["v6"]   # legacy alias, v6-only
 
-# ── Weekly rolling drawdown (independent of the daily breaker) ──
-_WEEKLY_TRIP_FILE = "weekly_circuit_state.json"
-
-def _blank_weekly_stats() -> dict:
-    return {"pnl_history": [], "tripped": False, "tripped_reason": "", "tripped_at": ""}
-
-def _load_weekly_stats() -> dict:
-    try:
-        with open(_WEEKLY_TRIP_FILE) as f:
-            saved = json.load(f)
-        return {b: {**_blank_weekly_stats(), **saved.get(b, {})} for b in _BOT_NAMES}
-    except Exception:
-        return {b: _blank_weekly_stats() for b in _BOT_NAMES}
-
-_weekly_stats_by_bot = _load_weekly_stats()
-_weekly_lock = threading.Lock()
-
-def _save_weekly_stats():
-    try:
-        with open(_WEEKLY_TRIP_FILE, "w") as f:
-            json.dump(_weekly_stats_by_bot, f, indent=2)
-    except Exception as e:
-        log.debug(f"weekly circuit state save failed: {e}")
-
-def _weekly_entries_allowed(bot: str = "v6") -> bool:
-    with _weekly_lock:
-        return not _weekly_stats_by_bot.get(bot, {}).get("tripped", False)
-
-def _record_weekly_pnl(bot: str, pnl_pct: float) -> None:
-    """Rolls a closed trade's PnL into that bot's 7-day window; trips a
-    WEEKLY (not daily-reset) breaker if cumulative drawdown exceeds the
-    configured limit. Stays tripped across day boundaries until an admin
-    manually resets it — catches slow bleed across many small daily losses
-    that never individually trip the daily breaker."""
-    with _weekly_lock:
-        st = _weekly_stats_by_bot.setdefault(bot, _blank_weekly_stats())
-        now = time.time()
-        st["pnl_history"].append({"ts": now, "pnl_pct": pnl_pct or 0.0})
-        cutoff = now - 7 * 86400
-        st["pnl_history"] = [e for e in st["pnl_history"] if e["ts"] >= cutoff]
-
-        max_weekly_dd = abs(CONFIG.get("bots", {}).get(bot, {}).get(
-            "weekly_max_drawdown_pct", CONFIG.get("trade_management", {}).get("weekly_max_drawdown_pct", 20.0)))
-        cum_pnl = round(sum(e["pnl_pct"] for e in st["pnl_history"]), 3)
-        if not st["tripped"] and cum_pnl <= -max_weekly_dd:
-            st["tripped"] = True
-            st["tripped_reason"] = f"7-day cumulative drawdown {cum_pnl}% ≤ -{max_weekly_dd}%"
-            st["tripped_at"] = _pkt_ts()
-            log.warning(f"[WEEKLY-BREAKER:{bot.upper()}] Tripped: {st['tripped_reason']}")
-            audit("SYSTEM", f"WEEKLY_BREAKER_{bot.upper()}", "TRIPPED", st["tripped_reason"])
-            send_telegram(
-                f"🛑 <b>{bot.upper()} BOT — WEEKLY DRAWDOWN BREAKER TRIPPED</b>\n"
-                f"Reason: {st['tripped_reason']}\n"
-                f"⛔ {bot.upper()} bot entries paused for the week — "
-                f"reset manually in Admin once you've reviewed what happened."
-            )
-        GLOBAL_DATA.setdefault("weekly_circuit_breakers", {})[bot] = dict(st)
-        _save_weekly_stats()
-
 
 def _today_utc() -> str:
     return time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600))
@@ -619,23 +560,6 @@ def _reset_daily_if_needed(bot: str = "v6") -> None:
         stats.update({"date": today, "losses": 0, "wins": 0,
                       "realized_pnl_pct": 0.0, "tripped": False,
                       "tripped_reason": ""})
-
-
-def _symbol_open_elsewhere(symbol: str, exclude_bot: str) -> str:
-    """Cross-bot exposure guard — returns the name of another bot that
-    already has an OPEN position on `symbol`, or "" if none. Prevents
-    V6 + Wall + Combo from all piling into the same coin at once, which
-    would silently multiply real exposure beyond each bot's own fund limit."""
-    if exclude_bot != "v6" and any(b.get("symbol") == symbol and b.get("status") == "OPEN"
-                                    for b in BACKTEST_SIGNALS):
-        return "v6"
-    if exclude_bot != "wall" and any(t.get("symbol") == symbol and t.get("status") == "OPEN"
-                                      for t in WHALE_COPY_TRADES):
-        return "wall"
-    if exclude_bot != "combo" and any(t.get("symbol") == symbol and t.get("status") == "OPEN"
-                                       for t in COMBO_TRADES):
-        return "combo"
-    return ""
 
 
 def _entries_allowed(bot: str = "v6") -> bool:
@@ -726,11 +650,7 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         if traffic == "YELLOW" and not paper:
             return None                           # skip YELLOW in real mode only
     # ── Daily circuit-breaker: no new entries once tripped ────────────────────
-    if not _entries_allowed("v6") or not _weekly_entries_allowed("v6"):
-        return None
-    _held_by = _symbol_open_elsewhere(symbol, "v6")
-    if _held_by:
-        log.info(f"[EXPOSURE-GUARD] {symbol} V6 entry skipped — already OPEN on {_held_by} bot")
+    if not _entries_allowed("v6"):
         return None
 
     now = time.time()
@@ -793,13 +713,9 @@ def _record_whale_copy_trade(sig: dict):
     both still apply. Trades stay OPEN until whale_copy_check_loop resolves
     them against the SL/target levels."""
     global WHALE_COPY_TRADES
-    if not _entries_allowed("wall") or not _weekly_entries_allowed("wall"):
+    if not _entries_allowed("wall"):
         return None
     sym = sig["symbol"]
-    _held_by = _symbol_open_elsewhere(sym, "wall")
-    if _held_by:
-        log.info(f"[EXPOSURE-GUARD] {sym} WALL entry skipped — already OPEN on {_held_by} bot")
-        return None
     now = time.time()
     if now - _wc_dedup.get(sym, 0) < 1800:
         return None
@@ -1008,7 +924,6 @@ def whale_copy_check_loop():
                     if tr.get("direction") == "COPY_BUY":
                         _update_wc_learning(tr)
                         _record_trade_result(tr["result"] == "WIN", tr.get("pnl_pct") or 0.0, bot="wall")
-                        _record_weekly_pnl("wall", tr.get("pnl_pct") or 0.0)
                     # ── Closure report: Telegram + Email institutional summary ──
                     if tr.get("direction") == "COPY_BUY":
                         _icon = "✅" if tr["result"] == "WIN" else ("❌" if tr["result"] == "LOSS" else "⏱")
@@ -1305,65 +1220,6 @@ def alert_critical_whale(whale: dict):
 # ══════════════════════════════════════════════════════════════════════════════
 # CONTINUOUS SELF-UPGRADE PROTOCOL
 # ══════════════════════════════════════════════════════════════════════════════
-
-_WHALE_HISTORY_FILE = "whale_history.jsonl"
-_WHALE_HISTORY_MAX_LINES = 500000   # ~months of data at typical scan volume before rotation
-
-def _log_whale_history(inst_signals: list, whale_data: list, cycle: int) -> None:
-    """Appends one compact JSON line PER SCANNED COIN, every cycle — building
-    a real historical record of whale_power/OBI/traffic-light state that
-    Binance itself does not retain. Once a few months of this accumulate,
-    it can be joined against price history to backtest the Whale/Institutional
-    and Smart-Money categories that a pure price/volume backtest cannot
-    reconstruct. Rotates the file once it exceeds _WHALE_HISTORY_MAX_LINES
-    so it never grows unbounded on the free-tier disk."""
-    try:
-        whale_by_sym = {w["symbol"]: w for w in whale_data}
-        ts = time.time()
-        lines = []
-        for s in inst_signals:
-            sym = s.get("symbol")
-            if not sym:
-                continue
-            inst = s.get("inst", {}) or {}
-            wh = whale_by_sym.get(sym, {})
-            row = {
-                "ts": round(ts), "cycle": cycle, "sym": sym,
-                "price": s.get("price", 0),
-                "wp": inst.get("whale_power", 0),
-                "obi": (wh.get("obi", {}) or {}).get("obi", 0),
-                "obi_vel": (wh.get("obi", {}) or {}).get("velocity", 0),
-                "traffic": inst.get("traffic", "RED"),
-                "inst_score": inst.get("inst_score", 0),
-                "confirms": inst.get("confirms", 0),
-                "spike": bool(inst.get("spike", False)),
-                "spoof": bool((wh.get("spoofing", {}) or {}).get("bid_spoof") or
-                             (wh.get("spoofing", {}) or {}).get("ask_spoof")),
-                "b2p": bool(wh.get("blink_to_push", False)),
-            }
-            lines.append(json.dumps(row))
-        if not lines:
-            return
-        with open(_WHALE_HISTORY_FILE, "a") as f:
-            f.write("\n".join(lines) + "\n")
-
-        # Rotation check — cheap line-count guard so this never eats the disk
-        if cycle % 200 == 0:
-            try:
-                with open(_WHALE_HISTORY_FILE) as f:
-                    count = sum(1 for _ in f)
-                if count > _WHALE_HISTORY_MAX_LINES:
-                    with open(_WHALE_HISTORY_FILE) as f:
-                        all_lines = f.readlines()
-                    keep = all_lines[-(_WHALE_HISTORY_MAX_LINES // 2):]
-                    with open(_WHALE_HISTORY_FILE, "w") as f:
-                        f.writelines(keep)
-                    log.info(f"[WHALE-HISTORY] Rotated — kept last {len(keep)} lines")
-            except Exception as _re:
-                log.debug(f"whale history rotation check failed: {_re}")
-    except Exception as e:
-        log.debug(f"whale history log failed: {e}")
-
 
 def self_upgrade_cycle(inst_signals: list, whale_data: list, vmc_data: dict) -> list:
     """
@@ -1845,10 +1701,6 @@ def data_refresh_loop():
 
             # ── Continuous Self-Upgrade Protocol ─────────────────────────────
             self_upgrade_cycle(inst_signals, whale_data, vmc_data)
-
-            # ── Whale History Logger: builds our own historical dataset for
-            # future whale/OBI backtesting (Binance retains none of this) ──
-            _log_whale_history(inst_signals, whale_data, cycle)
 
             # ── Price Alert Checker ──────────────────────────────────────────
             check_price_alerts(vmc_data.get("ALL", []))
@@ -2533,65 +2385,6 @@ setInterval(refreshBotCmp, 15000);
 {% endfor %}
 </div>
 </div>
-
-<!-- ══ WHALE HISTORY LOGGER ══ -->
-<div class="card"><h3>💾 WHALE HISTORY LOGGER <span style="font-size:10px;color:#555;font-weight:normal">(building your own historical whale/OBI dataset)</span></h3>
-<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Binance doesn't retain historical order-book data, so this logs whale_power/OBI/traffic-light for every scanned coin, every cycle, going forward. Once enough days accumulate, this can be joined with price history to backtest the Whale/Institutional and Smart-Money categories.</p>
-<div id="whale-history-stats" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px">
-  <div class="stat"><span class="val" id="wh-rows">—</span><span class="lbl">Rows Logged</span></div>
-  <div class="stat"><span class="val" id="wh-span">—</span><span class="lbl">Days Covered</span></div>
-  <div class="stat"><span class="val" id="wh-size">—</span><span class="lbl">File Size</span></div>
-</div>
-<a href="/admin/whale_history_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:5px 14px;font-size:11px;text-decoration:none">⬇ Download Full CSV</a>
-</div>
-<script>
-function loadWhaleHistoryStats(){
-  fetch('/admin/whale_history_status').then(r=>r.json()).then(d=>{
-    const r=document.getElementById('wh-rows'), s=document.getElementById('wh-span'), z=document.getElementById('wh-size');
-    if(r) r.textContent=(d.rows||0).toLocaleString();
-    if(s) s.textContent=(d.span_days||0)+'d';
-    if(z) z.textContent=(d.size_mb||0)+' MB';
-  }).catch(()=>{});
-}
-loadWhaleHistoryStats();
-setInterval(loadWhaleHistoryStats, 60000);
-</script>
-
-<!-- ══ WEEKLY DRAWDOWN BREAKER ══ -->
-<div class="card"><h3>📅 WEEKLY DRAWDOWN BREAKER (7-day rolling, per bot)</h3>
-<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Catches slow bleed across several days that never individually trips the daily breaker. Stays tripped until manually reset here — review what happened before resetting.</p>
-<table class="ca-tbl"><thead><tr><th>Bot</th><th>7d Cumulative PnL</th><th>Trades (7d)</th><th>Status</th><th></th></tr></thead>
-<tbody id="weekly-breaker-tbody"><tr><td colspan="5" style="color:#555">Loading…</td></tr></tbody>
-</table>
-</div>
-<script>
-function loadWeeklyBreaker(){
-  fetch('/admin/weekly_breaker_status').then(r=>r.json()).then(d=>{
-    const tb=document.getElementById('weekly-breaker-tbody');
-    if(!tb) return;
-    tb.innerHTML=Object.keys(d).map(b=>{
-      const s=d[b];
-      const pnlCol=s.cum_pnl_7d>=0?'#3fb950':'#FF4500';
-      const statusHtml=s.tripped
-        ? `<span style="color:#FF4500;font-weight:bold">🛑 TRIPPED</span> <span style="font-size:9px;color:#555">(${s.tripped_at})</span><br><span style="font-size:9px;color:#8b949e">${s.reason}</span>`
-        : '<span style="color:#3fb950">✅ OK</span>';
-      const resetBtn = s.tripped
-        ? `<form method="POST" action="/admin/reset_weekly_breaker" style="display:inline" onsubmit="return confirm('Reset weekly breaker for ${b.toUpperCase()}?')">
-             <input type="hidden" name="bot" value="${b}"/>
-             <button type="submit" class="btn btn-orange" style="padding:3px 10px;font-size:10px">Reset</button>
-           </form>`
-        : '';
-      return `<tr><td style="color:#FFD700;font-weight:bold">${b.toUpperCase()}</td>
-        <td style="color:${pnlCol}">${s.cum_pnl_7d}%</td>
-        <td>${s.trades_7d}</td>
-        <td>${statusHtml}</td>
-        <td>${resetBtn}</td></tr>`;
-    }).join('');
-  }).catch(()=>{});
-}
-loadWeeklyBreaker();
-setInterval(loadWeeklyBreaker, 30000);
-</script>
 
 <!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
@@ -3893,75 +3686,6 @@ def admin_uptime_log_csv():
                     headers={"Content-Disposition": "attachment;filename=uptime_log.csv"})
 
 
-
-
-@app.route("/admin/weekly_breaker_status")
-@_admin_required
-def admin_weekly_breaker_status():
-    out = {}
-    for b in _BOT_NAMES:
-        st = _weekly_stats_by_bot.get(b, _blank_weekly_stats())
-        cum = round(sum(e["pnl_pct"] for e in st.get("pnl_history", [])), 3)
-        out[b] = {"tripped": st.get("tripped", False), "reason": st.get("tripped_reason", ""),
-                  "tripped_at": st.get("tripped_at", ""), "cum_pnl_7d": cum,
-                  "trades_7d": len(st.get("pnl_history", []))}
-    return jsonify(out)
-
-
-@app.route("/admin/reset_weekly_breaker", methods=["POST"])
-@_admin_required
-def admin_reset_weekly_breaker():
-    bot = request.form.get("bot", "").strip().lower()
-    if bot not in _BOT_NAMES:
-        return redirect("/admin")
-    with _weekly_lock:
-        _weekly_stats_by_bot[bot] = _blank_weekly_stats()
-        _save_weekly_stats()
-    audit(request.remote_addr, "RESET_WEEKLY_BREAKER", "OK", f"bot={bot}")
-    return redirect("/admin")
-
-
-@app.route("/admin/whale_history_status")
-@_admin_required
-def admin_whale_history_status():
-    try:
-        with open(_WHALE_HISTORY_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    first_ts, last_ts = None, None
-    if lines:
-        try:
-            first_ts = json.loads(lines[0]).get("ts")
-            last_ts  = json.loads(lines[-1]).get("ts")
-        except Exception:
-            pass
-    span_days = round((last_ts - first_ts) / 86400, 1) if (first_ts and last_ts) else 0
-    import os as _os
-    size_mb = round(_os.path.getsize(_WHALE_HISTORY_FILE) / 1e6, 2) if _os.path.exists(_WHALE_HISTORY_FILE) else 0
-    return jsonify({"rows": len(lines), "span_days": span_days, "size_mb": size_mb,
-                    "first_ts": first_ts, "last_ts": last_ts})
-
-
-@app.route("/admin/whale_history_csv")
-@_admin_required
-def admin_whale_history_csv():
-    """Full whale_history.jsonl converted to CSV for download/analysis."""
-    try:
-        with open(_WHALE_HISTORY_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    cols = ["ts","cycle","sym","price","wp","obi","obi_vel","traffic","inst_score","confirms","spike","spoof","b2p"]
-    rows = [",".join(cols)]
-    for l in lines:
-        try:
-            r = json.loads(l)
-            rows.append(",".join(str(r.get(c, "")) for c in cols))
-        except Exception:
-            continue
-    return Response("\n".join(rows), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment;filename=whale_history.csv"})
 
 
 @app.route("/admin/uptime_monitor_status")

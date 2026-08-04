@@ -1306,65 +1306,6 @@ def alert_critical_whale(whale: dict):
 # CONTINUOUS SELF-UPGRADE PROTOCOL
 # ══════════════════════════════════════════════════════════════════════════════
 
-_WHALE_HISTORY_FILE = "whale_history.jsonl"
-_WHALE_HISTORY_MAX_LINES = 500000   # ~months of data at typical scan volume before rotation
-
-def _log_whale_history(inst_signals: list, whale_data: list, cycle: int) -> None:
-    """Appends one compact JSON line PER SCANNED COIN, every cycle — building
-    a real historical record of whale_power/OBI/traffic-light state that
-    Binance itself does not retain. Once a few months of this accumulate,
-    it can be joined against price history to backtest the Whale/Institutional
-    and Smart-Money categories that a pure price/volume backtest cannot
-    reconstruct. Rotates the file once it exceeds _WHALE_HISTORY_MAX_LINES
-    so it never grows unbounded on the free-tier disk."""
-    try:
-        whale_by_sym = {w["symbol"]: w for w in whale_data}
-        ts = time.time()
-        lines = []
-        for s in inst_signals:
-            sym = s.get("symbol")
-            if not sym:
-                continue
-            inst = s.get("inst", {}) or {}
-            wh = whale_by_sym.get(sym, {})
-            row = {
-                "ts": round(ts), "cycle": cycle, "sym": sym,
-                "price": s.get("price", 0),
-                "wp": inst.get("whale_power", 0),
-                "obi": (wh.get("obi", {}) or {}).get("obi", 0),
-                "obi_vel": (wh.get("obi", {}) or {}).get("velocity", 0),
-                "traffic": inst.get("traffic", "RED"),
-                "inst_score": inst.get("inst_score", 0),
-                "confirms": inst.get("confirms", 0),
-                "spike": bool(inst.get("spike", False)),
-                "spoof": bool((wh.get("spoofing", {}) or {}).get("bid_spoof") or
-                             (wh.get("spoofing", {}) or {}).get("ask_spoof")),
-                "b2p": bool(wh.get("blink_to_push", False)),
-            }
-            lines.append(json.dumps(row))
-        if not lines:
-            return
-        with open(_WHALE_HISTORY_FILE, "a") as f:
-            f.write("\n".join(lines) + "\n")
-
-        # Rotation check — cheap line-count guard so this never eats the disk
-        if cycle % 200 == 0:
-            try:
-                with open(_WHALE_HISTORY_FILE) as f:
-                    count = sum(1 for _ in f)
-                if count > _WHALE_HISTORY_MAX_LINES:
-                    with open(_WHALE_HISTORY_FILE) as f:
-                        all_lines = f.readlines()
-                    keep = all_lines[-(_WHALE_HISTORY_MAX_LINES // 2):]
-                    with open(_WHALE_HISTORY_FILE, "w") as f:
-                        f.writelines(keep)
-                    log.info(f"[WHALE-HISTORY] Rotated — kept last {len(keep)} lines")
-            except Exception as _re:
-                log.debug(f"whale history rotation check failed: {_re}")
-    except Exception as e:
-        log.debug(f"whale history log failed: {e}")
-
-
 def self_upgrade_cycle(inst_signals: list, whale_data: list, vmc_data: dict) -> list:
     """
     Auto-reviews signal quality every scan cycle, logs improvements, and
@@ -1845,10 +1786,6 @@ def data_refresh_loop():
 
             # ── Continuous Self-Upgrade Protocol ─────────────────────────────
             self_upgrade_cycle(inst_signals, whale_data, vmc_data)
-
-            # ── Whale History Logger: builds our own historical dataset for
-            # future whale/OBI backtesting (Binance retains none of this) ──
-            _log_whale_history(inst_signals, whale_data, cycle)
 
             # ── Price Alert Checker ──────────────────────────────────────────
             check_price_alerts(vmc_data.get("ALL", []))
@@ -2533,29 +2470,6 @@ setInterval(refreshBotCmp, 15000);
 {% endfor %}
 </div>
 </div>
-
-<!-- ══ WHALE HISTORY LOGGER ══ -->
-<div class="card"><h3>💾 WHALE HISTORY LOGGER <span style="font-size:10px;color:#555;font-weight:normal">(building your own historical whale/OBI dataset)</span></h3>
-<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Binance doesn't retain historical order-book data, so this logs whale_power/OBI/traffic-light for every scanned coin, every cycle, going forward. Once enough days accumulate, this can be joined with price history to backtest the Whale/Institutional and Smart-Money categories.</p>
-<div id="whale-history-stats" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px">
-  <div class="stat"><span class="val" id="wh-rows">—</span><span class="lbl">Rows Logged</span></div>
-  <div class="stat"><span class="val" id="wh-span">—</span><span class="lbl">Days Covered</span></div>
-  <div class="stat"><span class="val" id="wh-size">—</span><span class="lbl">File Size</span></div>
-</div>
-<a href="/admin/whale_history_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:5px 14px;font-size:11px;text-decoration:none">⬇ Download Full CSV</a>
-</div>
-<script>
-function loadWhaleHistoryStats(){
-  fetch('/admin/whale_history_status').then(r=>r.json()).then(d=>{
-    const r=document.getElementById('wh-rows'), s=document.getElementById('wh-span'), z=document.getElementById('wh-size');
-    if(r) r.textContent=(d.rows||0).toLocaleString();
-    if(s) s.textContent=(d.span_days||0)+'d';
-    if(z) z.textContent=(d.size_mb||0)+' MB';
-  }).catch(()=>{});
-}
-loadWhaleHistoryStats();
-setInterval(loadWhaleHistoryStats, 60000);
-</script>
 
 <!-- ══ WEEKLY DRAWDOWN BREAKER ══ -->
 <div class="card"><h3>📅 WEEKLY DRAWDOWN BREAKER (7-day rolling, per bot)</h3>
@@ -3919,49 +3833,6 @@ def admin_reset_weekly_breaker():
         _save_weekly_stats()
     audit(request.remote_addr, "RESET_WEEKLY_BREAKER", "OK", f"bot={bot}")
     return redirect("/admin")
-
-
-@app.route("/admin/whale_history_status")
-@_admin_required
-def admin_whale_history_status():
-    try:
-        with open(_WHALE_HISTORY_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    first_ts, last_ts = None, None
-    if lines:
-        try:
-            first_ts = json.loads(lines[0]).get("ts")
-            last_ts  = json.loads(lines[-1]).get("ts")
-        except Exception:
-            pass
-    span_days = round((last_ts - first_ts) / 86400, 1) if (first_ts and last_ts) else 0
-    import os as _os
-    size_mb = round(_os.path.getsize(_WHALE_HISTORY_FILE) / 1e6, 2) if _os.path.exists(_WHALE_HISTORY_FILE) else 0
-    return jsonify({"rows": len(lines), "span_days": span_days, "size_mb": size_mb,
-                    "first_ts": first_ts, "last_ts": last_ts})
-
-
-@app.route("/admin/whale_history_csv")
-@_admin_required
-def admin_whale_history_csv():
-    """Full whale_history.jsonl converted to CSV for download/analysis."""
-    try:
-        with open(_WHALE_HISTORY_FILE) as f:
-            lines = f.readlines()
-    except Exception:
-        lines = []
-    cols = ["ts","cycle","sym","price","wp","obi","obi_vel","traffic","inst_score","confirms","spike","spoof","b2p"]
-    rows = [",".join(cols)]
-    for l in lines:
-        try:
-            r = json.loads(l)
-            rows.append(",".join(str(r.get(c, "")) for c in cols))
-        except Exception:
-            continue
-    return Response("\n".join(rows), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment;filename=whale_history.csv"})
 
 
 @app.route("/admin/uptime_monitor_status")

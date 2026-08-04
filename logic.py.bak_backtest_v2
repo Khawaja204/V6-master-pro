@@ -763,101 +763,15 @@ def _ema_series(values: list, period: int) -> list:
     return ema
 
 
-def _macd_hist_series(closes: list, fast: int = 12, slow: int = 26, signal: int = 9) -> list:
-    """Elementwise MACD histogram across the whole series (for backtesting,
-    where we need a value at every bar, not just the latest)."""
-    if len(closes) < slow:
-        return [0.0] * len(closes)
-    ema_f = _ema_series(closes, fast)
-    ema_s = _ema_series(closes, slow)
-    macd_line = [f - s for f, s in zip(ema_f, ema_s)]
-    sig_line  = _ema_series(macd_line, signal)
-    return [m - s for m, s in zip(macd_line, sig_line)]
-
-
-def _volume_ratio_series(volumes: list, window: int = 20) -> list:
-    """volumes[i] / rolling-median(volumes[i-window:i]) — backtest proxy
-    for the live volume-surge detector (which compares against the median
-    of the current scan's coin universe)."""
-    n = len(volumes)
-    out = [1.0] * n
-    for i in range(window, n):
-        win = sorted(volumes[i - window:i])
-        median = win[len(win) // 2] if win else 0
-        out[i] = round(volumes[i] / median, 2) if median else 1.0
-    return out
-
-
-def _backtest_v6_score(rsi_val: float, macd_hist_val: float, price: float,
-                       vol_ratio: float, btc_volatility_pct: float,
-                       coin_chg_pct: float, regime: str) -> dict:
-    """
-    Backtest-compatible SUBSET of the live compute_v6_final_score(): only the
-    Market Regime (10), Technical (12), and Trade Engine/Risk (10) categories
-    — 32 of the live engine's 54 points. The Whale/Institutional (12) and
-    Smart-Money Divergence (10) categories are DELIBERATELY EXCLUDED here:
-    they depend on live order-book snapshots and on-chain flow, which Binance
-    does not retain historically, so no backtest (by us or anyone else) can
-    reconstruct them for a past timestamp. Traffic-light tier below is a
-    technical-strength proxy standing in for the missing whale confirmation
-    — it is NOT equivalent to a live whale-confirmed GREEN light.
-    Score is rescaled to /100 over the 32 available points, using the same
-    68/45 BUY/WAIT/AVOID thresholds as the live engine for consistency.
-    """
-    # ── Market Regime (10) ──
-    reg_trend = {"TRENDING": 3, "RANGING": 2, "VOLATILE": 1}.get(regime, 2)
-    reg_trend += 2 if coin_chg_pct > 0.5 else 1 if coin_chg_pct >= -0.5 else 0
-    reg_trend  = min(5, reg_trend)
-    v = abs(btc_volatility_pct or 0)
-    reg_vol = 5 if v < 2 else 3 if v < 4 else 2 if v < 6 else 1
-    market_regime = reg_trend + reg_vol
-
-    # ── Technical (12) ──
-    rsi_v = rsi_val or 50
-    if 40 <= rsi_v <= 55:             rsi_pts = 4
-    elif 55 < rsi_v <= 62 or 35 <= rsi_v < 40: rsi_pts = 3
-    elif 30 <= rsi_v < 35:            rsi_pts = 2
-    elif rsi_v > 70 or rsi_v < 25:    rsi_pts = 0
-    else:                             rsi_pts = 1
-    macd_rel = (macd_hist_val / price * 100) if price else 0
-    if macd_rel > 0.05:    macd_pts = 4
-    elif macd_rel > 0:     macd_pts = 3
-    elif macd_rel == 0:    macd_pts = 2
-    elif macd_rel > -0.05: macd_pts = 1
-    else:                  macd_pts = 0
-    in_surge = vol_ratio >= 2.5
-    vol_pts  = 4 if in_surge else 1
-    technical = rsi_pts + macd_pts + vol_pts
-
-    # ── Trade Engine & Risk (10) ──
-    # RR is near-constant here because ATR TP/SL multipliers are fixed config
-    # values — this mirrors the live formula faithfully, it is simply a
-    # property of using fixed ATR multipliers rather than a backtest artifact.
-    rr = 1.5  # (tp1 - entry_low) / (entry_low - sl) at default 1.5x/1.5x ATR multipliers
-    rr_pts = 4  # corresponds to the 1.5x rr_pts bucket in the live formula
-    tech_strength = rsi_pts + macd_pts + vol_pts
-    proxy_traffic = "GREEN" if tech_strength >= 8 else "YELLOW" if tech_strength >= 5 else "RED"
-    tr_pts = 5 if proxy_traffic == "GREEN" else 2 if proxy_traffic == "YELLOW" else 0
-    trade_engine = rr_pts + tr_pts
-
-    raw = market_regime + technical + trade_engine
-    score = max(0, min(100, round(raw / 32 * 100)))
-    if score >= 68:   label = "BUY"
-    elif score >= 45: label = "WAIT"
-    else:             label = "AVOID"
-
-    return {"score": score, "label": label, "proxy_traffic": proxy_traffic,
-            "breakdown": {"market_regime": market_regime, "technical": technical,
-                         "trade_engine": trade_engine}}
-
-
 def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
                         config: dict = None) -> dict:
     cfg      = config or {}
     tm       = cfg.get("trade_management", {})
     risk     = cfg.get("risk", {})
+    vmc      = cfg.get("vmc", {})
     inst     = cfg.get("institutional", {})
     months   = max(1, min(int(months or 3), 6))
+    rsi_lo   = float(vmc.get("rsi_oversold", 38))
     sl_mult  = float(inst.get("atr_stop_loss_multiplier", 1.5))
     tp1_m    = float(inst.get("tp1_atr_multiplier", 1.5))
     tp2_m    = float(inst.get("tp2_atr_multiplier", 3.0))
@@ -871,23 +785,14 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
     now_ms   = int(time.time() * 1000)
     start_ms = now_ms - months * 30 * 24 * 3600 * 1000
     timeout_bars = 48
-    v6_buy_threshold = 68  # matches the live engine's BUY threshold
 
-    # ── BTC regime series (volatility + change, rolling 20-bar window) ────
-    btc_vol_by_ts, btc_chg_by_ts, btc_regime_by_ts = {}, {}, {}
-    btc_raw = fetch_klines_range("BTCUSDT", interval, start_ms, now_ms)
+    btc_trend = {}
+    btc_raw   = fetch_klines_range("BTCUSDT", interval, start_ms, now_ms)
     if btc_raw:
-        b_opens = [int(k[0]) for k in btc_raw]
-        b_high  = [float(k[2]) for k in btc_raw]
-        b_low   = [float(k[3]) for k in btc_raw]
         b_close = [float(k[4]) for k in btc_raw]
-        for j in range(20, len(b_opens)):
-            wh = max(b_high[j - 20:j + 1]); wl = min(b_low[j - 20:j + 1])
-            vol_pct = (wh - wl) / wl * 100 if wl else 0
-            chg_pct = (b_close[j] - b_close[j - 20]) / b_close[j - 20] * 100 if b_close[j - 20] else 0
-            btc_vol_by_ts[b_opens[j]] = vol_pct
-            btc_chg_by_ts[b_opens[j]] = chg_pct
-            btc_regime_by_ts[b_opens[j]] = detect_market_regime(vol_pct, chg_pct)
+        b_ema   = _ema_series(b_close, 50)
+        for idx, k in enumerate(btc_raw):
+            btc_trend[int(k[0])] = b_close[idx] > b_ema[idx]
 
     all_trades: list = []
     per_symbol: dict = {}
@@ -901,29 +806,21 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
         highs  = [float(k[2]) for k in kl]
         lows   = [float(k[3]) for k in kl]
         closes = [float(k[4]) for k in kl]
-        vols   = [float(k[5]) for k in kl]
         rsi    = _rsi_series(closes, 14)
         atr    = _atr_series(highs, lows, closes, 14)
-        macd_h = _macd_hist_series(closes)
-        vratio = _volume_ratio_series(vols)
+        ema50  = _ema_series(closes, 50)
         pos = None
         sym_trades = 0
-        for i in range(30, len(closes)):
+        for i in range(55, len(closes)):
             if pos is None:
-                if atr[i] <= 0:
-                    continue
-                coin_chg = (closes[i] - closes[i - 1]) / closes[i - 1] * 100 if closes[i - 1] else 0
-                btc_vol  = btc_vol_by_ts.get(opens[i], 3.0)
-                btc_chg  = btc_chg_by_ts.get(opens[i], 0.0)
-                regime   = btc_regime_by_ts.get(opens[i], "RANGING")
-                sc = _backtest_v6_score(rsi[i], macd_h[i], closes[i], vratio[i],
-                                        btc_vol, coin_chg, regime)
-                if sc["label"] == "BUY" and sc["score"] >= v6_buy_threshold:
+                trend_up = closes[i] > ema50[i]
+                pullback = (rsi_lo - 8) <= rsi[i] <= (rsi_lo + 7)
+                btc_ok   = btc_trend.get(opens[i], True)
+                if trend_up and pullback and btc_ok and atr[i] > 0:
                     e = closes[i]; a = atr[i]
                     pos = {
                         "entry_i": i, "entry_price": e,
                         "entry_time": time.strftime("%Y-%m-%d %H:%M", time.gmtime(opens[i] / 1000 + 5 * 3600)),
-                        "entry_score": sc["score"],
                         "sl":  e - sl_mult * a, "tp1": e + tp1_m * a,
                         "tp2": e + tp2_m * a,   "tp3": e + tp3_m * a,
                         "tp1_hit": False, "tp2_hit": False, "tp3_hit": False, "trailing": "",
@@ -950,7 +847,7 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
                     exit_price = c; exit_reason = "TIMEOUT"
             if exit_price is not None:
                 pnl = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
-                pnl -= 0.001 * 2 * 100
+                pnl -= 0.001 * 2 * 100   # Binance spot fee, 0.1% per side
                 all_trades.append({
                     "symbol": sym,
                     "entry_time": pos["entry_time"],
@@ -958,7 +855,6 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
                     "exit_ts": opens[i],
                     "entry_price": round(pos["entry_price"], 8),
                     "exit_price": round(exit_price, 8),
-                    "entry_score": pos["entry_score"],
                     "pnl_pct": round(pnl, 3),
                     "exit_reason": exit_reason,
                     "trailing": pos["trailing"] or "—",
@@ -1007,12 +903,7 @@ def historical_backtest(symbols: list, months: int = 3, interval: str = "1h",
         "max_drawdown_pct": round(max_dd, 2), "net_return_pct": net_return,
         "start_equity": round(balance0, 2), "end_equity": round(equity, 2),
         "equity_curve": curve, "per_symbol": per_symbol, "trades": all_trades,
-        "note": ("Entries now use a backtest-compatible subset of the live V6 54-point "
-                "engine: Market Regime + Technical + Trade Engine/Risk (32 of 54 points, "
-                "rescaled to /100, same 68/45 BUY/WAIT thresholds). The Whale/Institutional "
-                "and Smart-Money Divergence categories (22 pts) are excluded — they need "
-                "live order-book/on-chain data that Binance does not retain historically, "
-                "so no backtest can reconstruct them for a past timestamp."),
+        "note": ("Technical + risk-management core. Order-book/whale layers excluded."),
     }
 
 
