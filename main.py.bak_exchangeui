@@ -2315,7 +2315,6 @@ setInterval(refreshBotCmp, 15000);
 
 <!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
-<p style="color:#8b949e;font-size:11px;margin-bottom:10px">All market data, order books, and REAL-mode order execution currently run on Binance only. Other exchanges are not wired up yet.</p>
 <form method="POST" action="/admin/set_exchange"><div class="form-row">
 <select name="exchange">{% for ex in exchanges %}<option value="{{ ex }}" {{ 'selected' if ex == exchange else '' }}>{{ ex }}</option>{% endfor %}</select>
 <button type="submit" class="btn btn-blue">Switch</button></div></form></div>
@@ -2348,7 +2347,7 @@ setInterval(refreshBotCmp, 15000);
 <p style="background:#1a0000;border:1px solid #FF4500;padding:8px;border-radius:4px;color:#FF4500;font-size:11px;margin-bottom:12px">
 ⚠️ <b>SECURITY:</b> Enable <b>Read + Trade only.</b> NEVER enable Withdraw permission. Keys are masked after saving.
 </p>
-{% for ex in ['BINANCE'] %}
+{% for ex in ['BINANCE','KUCOIN','MEXC','BITMART','BYBIT','OKX'] %}
 <details style="margin-bottom:6px;background:#0d1117;border-radius:4px;border:1px solid {{ '#30363d' if ex not in saved_keys else '#3fb950' }};padding:6px 10px">
 <summary style="cursor:pointer;color:{{ '#3fb950' if ex in saved_keys else '#8b949e' }};font-weight:bold;font-size:12px">
 {{ '✅' if ex in saved_keys else '⬜' }} {{ ex }}{{ ' — Configured' if ex in saved_keys else ' — Not set' }}
@@ -2696,7 +2695,7 @@ def admin_portal():
         green_pct=CONFIG["risk"]["green_signal_max_pct"],
         yellow_pct=CONFIG["risk"]["yellow_signal_max_pct"],
         exchange=GLOBAL_DATA.get("active_exchange", "BINANCE"),
-        exchanges=["BINANCE"],
+        exchanges=["BINANCE","KUCOIN","BITMART","MEXC"],
         hot_coins=GLOBAL_DATA["hot_coins"], alerts=GLOBAL_DATA["alert_history"],
         audit_preview=preview, today=time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600)),
         paper_mode=GLOBAL_DATA.get("paper_mode", True),
