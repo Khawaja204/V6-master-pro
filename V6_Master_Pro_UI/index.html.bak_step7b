@@ -320,8 +320,6 @@ body.simple-active .ms-sub { font-size:12px }
   <button class="tab" onclick="switchTab('scanner',this)">📊 SCANNER</button>
   <button class="tab" onclick="switchTab('traffic',this)">🚦 SIGNAL</button>
   <button class="tab" onclick="switchTab('whalecopy',this)">🐋 WHALE COPY</button>
-  <button class="tab" onclick="switchTab('v6bot',this)">⚡ V6 BOT</button>
-  <button class="tab" onclick="switchTab('combobot',this)">🎯 COMBO BOT</button>
 </div>
 
 <!-- ═══════════════════════════════
@@ -665,69 +663,6 @@ body.simple-active .ms-sub { font-size:12px }
       <table class="bt-tbl" style="width:100%">
         <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Funding</th><th>Liq Status</th><th>Trail SL</th><th>Conf%</th><th>Status</th><th>Close Price</th><th>Profit%</th><th>Buy Time</th><th>Sell Time</th></tr></thead>
         <tbody id="wc-trades-tbody"><tr><td colspan="10" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════
-     TAB 5: V6 SCORE BOT
-═══════════════════════════════ -->
-<div class="panel" id="tab-v6bot">
-  <div class="scan-hdr">
-    <span class="scan-title">⚡ V6 SCORE BOT — 54-Point Institutional Score</span>
-    <span class="scan-meta" id="v6bot-meta">Loading...</span>
-  </div>
-  <div class="card" style="margin-bottom:8px;padding:10px">
-    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
-      <div><span style="color:var(--grey);font-size:9px">MODE</span><br><span id="v6bot-mode" style="font-size:14px;font-weight:bold">—</span></div>
-      <div><span style="color:var(--grey);font-size:9px">TOTAL PnL %</span><br><span id="v6bot-total-pnl-pct" style="font-size:16px;font-weight:bold">—</span></div>
-      <div><span style="color:var(--grey);font-size:9px">TOTAL PnL (est. USDT)</span><br><span id="v6bot-total-pnl-usdt" style="font-size:16px;font-weight:bold">—</span></div>
-      <div style="font-size:8px;color:#555" id="v6bot-pnl-note"></div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="ch" style="font-size:10px">📋 V6 BOT TRADE HISTORY</div>
-    <div class="cb">
-      <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry Time</th><th>Exit Time</th></tr></thead>
-        <tbody id="v6bot-trades-tbody"><tr><td colspan="12" style="color:var(--grey)">No V6 bot trades yet</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════
-     TAB 6: COMBO CONFLUENCE BOT
-═══════════════════════════════ -->
-<div class="panel" id="tab-combobot">
-  <div class="scan-hdr">
-    <span class="scan-title">🎯 COMBO BOT — V6-BUY + Wall-COPY_BUY Confluence</span>
-    <span class="scan-meta" id="combobot-meta">Loading...</span>
-  </div>
-  <div class="card" style="margin-bottom:8px;padding:10px">
-    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
-      <div><span style="color:var(--grey);font-size:9px">MODE</span><br><span id="combobot-mode" style="font-size:14px;font-weight:bold">—</span></div>
-      <div><span style="color:var(--grey);font-size:9px">TOTAL PnL %</span><br><span id="combobot-total-pnl-pct" style="font-size:16px;font-weight:bold">—</span></div>
-      <div><span style="color:var(--grey);font-size:9px">TOTAL PnL (est. USDT)</span><br><span id="combobot-total-pnl-usdt" style="font-size:16px;font-weight:bold">—</span></div>
-      <div style="font-size:8px;color:#555" id="combobot-pnl-note"></div>
-    </div>
-  </div>
-  <div class="card" style="margin-bottom:8px">
-    <div class="ch" style="font-size:10px">🎯 LIVE COMBO SIGNALS</div>
-    <div style="overflow-x:auto">
-    <table class="scan-tbl">
-      <thead><tr><th>Coin</th><th>V6 Score</th><th>Wall Conf%</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Time</th></tr></thead>
-      <tbody id="combobot-signals-tbody"><tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">No confluence signals right now</td></tr></tbody>
-    </table>
-    </div>
-  </div>
-  <div class="card">
-    <div class="ch" style="font-size:10px">📋 COMBO BOT TRADE HISTORY</div>
-    <div class="cb">
-      <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>V6 Score</th><th>Wall Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry Time</th></tr></thead>
-        <tbody id="combobot-trades-tbody"><tr><td colspan="12" style="color:var(--grey)">No combo bot trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1104,120 +1039,6 @@ function fetchAll(){
   fetchLargeTrades();
   fetchEthFlow();
   fetchDexSwaps();
-  fetchV6Bot();
-  fetchComboBot();
-}
-
-function fmtSigned(v){
-  v = v||0;
-  return (v>=0?'+':'')+v.toFixed(2)+'%';
-}
-
-// ── V6 BOT TAB ──
-function fetchV6Bot(){
-  fetch('/v6_bot_data')
-    .then(r=>r.json())
-    .then(d=>{
-      const meta=document.getElementById('v6bot-meta');
-      if(meta) meta.textContent=`${d.open_count||0} open | Win Rate: ${d.win_rate||0}% (${d.wins||0}W/${d.losses||0}L)`;
-      const modeEl=document.getElementById('v6bot-mode');
-      if(modeEl){ modeEl.textContent=(d.mode||'paper').toUpperCase(); modeEl.style.color=(d.mode==='real')?'var(--red)':'var(--green)'; }
-      const pp=document.getElementById('v6bot-total-pnl-pct');
-      if(pp){ pp.textContent=fmtSigned(d.total_pnl_pct); pp.style.color=(d.total_pnl_pct||0)>=0?'var(--green)':'var(--red)'; }
-      const pu=document.getElementById('v6bot-total-pnl-usdt');
-      if(pu){ const u=d.total_pnl_usdt_est||0; pu.textContent=(u>=0?'+$':'-$')+Math.abs(u).toFixed(2); pu.style.color=u>=0?'var(--green)':'var(--red)'; }
-      const pn=document.getElementById('v6bot-pnl-note');
-      if(pn) pn.textContent=d.pnl_est_note||'';
-
-      const tbody=document.getElementById('v6bot-trades-tbody');
-      if(tbody){
-        const trades=d.trades||[];
-        tbody.innerHTML = trades.slice(0,30).map(t=>{
-          const sym=(t.symbol||'').replace('USDT','');
-          const resCol=t.result==='WIN'?'var(--green)':t.result==='LOSS'?'var(--red)':'var(--grey)';
-          const pnlV=(t.pnl_pct!==null&&t.pnl_pct!==undefined)?t.pnl_pct:null;
-          const pnlCol=pnlV===null?'var(--grey)':(pnlV>=0?'var(--green)':'var(--red)');
-          const pnlTxt=pnlV===null?'—':fmtSigned(pnlV);
-          return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
-            <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-            <td>${fmt6(t.entry_price||0)}</td>
-            <td style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp1||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp2||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp3||0)}</td>
-            <td>${t.confidence||0}%</td>
-            <td>${t.status||'—'}</td>
-            <td style="color:${resCol}">${t.result||'—'}</td>
-            <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td style="color:var(--grey);font-size:9px">${t.entry_time||'—'}</td>
-            <td style="color:var(--grey);font-size:9px">${t.exit_time||'—'}</td>
-          </tr>`;
-        }).join('') || '<tr><td colspan="12" style="color:var(--grey)">No V6 bot trades yet</td></tr>';
-      }
-    }).catch(e=>console.error('V6 bot fetch:',e));
-}
-
-// ── COMBO BOT TAB ──
-function fetchComboBot(){
-  fetch('/combo_bot_data')
-    .then(r=>r.json())
-    .then(d=>{
-      const meta=document.getElementById('combobot-meta');
-      if(meta) meta.textContent=`${d.open_count||0} open | Win Rate: ${d.win_rate||0}% (${d.wins||0}W/${d.losses||0}L)`;
-      const modeEl=document.getElementById('combobot-mode');
-      if(modeEl){ modeEl.textContent=(d.mode||'paper').toUpperCase(); modeEl.style.color=(d.mode==='real')?'var(--red)':'var(--green)'; }
-      const pp=document.getElementById('combobot-total-pnl-pct');
-      if(pp){ pp.textContent=fmtSigned(d.total_pnl_pct); pp.style.color=(d.total_pnl_pct||0)>=0?'var(--green)':'var(--red)'; }
-      const pu=document.getElementById('combobot-total-pnl-usdt');
-      if(pu){ const u=d.total_pnl_usdt_est||0; pu.textContent=(u>=0?'+$':'-$')+Math.abs(u).toFixed(2); pu.style.color=u>=0?'var(--green)':'var(--red)'; }
-      const pn=document.getElementById('combobot-pnl-note');
-      if(pn) pn.textContent=d.pnl_est_note||'';
-
-      const sigBody=document.getElementById('combobot-signals-tbody');
-      if(sigBody){
-        const sigs=d.signals||[];
-        sigBody.innerHTML = sigs.slice(0,20).map(s=>{
-          const sym=(s.symbol||'').replace('USDT','');
-          return `<tr style="cursor:pointer" onclick="loadCoin('${s.symbol}')">
-            <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-            <td style="color:var(--green)">${s.v6_score||0}</td>
-            <td style="color:var(--green)">${s.wall_confidence||0}%</td>
-            <td>${fmt6(s.entry_low||s.price||0)}</td>
-            <td style="color:var(--red)">${fmt6(s.stop_loss||0)}</td>
-            <td style="color:var(--green)">${fmt6(s.tp1||0)}</td>
-            <td style="color:var(--green)">${fmt6(s.tp2||0)}</td>
-            <td style="color:var(--green)">${fmt6(s.tp3||0)}</td>
-            <td style="color:var(--grey);font-size:9px">${s.detected_at||'—'}</td>
-          </tr>`;
-        }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">No confluence signals right now</td></tr>';
-      }
-
-      const tbody=document.getElementById('combobot-trades-tbody');
-      if(tbody){
-        const trades=d.trades||[];
-        tbody.innerHTML = trades.slice(0,30).map(t=>{
-          const sym=(t.symbol||'').replace('USDT','');
-          const resCol=t.result==='WIN'?'var(--green)':t.result==='LOSS'?'var(--red)':'var(--grey)';
-          const pnlV=(t.pnl_pct!==null&&t.pnl_pct!==undefined)?t.pnl_pct:null;
-          const pnlCol=pnlV===null?'var(--grey)':(pnlV>=0?'var(--green)':'var(--red)');
-          const pnlTxt=pnlV===null?'—':fmtSigned(pnlV);
-          return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
-            <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-            <td>${fmt6(t.entry_price||0)}</td>
-            <td style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp1||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp2||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp3||0)}</td>
-            <td>${t.v6_score||0}</td>
-            <td>${t.wall_confidence||0}%</td>
-            <td>${t.status||'—'}</td>
-            <td style="color:${resCol}">${t.result||'—'}</td>
-            <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td style="color:var(--grey);font-size:9px">${t.entry_time||'—'}</td>
-          </tr>`;
-        }).join('') || '<tr><td colspan="12" style="color:var(--grey)">No combo bot trades yet</td></tr>';
-      }
-    }).catch(e=>console.error('Combo bot fetch:',e));
 }
 
 let _lastMSKey='';
