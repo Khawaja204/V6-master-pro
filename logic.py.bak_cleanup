@@ -304,6 +304,8 @@ try:
 except Exception:
     from requests.packages.urllib3.util.retry import Retry  # type: ignore
 
+from scoring_engine import calculate_54_point_score
+
 def get_funding_rate(symbol: str) -> float:
     """Fetch Binance Futures funding rate (%). Safe fallback = 0."""
     try:

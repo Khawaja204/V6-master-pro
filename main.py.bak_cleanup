@@ -2205,19 +2205,6 @@ input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6
 <div class="stat"><span class="val">{{ hist_cnt }}</span><span class="lbl">Alerts</span></div>
 </div></div>
 
-<!-- ══ UPTIME MONITOR STATUS ══ -->
-<div class="card"><h3>🔌 UPTIME MONITOR STATUS</h3>
-<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-  <span><span class="dot dot-yellow" id="dot-uptime"></span><span id="lbl-uptime" style="font-size:12px">Checking…</span></span>
-  <button onclick="pingNow()" class="btn" style="background:#1f6feb;color:#fff;border:none;padding:5px 14px;font-size:11px">📡 Ping Now</button>
-  <span id="ping-now-result" style="font-size:10px;color:#555"></span>
-</div>
-<p style="color:#8b949e;font-size:11px;margin-top:8px">
-This tracks whether your external uptime monitor (e.g. UptimeRobot) is actively hitting <code>/health</code> on schedule.
-If it goes red, this free Render instance can spin down after 15 min of no traffic — recheck your monitor is active there.
-</p>
-</div>
-
 <!-- ══ CONNECTION STATUS ══ -->
 <div class="card"><h3>🔌 CONNECTION STATUS</h3>
 <div id="conn-status-row" style="display:flex;gap:20px;flex-wrap:wrap">
@@ -2250,29 +2237,6 @@ function refreshHealth(){
 }
 refreshHealth();
 setInterval(refreshHealth, 15000);
-
-function refreshUptimeMonitor(){
-  fetch('/admin/uptime_monitor_status',{cache:'no-store'}).then(r=>r.json()).then(d=>{
-    const dot=document.getElementById('dot-uptime'), lbl=document.getElementById('lbl-uptime');
-    if(!dot||!lbl) return;
-    dot.className='dot '+(d.ok?'dot-green':'dot-red');
-    if(d.last_ping){
-      lbl.textContent=(d.ok?'✅ ':'❌ ')+'Last ping: '+d.last_ping+' ('+d.seconds_ago+'s ago)';
-    } else {
-      lbl.textContent='⏳ No external ping received yet on this instance.';
-    }
-  }).catch(()=>{});
-}
-function pingNow(){
-  const el=document.getElementById('ping-now-result');
-  if(el) el.textContent='Pinging…';
-  fetch('/health',{cache:'no-store'}).then(r=>r.json()).then(d=>{
-    if(el) el.textContent='✅ Responded: '+(d.status||'ok')+' @ '+(d.timestamp||'');
-    setTimeout(refreshUptimeMonitor, 500);
-  }).catch(e=>{ if(el) el.textContent='❌ Failed: '+e; });
-}
-refreshUptimeMonitor();
-setInterval(refreshUptimeMonitor, 20000);
 
 function refreshBotCmp(){
   fetch('/admin/bot_comparison',{cache:'no-store'}).then(r=>r.json()).then(d=>{
@@ -3089,13 +3053,10 @@ def system_health():
 
 # ── /health — Render / uptime-monitor compatible ───────────────────────────────
 
-_last_external_ping = {"ts": None}
-
 @app.route("/health")
 def health_check():
     """Lightweight liveness endpoint for Render health checks and uptime monitors.
     Returns HTTP 200 with a small JSON payload; never raises an exception."""
-    _last_external_ping["ts"] = time.time()
     try:
         uptime_secs = int(time.time() - GLOBAL_DATA.get("uptime_start", time.time()))
         hours, rem  = divmod(uptime_secs, 3600)
@@ -3564,26 +3525,6 @@ def admin_delete_holding():
     _save_holdings(holdings)
     audit(request.remote_addr, "DELETE_HOLDING", "OK", f"sym={sym}")
     return redirect("/admin")
-
-
-@app.route("/admin/uptime_monitor_status")
-@_admin_required
-def admin_uptime_monitor_status():
-    """Reports when /health was last hit by an external monitor (e.g. UptimeRobot),
-    so the admin card can show a live green/red indicator instead of guessing."""
-    last = _last_external_ping.get("ts")
-    if last is None:
-        return jsonify({"ok": False, "seconds_ago": None, "last_ping": None,
-                        "note": "No external ping received yet since this server started."})
-    ago = round(time.time() - last)
-    # Healthy = pinged within the last 10 minutes (covers a typical 5-min UptimeRobot interval + buffer)
-    ok = ago <= 600
-    return jsonify({
-        "ok": ok, "seconds_ago": ago,
-        "last_ping": time.strftime("%Y-%m-%d %H:%M:%S PKT", time.gmtime(last + 5 * 3600)),
-        "note": "Healthy — external monitor is pinging on schedule." if ok
-                else f"⚠️ No ping in {ago}s — check your UptimeRobot monitor is active and pointed at /health.",
-    })
 
 
 @app.route("/admin/live_binance_holdings")
