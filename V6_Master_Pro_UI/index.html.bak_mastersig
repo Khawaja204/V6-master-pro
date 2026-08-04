@@ -297,9 +297,7 @@ body.simple-active .ms-sub { font-size:12px }
   • SNIPER — searched coin's V6 54-point score (Regime+Whale+RSI/MACD/Volume+SmartMoney+Risk-RR)<br>
   • SCANNER — Institutional Score (Whale Power+VMC+OFI) + folder tags + V6 Action badge<br>
   • SIGNAL — top-ranked coin's V6 54-point breakdown (5 categories)<br>
-  • WHALE COPY — Order-book Wall + OBI only, 2-scan-cycle confirmation, independent of V6<br>
-  • V6 BOT — dedicated ledger/history for the V6-score auto-trade bot only<br>
-  • COMBO BOT — fires ONLY when V6-BUY + Wall-COPY_BUY agree on the same coin at once (highest-confidence, most selective)<br><br>
+  • WHALE COPY — Order-book Wall + OBI only, 2-scan-cycle confirmation, independent of V6<br><br>
   <b style="color:#00ff88">VMC Folders</b> (basis: Price Chg% + Volume + RSI — no whale data)<br>
   • VIP = highest overall VMC score &nbsp; • GOLDEN = high score + RSI not overbought yet<br>
   • BOOM = 5%+ surge + volume spike &nbsp; • ENTRY = RSI oversold / near 24h low<br>
@@ -1237,17 +1235,6 @@ function updateMasterSignal(){
   const d=window._lastDD||{};
   const wc=window._lastWC||{};
   const sigs=d.inst_signals||[];
-  if(!sigs.length){
-    const box=document.getElementById('master-signal');
-    const icon=document.getElementById('ms-icon');
-    const lbl=document.getElementById('ms-label');
-    const sub=document.getElementById('ms-sub');
-    if(box) box.className='WAIT';
-    if(icon) icon.textContent='⏳';
-    if(lbl) lbl.textContent='SCANNING…';
-    if(sub) sub.textContent=(d.status==='live')?'No ranked signals this cycle — market is quiet right now':'First scan in progress, please wait…';
-    return;
-  }
   const top=sigs[0]||{};
   const v6=top.v6||{};
   const label=(v6.label||'WAIT').toUpperCase();
