@@ -5,6 +5,31 @@
 
 ---
 
+## [2026-08-05] TASK — Binance 451 Geo-Block Handling + Render Keep-Alive
+
+**Triggered by:** Two production issues — Binance blocking Render's server IP with HTTP 451 (geo-restriction) causing error spam, and Render free-tier spinning the app down after 15 min of inactivity.
+
+**Files changed:** `logic.py`, `v6_websocket.py`, `main.py`
+
+**Fix 1 — Binance 451 Geo-Block (`logic.py`, `v6_websocket.py`):**
+- Removed 451 from `_RETRYABLE_STATUS` — retrying other Binance hosts on a 451 is pointless (all return the same geo-block response from the same server IP)
+- Added `_GEO_BLOCK` state dict in `logic.py` (active, detected_at, cooldown_secs=1800)
+- `_binance_get()` now: checks cooldown at top → if active and not expired, returns None silently; on first 451 hit, logs ONE clear `[ERROR]` message + sets 30-min cooldown + returns None immediately without trying other hosts; after 30 min, auto-retries
+- `v6_websocket.py` `_run()`: added exponential backoff (5s → 300s cap) for 451/geo errors; added port-443 fallback URL `wss://stream.binance.com:443/...`; rotates between URLs on geo-block errors
+- `_on_error()`: now distinguishes 451/Restricted errors from other WebSocket errors
+
+**Fix 2 — Render Keep-Alive (`main.py`):**
+- Added `self_ping_loop()` function: pings own `/health` endpoint every 4 minutes
+- Uses `RENDER_EXTERNAL_URL` (auto-set by Render) so the request goes through Render's public load balancer — a localhost ping wouldn't count as activity
+- Falls back to `REPLIT_DOMAINS` URL, then `http://127.0.0.1:{PORT}` for local dev
+- Logs at `debug` level (no noise in production logs)
+- Thread started with `daemon=True` alongside other background threads
+
+**Syntax verification:** All three files — OK ✅
+**Runtime verification:** App started cleanly, Binance + WebSocket connected, 303 pairs active ✅
+
+---
+
 ## [2026-08-05] TASK — Architecture Review → Targeted Fixes
 
 **Triggered by:** Full read-only architecture review across 5 parallel subagents, followed by targeted fixes on all actionable findings (excluding short-position warnings — SPOT-only project).

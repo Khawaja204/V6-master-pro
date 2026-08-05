@@ -335,7 +335,9 @@ def _build_session() -> requests.Session:
 
 
 _SESSION = _build_session()
-_RETRYABLE_STATUS = {429, 451, 500, 502, 503, 504}
+# 451 is handled separately — all Binance hosts return the same 451 so retrying
+# other hosts is pointless. We detect it once, back off, then let it expire.
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 _health_lock = threading.Lock()
 _monitor_started = False
@@ -344,6 +346,16 @@ _BINANCE_HEALTH = {
     "last_ok":     None,
     "last_error":  "",
     "active_host": BINANCE_HOSTS[0],
+}
+
+# ── Geo-block state (HTTP 451 Restricted Location) ────────────────────────────
+# When Binance returns 451 (server IP geo-blocked), we stop hammering all hosts
+# and pause REST requests for `cooldown_secs`. After the cooldown we try once
+# more automatically — no manual restart needed.
+_GEO_BLOCK: dict = {
+    "active":        False,
+    "detected_at":   0.0,
+    "cooldown_secs": 1800,  # 30 minutes before retry
 }
 
 
@@ -370,15 +382,27 @@ def _binance_get(path: str, params: dict = None, timeout: int = 10):
     • Switching to a new host: jitter sleep of 0.5–2 s between consecutive requests.
     • HTTP 429 on a host: up to 3 retries with 2^attempt * uniform(1,3) s backoff
       before giving up on that host and moving to the next.
+    • HTTP 451 (Restricted Location / geo-block): ALL Binance hosts resolve to the
+      same geo-blocked response — retrying other hosts is pointless. We log ONCE,
+      set a 30-minute cooldown, and return None silently on subsequent calls until
+      the cooldown expires (then we try once more automatically).
     NOTE: intentionally NOT using TELEGRAM_PROXY here — that variable is
     scoped to Telegram API calls only. Routing Binance traffic through a
     Telegram proxy (often a slow/free/dead SOCKS5) breaks market data
     entirely, which is what happened when TELEGRAM_PROXY was first set."""
+    # ── Geo-block cooldown check ───────────────────────────────────────────────
+    if _GEO_BLOCK["active"]:
+        elapsed = time.time() - _GEO_BLOCK["detected_at"]
+        if elapsed < _GEO_BLOCK["cooldown_secs"]:
+            return None  # silently skip — logged when 451 was first seen
+        # Cooldown expired — clear flag and try once more
+        _GEO_BLOCK["active"] = False
+        log.info("[BINANCE] Geo-block cooldown expired — retrying connectivity…")
+
     last_err = ""
     for hi, host in enumerate(BINANCE_HOSTS):
         if hi > 0:
-            # polite jitter between host switches
-            time.sleep(random.uniform(0.5, 2.0))
+            time.sleep(random.uniform(0.5, 2.0))  # polite jitter between host switches
         for attempt in range(3):
             try:
                 resp = _SESSION.get(host + path, params=params, timeout=timeout)
@@ -386,6 +410,19 @@ def _binance_get(path: str, params: dict = None, timeout: int = 10):
                 last_err = f"{type(e).__name__}: {e}"
                 log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
                 break  # network error → skip remaining attempts on this host
+            if resp.status_code == 451:
+                # Geo-restriction: all Binance hosts return the same 451 from
+                # a blocked IP. Log once, set cooldown, bail out immediately.
+                _GEO_BLOCK["active"]      = True
+                _GEO_BLOCK["detected_at"] = time.time()
+                _mark_health(False, error="HTTP 451 Restricted Location — IP geo-blocked by Binance")
+                log.error(
+                    "[BINANCE] HTTP 451 Restricted Location — this server's IP is "
+                    "blocked by Binance. Pausing REST requests for "
+                    f"{_GEO_BLOCK['cooldown_secs'] // 60} min. "
+                    "Will retry automatically after cooldown."
+                )
+                return None  # no point trying other hosts — they all return 451
             if resp.status_code == 429:
                 wait = (2 ** attempt) * random.uniform(1, 3)
                 log.warning(

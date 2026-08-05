@@ -49,7 +49,13 @@ def _on_message(ws, message):
         log.debug(f"[WS] message parse error: {e}")
 
 def _on_error(ws, error):
-    log.warning(f"[WS] error: {error}")
+    err_str = str(error)
+    if "451" in err_str or "Restricted" in err_str or "legal" in err_str.lower():
+        # 451 = Binance blocking this server's IP (geo-restriction).
+        # The backoff in _run handles pacing; just log clearly here.
+        log.warning("[WS] 451 Restricted Location — server IP is geo-blocked by Binance WebSocket.")
+    else:
+        log.warning(f"[WS] error: {error}")
 
 def _on_close(ws, close_status_code, close_msg):
     log.info(f"[WS] closed ({close_status_code})")
@@ -68,8 +74,20 @@ def start_websocket_feed():
     _ws_stop.clear()
 
     def _run():
-        url = "wss://stream.binance.com:9443/ws/!ticker@arr"
+        # Two URLs: port 9443 primary, port 443 fallback (same stream, different port).
+        # Some firewalls/proxies block 9443 but allow 443.
+        _WS_URLS = [
+            "wss://stream.binance.com:9443/ws/!ticker@arr",
+            "wss://stream.binance.com:443/ws/!ticker@arr",
+        ]
+        _url_idx       = 0
+        _reconnect_delay = 5        # seconds before next reconnect attempt
+        _WS_MAX_BACKOFF  = 300      # cap at 5 minutes (for geo-block scenarios)
+        _WS_NORM_BACKOFF = 60       # cap at 1 minute for ordinary errors
+
         while not _ws_stop.is_set():
+            url = _WS_URLS[_url_idx % len(_WS_URLS)]
+            geo_blocked = False
             try:
                 ws = websocket.WebSocketApp(
                     url,
@@ -79,11 +97,32 @@ def start_websocket_feed():
                     on_close=_on_close,
                 )
                 ws.run_forever(ping_interval=20, ping_timeout=10)
+                # Clean close — reset backoff, rotate to next URL for variety
+                _reconnect_delay = 5
+                _url_idx += 1
             except Exception as e:
-                log.warning(f"[WS] connection error: {e}")
+                err_str = str(e)
+                if "451" in err_str or "Restricted" in err_str or "legal" in err_str.lower():
+                    geo_blocked = True
+                    log.warning(
+                        f"[WS] HTTP 451 Restricted Location — server IP geo-blocked by "
+                        f"Binance WebSocket. Next attempt in {_reconnect_delay}s."
+                    )
+                    _url_idx += 1  # try the alternate URL/port next
+                else:
+                    log.warning(f"[WS] connection error: {e}")
+
             if not _ws_stop.is_set():
-                log.info("[WS] reconnecting in 5s...")
-                time.sleep(5)
+                log.info(f"[WS] reconnecting in {_reconnect_delay}s…")
+                time.sleep(_reconnect_delay)
+                # Progressive backoff: geo-block backs off hard (up to 5 min),
+                # ordinary errors back off gently (up to 1 min then reset)
+                if geo_blocked:
+                    _reconnect_delay = min(_reconnect_delay * 2, _WS_MAX_BACKOFF)
+                else:
+                    next_delay = min(_reconnect_delay * 2, _WS_NORM_BACKOFF)
+                    _reconnect_delay = next_delay if next_delay < _WS_NORM_BACKOFF else 5
+
         log.info("[WS] thread stopped")
 
     _ws_thread = threading.Thread(target=_run, daemon=True, name="v6-ws-feed")

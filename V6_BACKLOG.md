@@ -13,6 +13,11 @@
 
 ## Completed Tasks
 
+### ✅ [2026-08-05] Binance 451 Geo-Block Handling + Render Keep-Alive
+- **451 fix**: `logic.py` — `_GEO_BLOCK` cooldown state; `_binance_get` detects 451 once, logs clear error, backs off 30 min, auto-retries after cooldown. Removed 451 from `_RETRYABLE_STATUS`.
+- **WebSocket fix**: `v6_websocket.py` — exponential backoff (5s→300s) on geo-block errors; port-443 fallback URL; `_on_error` distinguishes 451 from other errors.
+- **Keep-alive**: `main.py` — `self_ping_loop` pings own `/health` every 4 min via `RENDER_EXTERNAL_URL` (keeps Render from spinning down; localhost fallback for dev).
+
 ### ✅ [2026-08-05] Architecture Review + Targeted Fixes
 - Full 5-subagent read-only review: bot logic, thread safety, error handling, security, dead code
 - Cross-checked all 22 findings against evolved codebase — most Criticals already resolved

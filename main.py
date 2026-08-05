@@ -4655,6 +4655,31 @@ def admin_debug_etherscan():
         return jsonify({"key_present": True, "error": str(e)})
 
 
+def self_ping_loop():
+    """Pings our own /health endpoint every 4 minutes to prevent Render free-tier
+    spin-down.  Render spins services down after ~15 min of inactivity; we stay
+    comfortably inside that window.  Uses RENDER_EXTERNAL_URL (set automatically
+    by Render) so the request goes through the public load balancer — a localhost
+    ping would not count as inbound traffic for Render's activity tracker."""
+    time.sleep(60)   # let Flask finish binding before first ping
+    import requests as _rq
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    replit_url = (
+        f"https://{os.getenv('REPLIT_DOMAINS','').split(',')[0].strip()}"
+        if os.getenv("REPLIT_DOMAINS") else ""
+    )
+    base = render_url or replit_url or f"http://127.0.0.1:{PORT}"
+    url  = f"{base.rstrip('/')}/health"
+    log.info(f"[KEEP-ALIVE] self-ping loop → {url} every 4 min")
+    while True:
+        try:
+            resp = _rq.get(url, timeout=10)
+            log.debug(f"[KEEP-ALIVE] ✓ HTTP {resp.status_code}")
+        except Exception as e:
+            log.debug(f"[KEEP-ALIVE] ping failed ({e}) — app still running locally")
+        time.sleep(240)   # 4 minutes — well inside Render's 15-min inactivity window
+
+
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
     _log_uptime_event("STARTUP", note=f"port={PORT}", source_ip="local")
@@ -4686,6 +4711,7 @@ if __name__ == "__main__":
     threading.Thread(target=holdings_check_loop,   daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()
+    threading.Thread(target=self_ping_loop,       daemon=True).start()
     
     # ── V6 UPGRADE: WebSocket + OCO + Partial TP + Multi-Timeframe ──
     if _V6_WS:
