@@ -2,6 +2,7 @@
 
 > Rule: Update → Review → Fix → Finalize. Never skip the review step.
 > Note: Render deployment is COMPLETE on free tier. Do NOT suggest paid Render deployment tasks.
+> Note: SPOT trading only. Never suggest short-position fixes.
 
 ---
 
@@ -12,65 +13,62 @@
 
 ## Completed Tasks
 
+### ✅ [2026-08-05] Architecture Review + Targeted Fixes
+- Full 5-subagent read-only review: bot logic, thread safety, error handling, security, dead code
+- Cross-checked all 22 findings against evolved codebase — most Criticals already resolved
+- **Applied fixes:**
+  - Removed duplicate `[V6 WS]` and `[V6 MTF]` log.info lines at startup (I-6)
+  - Added `log.debug/warning` to 7 silent `except: pass` blocks at startup (M-3)
+- **Confirmed already resolved:** `_whale_copy_state_lock`, `_ledger_lock`, client password hashing, CSRF tokens, admin password random token, persist_window, X-API-Key header
+- **Verified:** syntax clean, app running at Scan #3+ ✅
+
 ### ✅ [2026-07-31] Shell Aliases Auto-Load Fix
-- Added `aj` (agent journal → AGENT_CHAT_LOG.md), `chat-log` (alias for `aj`), `backlog` (V6_BACKLOG.md) to `v6-cmd.sh`
-- All 4 aliases now auto-load on every new shell: `aj`, `chat-log`, `backlog`, `sp`
-- Auto-load chain: Replit Nix bashrc → `$REPL_HOME/.config/bashrc` → `.bash_aliases` → `v6-cmd.sh`
-- No manual `source` needed — verified with `bash -i -c "..."` tests
-- **Verified:** all 4 aliases confirmed working ✅
+- `aj`, `chat-log`, `backlog`, `sp` auto-load on every new shell via `.config/bashrc` hook
 
 ### ✅ [2026-07-31] Render.com Free-Tier Deployment — LIVE
-- App deployed successfully by user via shell commands
-- Free-tier Render deployment confirmed working
-- All deployment files (`render.yaml`, `Procfile`, `.renderignore`, `ENV_CHECKLIST.md`) served their purpose
-- **Status: PRODUCTION LIVE** — no further Render deployment tasks needed
+- App deployed successfully by user via shell commands. Free-tier confirmed working.
 
 ### ✅ [2026-07-29] Code Review Workflow Established
-- Update → Review → Fix → Finalize rule adopted
-- `V6_BACKLOG.md` and `AGENT_CHAT_LOG.md` created and maintained
-- gunicorn installed (v26.0.0); requirements.txt trimmed of 5 unused packages
+- Update → Review → Fix → Finalize rule adopted permanently
+- `V6_BACKLOG.md` + `AGENT_CHAT_LOG.md` maintained after every session
 
 ### ✅ [2026-07-29] Backend Robustness (logic.py)
-- `import random` added
-- `_binance_get`: 429 exponential backoff (3 retries, `2^n × uniform(1,3)` s) + host-switch jitter
-- 4× bare `requests.get` → `_SESSION.get` (10 s timeout)
-- **Verified:** syntax clean, app running stable ✅
+- `_binance_get`: 429 exponential backoff + host-switch jitter
+- 4× bare `requests.get` → `_SESSION.get`
 
 ### ✅ [2026-07-29] /health Endpoint (main.py)
-- `GET /health` → `{"status":"live","timestamp":"PKT","cycle_count":...,"uptime":"..."}`
-- Always returns HTTP 200 (Render health check compatible)
-- **Verified:** curl confirmed ✅
+- `GET /health` → PKT timestamp, cycle_count, uptime, paper_mode — HTTP 200 always ✅
 
-### ✅ [2026-07-29] Render Deployment Files Created
+### ✅ [2026-07-29] Render Deployment Files
 - `render.yaml`, `Procfile`, `.renderignore`, `ENV_CHECKLIST.md`, `requirements.txt`
-- **Deployed to Render free tier successfully by user** ✅
 
-### ✅ [2026-07-28] Shell Command System (v6-cmd.sh)
-- Commands: `deploy`, `stop`, `restart`, `status`, `logs`, `save`, `push`, `full`
-- Auto-load via `.config/bashrc` hook confirmed working
+### ✅ [2026-07-28] Shell Command System
+- `v6-cmd.sh`: deploy, stop, restart, status, logs, save, push, full, aj, chat-log, backlog
 
 ### ✅ [2026-07-28] saveproj.sh Bug Fixes
-- Fixed `-size -1M` → `-size -1000k` (GNU find rounding bug)
-- Fixed `file` binary check → MIME-type based (was excluding all .py/.sh files)
-- **Verified:** 41 files / 648K output ✅
+- `-size -1M` → `-size -1000k`; MIME-type binary check; exclusion paths added
 
 ### ✅ [2026-07-28] Git Clean Backup
-- Committed: `[main a073a38] V6 clean backup 2026-07-28`
-- Deleted project.txt/project.zip blobs (81k lines removed)
+- `[main a073a38]` — deleted project.txt/project.zip blobs (81k lines removed)
 
 ---
 
 ## Pending / Known Issues
 
 ### ⏳ Repo Size (~490 MB)
-- Almost entirely old git history blobs — no individual file violation
-- `git gc --aggressive --prune=now` or `git filter-repo` can shrink it if needed
+- Old git history blobs; `git gc --aggressive --prune=now` or `git filter-repo` can shrink it
 - Low priority — GitHub push is already working
 
+### ⏳ `scoring_engine.py` Stub
+- `calculate_54_point_score()` returns literal `0`; not called anywhere (call removed in logic.py)
+- Safe to leave as placeholder; replace only if a new scoring engine is needed
+
+### ⏳ `detect_combo_signals()` Not Wired
+- Fully implemented in logic.py but no `combo_check_loop` calls it
+- Combo Bot produces no trades — user decision whether to activate
+
 ### 🐛 EURUSDT Whale Copy Trade
-- Trade `WC-1785263888-EURU` has `target == entry_price == 1.14`
-- Will time out at 12h; cannot hit target naturally
-- Low priority — affects one stale trade only
+- `WC-1785263888-EURU`: target == entry_price == 1.14; will time out at 12h. Low priority.
 
 ### ⏳ BOT_TOKEN Validity
 - Telegram alerts may be offline (HTTP 404 = invalid/revoked token)
@@ -80,13 +78,7 @@
 
 ## Ideas / Future Work
 
-- [ ] Rate-limit `/health` endpoint (currently public, no throttle)
-- [ ] Add `/metrics` endpoint (Prometheus-style for uptime monitors)
+- [ ] Wire `detect_combo_signals()` → `combo_check_loop` to activate Combo Bot
+- [ ] Wire `detect_rsi_divergence()` into scan loop (currently only used at scoring layer)
+- [ ] Rate-limit `/health` endpoint (currently public)
 - [ ] Paper trade win-rate chart on dashboard
-
-## DEPLOYMENT NOTE | 2026-07-31
-- Render free-tier deployment: LIVE ✅
-- GitHub repo: Khawaja204/V6-master-pro
-- Git history cleaned: 490MB → <50MB
-- Status: Auto-deploy pipeline working
-- Note: Free-tier sleeps after 15min inactivity (cold starts)

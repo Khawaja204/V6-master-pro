@@ -1806,7 +1806,6 @@ def match_whale_pattern(obi: float, whale_power: float, trend: str,
 
 
 _whale_copy_state: dict = {}
-_whale_copy_state_lock = threading.Lock()
 
 DEFAULT_STABLECOIN_BASES = ["USDC","USDT","BUSD","DAI","TUSD","USDP","FDUSD","PYUSD",
                             "GUSD","USDD","EURT","EURI","USD1","RLUSD","USDE",
@@ -1988,11 +1987,10 @@ def detect_whale_copy_signals(whale_data: list, config: dict, market_regime: str
         # otherwise a confirmation from hours ago could combine with a fresh
         # scan to falsely satisfy the confirmation requirement.
         persist_window = wc_cfg.get("persistence_window_seconds", 120)
-        with _whale_copy_state_lock:
-            prev = _whale_copy_state.get(sym)
-            stale = bool(prev) and (now - prev.get("last_seen", 0) > persist_window)
-            count = (prev["count"] + 1) if (prev and prev["direction"] == direction and not stale) else 1
-            _whale_copy_state[sym] = {"direction": direction, "count": count, "last_seen": now}
+        prev = _whale_copy_state.get(sym)
+        stale = bool(prev) and (now - prev.get("last_seen", 0) > persist_window)
+        count = (prev["count"] + 1) if (prev and prev["direction"] == direction and not stale) else 1
+        _whale_copy_state[sym] = {"direction": direction, "count": count, "last_seen": now}
         required_confirms = 2   # 2-scan-cycle confirmation (was 3 — too strict, signals rarely persisted long enough)
         confirmed = count >= required_confirms
 

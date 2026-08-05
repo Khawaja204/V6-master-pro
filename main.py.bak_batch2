@@ -18,7 +18,7 @@ from logic import (
     compute_institutional_score, compute_tp_levels, compute_position_size,
     compute_whale_power, calculate_atr, fetch_order_book, calculate_obi,
     detect_obi_spike, compute_confidence_score, fetch_ticker_price,
-    compute_vwap, fetch_klines,
+    detect_market_regime, compute_vwap, detect_rsi_divergence, fetch_klines,
     fetch_macd_for_symbol, compute_v6_final_score,
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
     detect_whale_copy_signals, is_stablecoin_pair,
@@ -205,8 +205,8 @@ else:
         with open(_LD_FILE) as _f:
             _ld_saved = json.load(_f)
             _DEFAULT_LD.update(_ld_saved)
-    except Exception as e:
-        log.debug(f"[INIT] learning_data.json not found or invalid — using defaults ({e})")
+    except Exception:
+        pass
 GLOBAL_DATA["learning_data"] = _DEFAULT_LD
 
 # ── API Keys (masked storage) ──────────────────────────────────────────────────
@@ -313,10 +313,9 @@ def _execute_paper_trade(symbol: str, side: str, amount_usdt: float,
         "status":      "FILLED (SIMULATED)",
         "time":        _pkt_ts(),
     }
-    with _ledger_lock:
-        PAPER_TRADES.insert(0, rec)
-        if len(PAPER_TRADES) > 500:
-            PAPER_TRADES.pop()
+    PAPER_TRADES.insert(0, rec)
+    if len(PAPER_TRADES) > 500:
+        PAPER_TRADES.pop()
     _save_paper_trades()
     log.info(f"[PAPER TRADE] {side} {amount_usdt} USDT of {symbol} @ {price} ({strategy})")
     return {"ok": True, "trade": rec}
@@ -455,8 +454,8 @@ if not PAPER_TRADES:
     try:
         with open(_TRADES_FILE) as _ptf:
             PAPER_TRADES = json.load(_ptf)
-    except Exception as e:
-        log.debug(f"[INIT] paper_trades.json not found or invalid — starting empty ({e})")
+    except Exception:
+        pass
 _WC_TRADES_FILE = "whale_copy_trades.json"
 WHALE_COPY_TRADES: list = []
 if _V6_UPGRADE:
@@ -468,8 +467,8 @@ if not WHALE_COPY_TRADES:
     try:
         with open(_WC_TRADES_FILE) as _wcf:
             WHALE_COPY_TRADES = json.load(_wcf)
-    except Exception as e:
-        log.debug(f"[INIT] whale_copy_trades.json not found or invalid — starting empty ({e})")
+    except Exception:
+        pass
 
 # ── COMBO BOT: third independent ledger (V6 BUY + Wall COPY_BUY confluence) ──
 _COMBO_TRADES_FILE = "combo_trades.json"
@@ -477,8 +476,8 @@ COMBO_TRADES: list = []
 try:
     with open(_COMBO_TRADES_FILE) as _cbf:
         COMBO_TRADES = json.load(_cbf)
-except Exception as e:
-    log.debug(f"[INIT] combo_trades.json not found or invalid — starting empty ({e})")
+except Exception:
+    pass
 
 def _save_combo_trades():
     try:
@@ -509,8 +508,7 @@ if not _loaded_bt:
     try:
         with open(_BACKTEST_FILE) as _bsf:
             _loaded_bt = json.load(_bsf)
-    except Exception as e:
-        log.debug(f"[INIT] backtest_signals.json not found or invalid — starting empty ({e})")
+    except Exception:
         _loaded_bt = []
 try:
     # Only restore non-closed signals younger than 6h; closed ones persist for display
@@ -519,8 +517,8 @@ try:
         s for s in _loaded_bt
         if s.get("status") == "CLOSED" or (_now_bt - s.get("entry_ts", 0)) < 21600
     ][:100]
-except Exception as e:
-    log.warning(f"[INIT] Failed to filter backtest signals on load — starting empty ({e})")
+except Exception:
+    pass
 
 
 def _save_backtest_signals():
@@ -550,7 +548,6 @@ _today_coin_counts = defaultdict(int)    # symbol → count today
 
 # ── Daily Circuit-Breaker state (resets at UTC midnight) ───────────────────────
 _daily_lock  = threading.Lock()
-_ledger_lock = threading.Lock()   # guards PAPER_TRADES/WHALE_COPY_TRADES/COMBO_TRADES/BACKTEST_SIGNALS dedup+insert
 _BOT_NAMES   = ("v6", "wall", "combo")
 
 
@@ -748,10 +745,9 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         return None
 
     now = time.time()
-    with _ledger_lock:
-        if now - _bt_dedup.get(symbol, 0) < 1800:
-            return None
-        _bt_dedup[symbol] = now
+    if now - _bt_dedup.get(symbol, 0) < 1800:
+        return None
+    _bt_dedup[symbol] = now
 
     sl = tp_zones.get("stop_loss", 0)
     entry = {
@@ -780,11 +776,10 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         "result":      None,   # WIN / LOSS / TIMEOUT
         "pnl_pct":     None,
     }
-    with _ledger_lock:
-        BACKTEST_SIGNALS.insert(0, entry)
-        if len(BACKTEST_SIGNALS) > 100:
-            BACKTEST_SIGNALS = BACKTEST_SIGNALS[:100]
-        GLOBAL_DATA["backtest"] = BACKTEST_SIGNALS
+    BACKTEST_SIGNALS.insert(0, entry)
+    if len(BACKTEST_SIGNALS) > 100:
+        BACKTEST_SIGNALS = BACKTEST_SIGNALS[:100]
+    GLOBAL_DATA["backtest"] = BACKTEST_SIGNALS
     return entry
 
 
@@ -824,8 +819,7 @@ def _record_whale_copy_trade(sig: dict):
     # symbol that already has one.
     if any(t.get("symbol") == sym and t.get("status") == "OPEN" for t in WHALE_COPY_TRADES):
         return None
-    with _ledger_lock:
-        _wc_dedup[sym] = now
+    _wc_dedup[sym] = now
     _long_liq  = sig.get("long_liq_usdt", 0)
     _short_liq = sig.get("short_liq_usdt", 0)
     if _short_liq >= _long_liq and _short_liq > 0:
@@ -861,10 +855,9 @@ def _record_whale_copy_trade(sig: dict):
         "result":         None,
         "pnl_pct":        None,
     }
-    with _ledger_lock:
-        WHALE_COPY_TRADES.insert(0, entry)
-        if len(WHALE_COPY_TRADES) > 500:
-            WHALE_COPY_TRADES.pop()
+    WHALE_COPY_TRADES.insert(0, entry)
+    if len(WHALE_COPY_TRADES) > 500:
+        WHALE_COPY_TRADES.pop()
     _save_whale_copy_trades()
     log.info(f"[WHALE COPY] {sig['direction']} {sym} @ {sig['wall_price']} (conf {sig['confidence']}%)")
     if sig["direction"] == "COPY_BUY":
@@ -892,8 +885,8 @@ _DEFAULT_WC_LEARNING = {
 try:
     with open(_WC_LEARNING_FILE) as _wcf2:
         _DEFAULT_WC_LEARNING.update(json.load(_wcf2))
-except Exception as e:
-    log.debug(f"[INIT] whale_copy_learning.json not found or invalid — using defaults ({e})")
+except Exception:
+    pass
 GLOBAL_DATA["whale_copy_learning"] = _DEFAULT_WC_LEARNING
 
 
@@ -2034,18 +2027,15 @@ def heartbeat_loop():
                                # spamming every single cycle with no real signal
     while True:
         time.sleep(interval)
-        try:
-            secs = int(time.time() - GLOBAL_DATA["uptime_start"])
-            h, r = divmod(secs, 3600); m, s = divmod(r, 60)
-            ts   = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
-            GLOBAL_DATA["heartbeat"] = ts
-            log.info(f"[HEARTBEAT] Uptime:{h}h{m}m | Cycles:{GLOBAL_DATA['cycle_count']} | WinRate:{GLOBAL_DATA['win_rate']}%")
-            _heartbeat_iter += 1
-            # NOTE: Heartbeat Telegram ping intentionally disabled — pure noise,
-            # no actionable content. Status still visible live on /admin.
-            audit("SYSTEM", "HEARTBEAT", "OK", f"uptime={h}h{m}m wins={_total_wins} losses={_total_losses}")
-        except Exception as e:
-            log.warning(f"Heartbeat loop error (thread stays alive): {e}")
+        secs = int(time.time() - GLOBAL_DATA["uptime_start"])
+        h, r = divmod(secs, 3600); m, s = divmod(r, 60)
+        ts   = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
+        GLOBAL_DATA["heartbeat"] = ts
+        log.info(f"[HEARTBEAT] Uptime:{h}h{m}m | Cycles:{GLOBAL_DATA['cycle_count']} | WinRate:{GLOBAL_DATA['win_rate']}%")
+        _heartbeat_iter += 1
+        # NOTE: Heartbeat Telegram ping intentionally disabled — pure noise,
+        # no actionable content. Status still visible live on /admin.
+        audit("SYSTEM", "HEARTBEAT", "OK", f"uptime={h}h{m}m wins={_total_wins} losses={_total_losses}")
 
 
 def btc_monitor_loop():
@@ -2212,28 +2202,6 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 
-# ── CSRF Protection for the admin portal ────────────────────────────────────
-def _get_csrf_token() -> str:
-    """Returns the current session's CSRF token, generating one if absent."""
-    if "csrf_token" not in session:
-        session["csrf_token"] = _secrets.token_urlsafe(32)
-    return session["csrf_token"]
-
-
-@app.before_request
-def _csrf_protect():
-    """Rejects any /admin/* POST that doesn't carry a valid, session-matching
-    CSRF token — blocks a malicious page from silently triggering admin
-    actions (kill switch, real-mode toggle, fund changes, etc.) while an
-    admin session happens to be active in the browser."""
-    if request.method == "POST" and request.path.startswith("/admin/") and request.path != "/admin/login":
-        token = request.form.get("csrf_token", "")
-        session_token = session.get("csrf_token", "")
-        if not session_token or not hmac.compare_digest(token, session_token):
-            audit(request.remote_addr, "CSRF_BLOCKED", "REJECTED", f"path={request.path}")
-            return "<script>alert('Session expired or invalid request — please reload the admin page and try again.');window.location=\'/admin\'</script>", 403
-
-
 @app.route("/")
 def index():
     # New finalized UI is the default. Legacy dashboard preserved at /legacy.
@@ -2360,7 +2328,7 @@ button{width:100%;padding:12px;background:#1f6feb;color:#fff;border:none;border-
 {% if locked %}<p class="err">⛔ Too many failed attempts. Try later.</p>{% endif %}
 {% if timeout %}<p class="err">⏰ Session expired.</p>{% endif %}
 {% if error %}<p class="err">❌ Invalid password.</p>{% endif %}
-<form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="password" name="password" placeholder="Master Password" autofocus/>
+<form method="POST"><input type="password" name="password" placeholder="Master Password" autofocus/>
 <button type="submit">LOGIN</button></form>
 <p class="warn">3 failed attempts = 30-minute lockout</p></div></body></html>"""
 
@@ -2545,14 +2513,14 @@ setInterval(refreshBotCmp, 15000);
 <div class="trade-grid">
 <div>
 <p style="color:#8b949e;font-size:11px;margin-bottom:8px">Account Balance (for position sizing)</p>
-<form method="POST" action="/admin/set_balance"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<form method="POST" action="/admin/set_balance"><div class="form-row">
 <input type="number" name="balance" value="{{ balance }}" placeholder="Balance (USDT)" style="width:180px"/>
 <button type="submit" class="btn btn-blue">Update</button></div>
 <small style="color:#555">GREEN: {{ green_pct }}% | YELLOW: {{ yellow_pct }}% | RED: 0%</small></form>
 </div>
 <div>
 <p style="color:#FF6B35;font-size:11px;margin-bottom:8px">🛡️ Bot Safety — Max Fund Per Trade</p>
-<form method="POST" action="/admin/set_fund_limit"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<form method="POST" action="/admin/set_fund_limit"><div class="form-row">
 <input type="number" name="fund_limit" value="{{ fund_limit }}" placeholder="e.g. 10" step="0.01" min="1" style="width:130px"/>
 <span style="color:#555;font-size:11px">USDT max / trade</span>
 <button type="submit" class="btn btn-orange">Set Limit</button></div>
@@ -2571,7 +2539,7 @@ setInterval(refreshBotCmp, 15000);
 </div>
 <div id="bot-cmp-forms" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
 {% for b in ['v6','wall','combo'] %}
-<form method="POST" action="/admin/set_bot_config" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/set_bot_config" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:10px">
 <input type="hidden" name="bot" value="{{ b }}"/>
 <div style="color:#FFD700;font-weight:bold;font-size:12px;margin-bottom:6px">{{ b.upper() }} BOT</div>
 <label style="color:#8b949e;font-size:10px">Mode</label>
@@ -2630,7 +2598,7 @@ function loadWeeklyBreaker(){
         ? `<span style="color:#FF4500;font-weight:bold">🛑 TRIPPED</span> <span style="font-size:9px;color:#555">(${s.tripped_at})</span><br><span style="font-size:9px;color:#8b949e">${s.reason}</span>`
         : '<span style="color:#3fb950">✅ OK</span>';
       const resetBtn = s.tripped
-        ? `<form method="POST" action="/admin/reset_weekly_breaker" style="display:inline" onsubmit="return confirm('Reset weekly breaker for ${b.toUpperCase()}?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        ? `<form method="POST" action="/admin/reset_weekly_breaker" style="display:inline" onsubmit="return confirm('Reset weekly breaker for ${b.toUpperCase()}?')">
              <input type="hidden" name="bot" value="${b}"/>
              <button type="submit" class="btn btn-orange" style="padding:3px 10px;font-size:10px">Reset</button>
            </form>`
@@ -2650,13 +2618,13 @@ setInterval(loadWeeklyBreaker, 30000);
 <!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
 <p style="color:#8b949e;font-size:11px;margin-bottom:10px">All market data, order books, and REAL-mode order execution currently run on Binance only. Other exchanges are not wired up yet.</p>
-<form method="POST" action="/admin/set_exchange"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<form method="POST" action="/admin/set_exchange"><div class="form-row">
 <select name="exchange">{% for ex in exchanges %}<option value="{{ ex }}" {{ 'selected' if ex == exchange else '' }}>{{ ex }}</option>{% endfor %}</select>
 <button type="submit" class="btn btn-blue">Switch</button></div></form></div>
 
 <!-- ══ PRICE ALERTS ══ -->
 <div class="card"><h3>🎯 PRICE ALERTS ({{ price_alerts|length }} active)</h3>
-<form method="POST" action="/admin/set_price_alert"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<form method="POST" action="/admin/set_price_alert"><div class="form-row">
 <input type="text" name="symbol" placeholder="BTCUSDT" style="width:110px" required/>
 <input type="number" name="target_price" step="any" placeholder="Target Price" style="width:130px" required/>
 <select name="direction" style="width:90px"><option value="ABOVE">ABOVE ↑</option><option value="BELOW">BELOW ↓</option></select>
@@ -2670,7 +2638,7 @@ setInterval(loadWeeklyBreaker, 30000);
 <td><span style="color:{{ '#3fb950' if a.direction=='ABOVE' else '#FF4500' }}">{{ a.direction }}</span></td>
 <td style="color:#555;font-size:10px">{{ a.note or '—' }}</td>
 <td style="color:#444;font-size:10px">{{ a.created_at }}</td>
-<td><form method="POST" action="/admin/delete_price_alert" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<td><form method="POST" action="/admin/delete_price_alert" style="display:inline">
 <input type="hidden" name="alert_id" value="{{ a.id }}"/>
 <button type="submit" class="btn btn-red" style="padding:2px 8px">✕</button></form></td>
 </tr>{% endfor %}</tbody></table>
@@ -2687,14 +2655,14 @@ setInterval(loadWeeklyBreaker, 30000);
 <summary style="cursor:pointer;color:{{ '#3fb950' if ex in saved_keys else '#8b949e' }};font-weight:bold;font-size:12px">
 {{ '✅' if ex in saved_keys else '⬜' }} {{ ex }}{{ ' — Configured' if ex in saved_keys else ' — Not set' }}
 </summary>
-<form method="POST" action="/admin/set_api_key" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/set_api_key" style="margin-top:8px">
 <input type="hidden" name="exchange" value="{{ ex }}"/>
 <div class="form-row">
 <input type="text" name="api_key" placeholder="API Key" style="flex:1"/>
 <input type="password" name="secret_key" placeholder="Secret Key" style="flex:1"/>
 {% if ex == 'OKX' %}<input type="password" name="passphrase" placeholder="Passphrase" style="width:130px"/>{% endif %}
 <button type="submit" class="btn btn-blue">Save</button>
-<form method="POST" action="/admin/test_connection" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="exchange" value="{{ ex }}"/><button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d">Test ⚡</button></form>
+<form method="POST" action="/admin/test_connection" style="display:inline"><input type="hidden" name="exchange" value="{{ ex }}"/><button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d">Test ⚡</button></form>
 </div></form>
 {% if ex in saved_keys %}<p style="color:#555;font-size:10px;margin-top:4px">API Key: {{ saved_keys[ex]['api_key_mask'] }} | Secret: ●●●●●●●●●●●● (saved)</p>{% endif %}
 </details>{% endfor %}
@@ -2726,7 +2694,7 @@ setInterval(loadWeeklyBreaker, 30000);
   </span>
   <p style="color:#555;font-size:11px">{{ 'System is learning from signals in paper mode. Switch to REAL MODE only when paper win rate ≥ 65%.' if paper_mode else 'REAL MODE: Signals trigger actual exchange orders. Bot fund limit applies per trade.' }}</p>
 </div>
-<form method="POST" action="/admin/set_mode"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/set_mode">
   {% if paper_mode %}
   <button type="submit" class="btn btn-red" style="padding:10px 24px;font-size:13px;font-weight:bold"
     onclick="return confirm('⚠️ SWITCH TO REAL MODE?\n\nThis will enable LIVE TRADE EXECUTION.\nReal money will be used for every signal.\n\nOnly proceed if:\n• Paper Win Rate ≥ 65%\n• API keys are configured\n• Fund limit is set\n\nAre you ABSOLUTELY sure?')">
@@ -2748,7 +2716,7 @@ setInterval(loadWeeklyBreaker, 30000);
 </h3>
 <div style="background:#0d1117;border:1px solid #30363d;padding:12px;border-radius:4px;margin-bottom:12px">
 <form method="POST" action="/admin/manual_trade"
-  onsubmit="return confirm('{% if paper_mode %}PAPER TRADE — This will be SIMULATED. No real money.\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nConfirm paper trade?{% else %}⚠️ REAL TRADE ALERT ⚠️\n\nThis will execute a REAL order with REAL money!\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nAre you ABSOLUTELY SURE?{% endif %}')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  onsubmit="return confirm('{% if paper_mode %}PAPER TRADE — This will be SIMULATED. No real money.\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nConfirm paper trade?{% else %}⚠️ REAL TRADE ALERT ⚠️\n\nThis will execute a REAL order with REAL money!\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nAre you ABSOLUTELY SURE?{% endif %}')">
 <div class="form-row" style="margin-bottom:10px">
   <div>
     <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">ASSET</label>
@@ -2876,7 +2844,7 @@ function testTelegram(){
 <!-- ══ MY HOLDINGS / INVENTORY ══ -->
 <div class="card"><h3>📦 MY HOLDINGS (INVENTORY)</h3>
 <p style="color:#8b949e;font-size:11px;margin-bottom:10px">Track coins you already own — get a Telegram+Email alert when it looks like a good time to sell.</p>
-<form method="POST" action="/admin/add_holding"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<form method="POST" action="/admin/add_holding"><div class="form-row">
 <input type="text" name="symbol" placeholder="BTC" style="width:90px" required/>
 <input type="number" name="quantity" placeholder="Quantity" step="any" style="width:110px" required/>
 <input type="number" name="buy_price" placeholder="Buy Price" step="any" style="width:110px" required/>
@@ -2898,7 +2866,7 @@ function loadHoldings(){
         <td>${h.buy_price}</td>
         <td>${h.current_price||'—'}</td>
         <td style="color:${pnlColor}">${h.pnl_pct}%</td>
-        <td><form method="POST" action="/admin/delete_holding" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <td><form method="POST" action="/admin/delete_holding" style="display:inline">
           <input type="hidden" name="symbol" value="${h.symbol}"/>
           <button type="submit" class="btn btn-red" style="padding:2px 8px">✕</button></form></td>
       </tr>`;
@@ -2966,7 +2934,7 @@ function loadLiveHoldings(){
 <input type="date" name="date_from" value="{{ today }}"/><input type="date" name="date_to" value="{{ today }}"/>
 <select name="fmt"><option value="html">HTML</option><option value="csv">CSV ↓</option></select>
 <button type="submit" class="btn btn-blue">Export Audit Log</button></form>
-<form method="POST" action="/admin/refresh_scan" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/refresh_scan" style="display:inline">
 <button type="submit" class="btn btn-green" onclick="return confirm('Force an immediate scan? This refreshes all signal data.')">🔄 Force Refresh Scan</button></form>
 </div>
 <div class="log-box">{{ audit_preview }}</div></div>
@@ -2974,7 +2942,7 @@ function loadLiveHoldings(){
 <!-- ══ CLIENT MANAGEMENT ══ -->
 <div class="card"><h3>👥 CLIENT MANAGEMENT</h3>
 <p style="color:#555;font-size:11px;margin-bottom:10px">Add/remove client access. Changes sync to Google Sheets USERS tab on next scan cycle.</p>
-<form method="POST" action="/admin/add_client"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<form method="POST" action="/admin/add_client"><div class="form-row">
 <input type="text" name="name" placeholder="Username" style="width:110px" required/>
 <input type="text" name="uid" placeholder="UID/ID" style="width:80px" required/>
 <input type="password" name="password" placeholder="Password" style="width:110px" required/>
@@ -2990,9 +2958,9 @@ function loadLiveHoldings(){
 <td style="color:#555;font-size:10px">{{ c.expiry }}</td>
 <td style="color:#8b949e">{{ c.sig_limit }}</td>
 <td>
-<form method="POST" action="/admin/toggle_client" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="name" value="{{ c.name }}"/>
+<form method="POST" action="/admin/toggle_client" style="display:inline"><input type="hidden" name="name" value="{{ c.name }}"/>
 <button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:2px 8px">{{ 'Disable' if c.status=='ACTIVE' else 'Enable' }}</button></form>
-<form method="POST" action="/admin/delete_client" style="display:inline;margin-left:4px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="name" value="{{ c.name }}"/>
+<form method="POST" action="/admin/delete_client" style="display:inline;margin-left:4px"><input type="hidden" name="name" value="{{ c.name }}"/>
 <button type="submit" class="btn btn-red" style="padding:2px 8px" onclick="return confirm('Remove {{ c.name }}?')">✕</button></form>
 </td></tr>{% endfor %}</tbody></table>
 {% else %}<p style="color:#444;font-size:11px;margin-top:8px">No clients registered.</p>{% endif %}
@@ -3001,20 +2969,20 @@ function loadLiveHoldings(){
 <!-- ══ ADMIN CONTROLS ══ -->
 <div class="card"><h3 style="color:#FF4500">⚠️ ADMIN CONTROLS</h3>
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-<form method="POST" action="/admin/refresh_scan" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/refresh_scan" style="display:inline">
 <button type="submit" class="btn btn-green" onclick="return confirm('Force a full data scan now?')">🔄 Refresh/Reconnect</button></form>
 <form method="GET" action="/admin/audit_log" style="display:inline">
 <input type="hidden" name="date_from" value="{{ today }}"/>
 <input type="hidden" name="date_to" value="{{ today }}"/>
 <input type="hidden" name="fmt" value="csv"/>
 <button type="submit" class="btn btn-blue">📥 Export Audit Log</button></form>
-<form method="POST" action="/admin/clear_history" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/clear_history" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear all alert history?')">🗑 Clear Alert History</button></form>
-<form method="POST" action="/admin/clear_backtest" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/clear_backtest" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear backtest results + stats?')">🗑 Clear Backtest</button></form>
-<form method="POST" action="/admin/clear_whale_copy" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/clear_whale_copy" style="display:inline">
 <button type="submit" class="btn btn-red" onclick="return confirm('Clear all Whale Copy trades and signals?')">🐋 Clear Whale Copy</button></form>
-<form method="POST" action="/admin/kill_switch" style="display:inline;margin-left:12px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<form method="POST" action="/admin/kill_switch" style="display:inline;margin-left:12px">
 <button type="submit" class="btn btn-red" style="background:#8b0000;border:2px solid #ff0000;padding:8px 18px;font-weight:bold;font-size:13px"
   onclick="return confirm('🛑 EMERGENCY KILL-SWITCH\\n\\nThis will:\\n• Cancel ALL open paper/backtest trades\\n• Force PAPER MODE on\\n• Block new entries (circuit-breaker)\\n\\nAre you sure?')">
   🛑 PANIC — KILL ALL TRADES</button></form>
@@ -3075,7 +3043,6 @@ def admin_portal():
         clients=[type('C', (), c)() for c in _load_clients()],
         fund_limit=CONFIG.get("bot_fund_limit_usdt", 10.0),
         bots_cfg=CONFIG.get("bots", {}),
-        csrf_token=_get_csrf_token(),
     )
 
 
@@ -4108,7 +4075,7 @@ button{width:100%;padding:12px;background:#238636;color:#fff;border:none;border-
 .err{color:#FF4500;margin-top:12px}</style></head>
 <body><div class="box"><h2>📊 V6 CLIENT PORTAL</h2>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
-<form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="text" name="username" placeholder="Username"/>
+<form method="POST"><input type="text" name="username" placeholder="Username"/>
 <input type="password" name="password" placeholder="Password"/>
 <button type="submit">ACCESS SIGNALS</button></form>
 <p style="color:#555;font-size:11px;margin-top:16px">Access controlled via Admin Google Sheet</p>
@@ -4691,6 +4658,7 @@ if __name__ == "__main__":
     if _V6_WS:
         threading.Thread(target=start_websocket_feed, daemon=True).start()
         log.info("[V6 WS] WebSocket feed thread started.")
+        log.info("[V6 WS] WebSocket feed thread started.")
     if _V6_OCO:
         GLOBAL_DATA["oco_manager"] = OCOManager(
             paper_mode=GLOBAL_DATA.get("paper_mode", True),
@@ -4702,6 +4670,7 @@ if __name__ == "__main__":
         log.info("[V6 PTP] Partial-TP monitor thread started.")
     if _V6_MTF:
         GLOBAL_DATA["mtf_enabled"] = True
+        log.info("[V6 MTF] Multi-timeframe module enabled.")
         log.info("[V6 MTF] Multi-timeframe module enabled.")
 
 
