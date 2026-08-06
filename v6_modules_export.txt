@@ -1,0 +1,1415 @@
+=== V6 Master Pro — Upgrade Modules Export ===
+Generated: Thu Aug 06 01:42:16 PM UTC 2026
+========================================
+
+========================================
+FILE: ./v6_database.py
+========================================
+"""
+v6_database.py — V6 Master Pro | SQLite + JSON Fallback
+Replit-safe: uses pysqlite3 first, falls back to sqlite3, then JSON.
+"""
+import os
+import json
+import time
+import threading
+
+_DB_PATH = "v6_master.db"
+_JSON_DIR = "v6_db_fallback"
+_lock = threading.Lock()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SQLITE DRIVER SELECTION (Replit-safe)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_sqlite = None
+_sqlite_ok = False
+
+def _init_sqlite_driver():
+    global _sqlite, _sqlite_ok
+    try:
+        import pysqlite3 as sqlite3
+        _sqlite = sqlite3
+        _sqlite_ok = True
+        print("[V6 DB] Using pysqlite3 (Replit-compatible)")
+        return
+    except Exception:
+        pass
+    try:
+        import sqlite3
+        sqlite3.connect(":memory:").execute("SELECT 1").close()
+        _sqlite = sqlite3
+        _sqlite_ok = True
+        print("[V6 DB] Using built-in sqlite3")
+        return
+    except Exception as e:
+        print(f"[V6 DB] WARNING: sqlite3 import failed -- {e}")
+        print("[V6 DB] FALLBACK MODE: using JSON files instead of SQLite")
+        _sqlite_ok = False
+
+_init_sqlite_driver()
+
+
+def _ensure_json_dir():
+    if not os.path.exists(_JSON_DIR):
+        os.makedirs(_JSON_DIR, exist_ok=True)
+
+def _json_path(table: str) -> str:
+    _ensure_json_dir()
+    return os.path.join(_JSON_DIR, f"{table}.json")
+
+def _json_load(table: str, default=None):
+    path = _json_path(table)
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return default if default is not None else []
+
+def _json_save(table: str, data):
+    _ensure_json_dir()
+    path = _json_path(table)
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"[V6 DB] JSON save failed for {table}: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCHEMA
+# ══════════════════════════════════════════════════════════════════════════════
+
+_TABLES = {
+    "paper_trades": """
+        CREATE TABLE IF NOT EXISTS paper_trades (
+            id TEXT PRIMARY KEY, symbol TEXT, side TEXT, strategy TEXT,
+            amount_usdt REAL, price REAL, qty REAL, mode TEXT,
+            manual INTEGER, reason TEXT, status TEXT, time TEXT
+        )
+    """,
+    "whale_copy_trades": """
+        CREATE TABLE IF NOT EXISTS whale_copy_trades (
+            id TEXT PRIMARY KEY, symbol TEXT, direction TEXT, entry_price REAL,
+            wall_price REAL, wall_size_usdt REAL, wall_qty REAL, stop_loss REAL,
+            original_sl REAL, trailing TEXT, target REAL, obi REAL,
+            obi_velocity REAL, confidence REAL, funding_rate REAL, liq_status TEXT,
+            eta TEXT, entry_time TEXT, entry_ts REAL, mode TEXT, status TEXT,
+            exit_price REAL, exit_time TEXT, result TEXT, pnl_pct REAL
+        )
+    """,
+    "backtest_signals": """
+        CREATE TABLE IF NOT EXISTS backtest_signals (
+            id TEXT PRIMARY KEY, symbol TEXT, folder TEXT, entry_price REAL,
+            entry_time TEXT, entry_ts REAL, tp1 REAL, tp2 REAL, tp3 REAL,
+            stop_loss REAL, original_sl REAL, trailing TEXT, traffic TEXT,
+            reason TEXT, confidence INTEGER, status TEXT, tp1_hit INTEGER,
+            tp2_hit INTEGER, tp3_hit INTEGER, sl_hit INTEGER, exit_price REAL,
+            exit_time TEXT, result TEXT, pnl_pct REAL
+        )
+    """,
+    "api_keys": """
+        CREATE TABLE IF NOT EXISTS api_keys (
+            exchange TEXT PRIMARY KEY, api_key TEXT, secret_key TEXT, passphrase TEXT
+        )
+    """,
+    "clients": """
+        CREATE TABLE IF NOT EXISTS clients (
+            name TEXT PRIMARY KEY, uid TEXT, password TEXT, status TEXT,
+            expiry TEXT, sig_limit TEXT, role TEXT, added TEXT
+        )
+    """,
+    "holdings": """
+        CREATE TABLE IF NOT EXISTS holdings (
+            symbol TEXT PRIMARY KEY, quantity REAL, buy_price REAL,
+            target_pct REAL, added TEXT
+        )
+    """,
+    "learning_data": """
+        CREATE TABLE IF NOT EXISTS learning_data (key TEXT PRIMARY KEY, value TEXT)
+    """,
+    "price_alerts": """
+        CREATE TABLE IF NOT EXISTS price_alerts (
+            id INTEGER PRIMARY KEY, symbol TEXT, target_price REAL,
+            direction TEXT, note TEXT, created_at TEXT
+        )
+    """,
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC API
+# ══════════════════════════════════════════════════════════════════════════════
+
+def init_db():
+    if not _sqlite_ok:
+        return
+    with _lock:
+        conn = _sqlite.connect(_DB_PATH)
+        c = conn.cursor()
+        for sql in _TABLES.values():
+            c.execute(sql)
+        conn.commit()
+        conn.close()
+
+def get_db():
+    if not _sqlite_ok:
+        return None
+    return _sqlite.connect(_DB_PATH)
+
+
+def _db_to_json(conn, table: str):
+    c = conn.cursor()
+    c.execute(f"SELECT * FROM {table}")
+    cols = [d[0] for d in c.description]
+    return [dict(zip(cols, row)) for row in c.fetchall()]
+
+
+# ── paper_trades ─────────────────────────────────────────────────────────────
+
+def save_paper_trades(data: list):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM paper_trades")
+            conn.commit()
+            for row in data[-500:]:
+                c.execute("""
+                    INSERT OR REPLACE INTO paper_trades
+                    (id, symbol, side, strategy, amount_usdt, price, qty, mode, manual, reason, status, time)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    row.get("id"), row.get("symbol"), row.get("side"), row.get("strategy"),
+                    row.get("amount_usdt"), row.get("price"), row.get("qty"), row.get("mode"),
+                    1 if row.get("manual") else 0, row.get("reason"), row.get("status"), row.get("time")
+                ))
+            conn.commit()
+            conn.close()
+    _json_save("paper_trades", data[-500:])
+
+def load_paper_trades() -> list:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "paper_trades")
+                conn.close()
+                if rows:
+                    for r in rows:
+                        r["manual"] = bool(r.get("manual"))
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load paper_trades failed: {e}")
+    return _json_load("paper_trades", [])
+
+
+# ── whale_copy_trades ────────────────────────────────────────────────────────
+
+def save_whale_copy_trades(data: list):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM whale_copy_trades")
+            conn.commit()
+            for row in data[-500:]:
+                c.execute("""
+                    INSERT OR REPLACE INTO whale_copy_trades
+                    (id, symbol, direction, entry_price, wall_price, wall_size_usdt, wall_qty,
+                     stop_loss, original_sl, trailing, target, obi, obi_velocity, confidence,
+                     funding_rate, liq_status, eta, entry_time, entry_ts, mode, status,
+                     exit_price, exit_time, result, pnl_pct)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    row.get("id"), row.get("symbol"), row.get("direction"), row.get("entry_price"),
+                    row.get("wall_price"), row.get("wall_size_usdt"), row.get("wall_qty"),
+                    row.get("stop_loss"), row.get("original_sl"), row.get("trailing"), row.get("target"),
+                    row.get("obi"), row.get("obi_velocity"), row.get("confidence"), row.get("funding_rate"),
+                    row.get("liq_status"), row.get("eta"), row.get("entry_time"), row.get("entry_ts"),
+                    row.get("mode"), row.get("status"), row.get("exit_price"), row.get("exit_time"),
+                    row.get("result"), row.get("pnl_pct")
+                ))
+            conn.commit()
+            conn.close()
+    _json_save("whale_copy_trades", data[-500:])
+
+def load_whale_copy_trades() -> list:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "whale_copy_trades")
+                conn.close()
+                if rows:
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load whale_copy_trades failed: {e}")
+    return _json_load("whale_copy_trades", [])
+
+
+# ── backtest_signals ─────────────────────────────────────────────────────────
+
+def save_backtest_signals(data: list):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM backtest_signals")
+            conn.commit()
+            for row in data[-100:]:
+                c.execute("""
+                    INSERT OR REPLACE INTO backtest_signals
+                    (id, symbol, folder, entry_price, entry_time, entry_ts, tp1, tp2, tp3,
+                     stop_loss, original_sl, trailing, traffic, reason, confidence, status,
+                     tp1_hit, tp2_hit, tp3_hit, sl_hit, exit_price, exit_time, result, pnl_pct)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    row.get("id"), row.get("symbol"), row.get("folder"), row.get("entry_price"),
+                    row.get("entry_time"), row.get("entry_ts"), row.get("tp1"), row.get("tp2"), row.get("tp3"),
+                    row.get("stop_loss"), row.get("original_sl"), row.get("trailing"), row.get("traffic"),
+                    row.get("reason"), row.get("confidence"), row.get("status"),
+                    1 if row.get("tp1_hit") else 0, 1 if row.get("tp2_hit") else 0,
+                    1 if row.get("tp3_hit") else 0, 1 if row.get("sl_hit") else 0,
+                    row.get("exit_price"), row.get("exit_time"), row.get("result"), row.get("pnl_pct")
+                ))
+            conn.commit()
+            conn.close()
+    _json_save("backtest_signals", data[-100:])
+
+def load_backtest_signals() -> list:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "backtest_signals")
+                conn.close()
+                if rows:
+                    for r in rows:
+                        for k in ("tp1_hit", "tp2_hit", "tp3_hit", "sl_hit"):
+                            r[k] = bool(r.get(k))
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load backtest_signals failed: {e}")
+    return _json_load("backtest_signals", [])
+
+
+# ── api_keys ─────────────────────────────────────────────────────────────────
+
+def save_api_keys(data: dict):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM api_keys")
+            conn.commit()
+            for ex, k in data.items():
+                c.execute("""
+                    INSERT OR REPLACE INTO api_keys (exchange, api_key, secret_key, passphrase)
+                    VALUES (?,?,?,?)
+                """, (ex, k.get("api_key"), k.get("secret_key"), k.get("passphrase")))
+            conn.commit()
+            conn.close()
+    _json_save("api_keys", data)
+
+def load_api_keys() -> dict:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "api_keys")
+                conn.close()
+                if rows:
+                    return {r["exchange"]: r for r in rows}
+        except Exception as e:
+            print(f"[V6 DB] SQLite load api_keys failed: {e}")
+    return _json_load("api_keys", {})
+
+
+# ── clients ──────────────────────────────────────────────────────────────────
+
+def save_clients(data: list):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM clients")
+            conn.commit()
+            for row in data:
+                c.execute("""
+                    INSERT OR REPLACE INTO clients
+                    (name, uid, password, status, expiry, sig_limit, role, added)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """, (
+                    row.get("name"), row.get("uid"), row.get("password"), row.get("status"),
+                    row.get("expiry"), row.get("sig_limit"), row.get("role"), row.get("added")
+                ))
+            conn.commit()
+            conn.close()
+    _json_save("clients", data)
+
+def load_clients() -> list:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "clients")
+                conn.close()
+                if rows:
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load clients failed: {e}")
+    return _json_load("clients", [])
+
+
+# ── holdings ─────────────────────────────────────────────────────────────────
+
+def save_holdings(data: list):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM holdings")
+            conn.commit()
+            for row in data:
+                c.execute("""
+                    INSERT OR REPLACE INTO holdings
+                    (symbol, quantity, buy_price, target_pct, added)
+                    VALUES (?,?,?,?,?)
+                """, (
+                    row.get("symbol"), row.get("quantity"), row.get("buy_price"),
+                    row.get("target_pct"), row.get("added")
+                ))
+            conn.commit()
+            conn.close()
+    _json_save("holdings", data)
+
+def load_holdings() -> list:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "holdings")
+                conn.close()
+                if rows:
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load holdings failed: {e}")
+    return _json_load("holdings", [])
+
+
+# ── learning_data ────────────────────────────────────────────────────────────
+
+def save_learning_data(data: dict):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM learning_data")
+            conn.commit()
+            for k, v in data.items():
+                c.execute("INSERT OR REPLACE INTO learning_data (key, value) VALUES (?,?)",
+                          (k, json.dumps(v)))
+            conn.commit()
+            conn.close()
+    _json_save("learning_data", data)
+
+def load_learning_data() -> dict:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                c = conn.cursor()
+                c.execute("SELECT key, value FROM learning_data")
+                rows = {k: json.loads(v) for k, v in c.fetchall()}
+                conn.close()
+                if rows:
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load learning_data failed: {e}")
+    return _json_load("learning_data", {})
+
+
+# ── price_alerts ─────────────────────────────────────────────────────────────
+
+def save_price_alerts(data: list):
+    if _sqlite_ok:
+        with _lock:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM price_alerts")
+            conn.commit()
+            for row in data:
+                c.execute("""
+                    INSERT OR REPLACE INTO price_alerts
+                    (id, symbol, target_price, direction, note, created_at)
+                    VALUES (?,?,?,?,?,?)
+                """, (
+                    row.get("id"), row.get("symbol"), row.get("target_price"),
+                    row.get("direction"), row.get("note"), row.get("created_at")
+                ))
+            conn.commit()
+            conn.close()
+    _json_save("price_alerts", data)
+
+def load_price_alerts() -> list:
+    if _sqlite_ok:
+        try:
+            with _lock:
+                conn = get_db()
+                rows = _db_to_json(conn, "price_alerts")
+                conn.close()
+                if rows:
+                    return rows
+        except Exception as e:
+            print(f"[V6 DB] SQLite load price_alerts failed: {e}")
+    return _json_load("price_alerts", [])
+
+
+# ── DB Status ────────────────────────────────────────────────────────────────
+
+def db_status() -> dict:
+    if _sqlite_ok and os.path.exists(_DB_PATH):
+        size = os.path.getsize(_DB_PATH)
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = {t[0]: 0 for t in c.fetchall()}
+        for t in tables:
+            c.execute(f"SELECT COUNT(*) FROM {t}")
+            tables[t] = c.fetchone()[0]
+        conn.close()
+        return {"db_path": _DB_PATH, "db_size_bytes": size, "tables": tables, "driver": "sqlite"}
+    else:
+        _ensure_json_dir()
+        files = os.listdir(_JSON_DIR) if os.path.exists(_JSON_DIR) else []
+        return {
+            "db_path": _JSON_DIR,
+            "db_size_bytes": sum(os.path.getsize(os.path.join(_JSON_DIR, f)) for f in files),
+            "tables": {f.replace(".json", ""): len(_json_load(f.replace(".json", ""), [])) for f in files},
+            "driver": "json-fallback",
+        }
+
+========================================
+FILE: ./v6_crypto.py
+========================================
+"""
+v6_crypto.py — V6 Master Pro | API Key Encryption (at-rest)
+Uses Fernet (symmetric AES-128-CBC + HMAC) from the cryptography library.
+Key is derived from ENCRYPTION_KEY env var, falling back to SECRET_KEY.
+"""
+import os
+import base64
+import hashlib
+import logging
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+log = logging.getLogger(__name__)
+
+# ── Key Derivation ──
+# Fernet requires a 32-byte key, base64-encoded (44 chars).
+# We derive it deterministically from env vars so the same deployment
+# can always decrypt its own data without storing a separate key file.
+
+def _derive_key() -> bytes:
+    """Return a Fernet-compatible key (base64-encoded 32 bytes)."""
+    # Priority: ENCRYPTION_KEY > SECRET_KEY > fallback
+    raw = os.getenv("ENCRYPTION_KEY", os.getenv("SECRET_KEY", "v6-master-pro-default-key"))
+    # Use PBKDF2 for better key stretching if a salt is available, otherwise SHA256
+    salt = os.getenv("ENCRYPTION_SALT", "v6salt786").encode()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100_000,
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(raw.encode()))
+    return key
+
+
+# Singleton Fernet instance (lazy-loaded)
+_fernet = None
+
+def _get_fernet() -> Fernet:
+    global _fernet
+    if _fernet is None:
+        _fernet = Fernet(_derive_key())
+    return _fernet
+
+
+# ── Public API ──
+
+def encrypt(plaintext: str) -> str:
+    """
+    Encrypt a plaintext string. Returns base64-encoded ciphertext.
+    Returns empty string on failure (so callers can fall back to plaintext).
+    """
+    if not plaintext:
+        return ""
+    try:
+        f = _get_fernet()
+        token = f.encrypt(plaintext.encode("utf-8"))
+        return token.decode("utf-8")
+    except Exception as e:
+        log.warning(f"[CRYPTO] encrypt failed: {e}")
+        return ""
+
+
+def decrypt(ciphertext: str) -> str:
+    """
+    Decrypt a Fernet token. Returns plaintext string.
+    Returns empty string on failure (callers should treat as "no valid key").
+    """
+    if not ciphertext:
+        return ""
+    try:
+        f = _get_fernet()
+        plaintext = f.decrypt(ciphertext.encode("utf-8"))
+        return plaintext.decode("utf-8")
+    except Exception as e:
+        # Common cause: key changed (e.g. SECRET_KEY rotated) → data unreadable
+        log.warning(f"[CRYPTO] decrypt failed (key mismatch or bad token): {e}")
+        return ""
+
+
+def rotate_key(new_key: str, old_key: str, encrypted_data: dict) -> dict:
+    """
+    Admin utility: re-encrypt all API keys with a new master key.
+    Pass the old key to decrypt, new key to re-encrypt.
+    Returns the re-encrypted dict.
+    """
+    import os as _os
+    # Temporarily override env vars
+    _os.environ["ENCRYPTION_KEY"] = old_key
+    global _fernet
+    _fernet = None  # force re-init with old key
+
+    decrypted = {}
+    for ex, creds in encrypted_data.items():
+        decrypted[ex] = {
+            "api_key": decrypt(creds.get("api_key", "")),
+            "secret_key": decrypt(creds.get("secret_key", "")),
+        }
+        if "passphrase" in creds:
+            decrypted[ex]["passphrase"] = decrypt(creds["passphrase"])
+
+    # Switch to new key
+    _os.environ["ENCRYPTION_KEY"] = new_key
+    _fernet = None
+
+    re_encrypted = {}
+    for ex, creds in decrypted.items():
+        re_encrypted[ex] = {
+            "api_key": encrypt(creds.get("api_key", "")),
+            "secret_key": encrypt(creds.get("secret_key", "")),
+        }
+        if "passphrase" in creds:
+            re_encrypted[ex]["passphrase"] = encrypt(creds["passphrase"])
+
+    return re_encrypted
+
+========================================
+FILE: ./v6_oco.py
+========================================
+"""
+v6_oco.py — V6 Master Pro | OCO (One-Cancels-Other) Order Manager
+Handles Binance SPOT OCO brackets: LIMIT TP + STOP-LOSS
+Paper mode simulates; Real mode hits Binance REST API.
+"""
+import os
+import time
+import hmac
+import hashlib
+import urllib.parse
+import logging
+import requests as _rq
+from typing import Optional
+
+log = logging.getLogger(__name__)
+
+# ── Binance hosts (same failover list as logic.py) ──
+BINANCE_HOSTS = [
+    "https://data-api.binance.vision",
+    "https://api-gcp.binance.com",
+    "https://api3.binance.com",
+    "https://api4.binance.com",
+    "https://api.binance.com",
+]
+
+
+class OCOManager:
+    """
+    OCO Bracket Manager for Binance SPOT.
+
+    In REAL mode: places a genuine OCO order (TP limit + STOP-LOSS limit).
+    In PAPER mode: logs the simulated bracket to disk/DB.
+    """
+
+    def __init__(self, paper_mode: bool = True, fund_limit_usdt: float = 10.0):
+        self.paper_mode = paper_mode
+        self.fund_limit_usdt = fund_limit_usdt
+        self._paper_oco_log: list = []
+        self._load_paper_log()
+
+    # ── Paper Log Persistence ──
+    def _load_paper_log(self):
+        try:
+            import json
+            if os.path.exists("v6_oco_paper.json"):
+                with open("v6_oco_paper.json") as f:
+                    self._paper_oco_log = json.load(f)
+        except Exception as e:
+            log.debug(f"[OCO] paper log load failed: {e}")
+
+    def _save_paper_log(self):
+        try:
+            import json
+            with open("v6_oco_paper.json", "w") as f:
+                json.dump(self._paper_oco_log[-200:], f, indent=2)
+        except Exception as e:
+            log.debug(f"[OCO] paper log save failed: {e}")
+
+    # ── Public API ──
+    def place_oco(self, symbol: str, side: str, quantity: float,
+                  price: float, stop_price: float, stop_limit_price: float,
+                  api_key: str = "", secret_key: str = "",
+                  time_in_force: str = "GTC") -> dict:
+        """
+        Place an OCO bracket on Binance SPOT.
+
+        Args:
+            symbol: e.g. "BTCUSDT"
+            side: "SELL" (for TP/SL after a BUY entry)
+            quantity: coin qty to sell
+            price: LIMIT price for the take-profit leg
+            stop_price: trigger price for stop-loss
+            stop_limit_price: execution price once stop triggers
+            api_key / secret_key: Binance API credentials
+
+        Returns:
+            {"ok": True, "order_list_id": int, "data": {...}}
+            {"ok": False, "error": str, "paper": bool}
+        """
+        if self.paper_mode:
+            return self._paper_oco(symbol, side, quantity, price, stop_price, stop_limit_price)
+
+        if not api_key or not secret_key:
+            return {"ok": False, "error": "Missing Binance API key/secret for OCO", "paper": False}
+
+        if quantity <= 0 or price <= 0 or stop_price <= 0 or stop_limit_price <= 0:
+            return {"ok": False, "error": "Invalid OCO params (must be > 0)", "paper": False}
+
+        return self._real_oco(symbol, side, quantity, price, stop_price,
+                              stop_limit_price, api_key, secret_key, time_in_force)
+
+    # ── Paper Simulation ──
+    def _paper_oco(self, symbol: str, side: str, quantity: float,
+                   price: float, stop_price: float, stop_limit_price: float) -> dict:
+        rec = {
+            "id": f"OCO-PAPER-{int(time.time())}",
+            "symbol": symbol,
+            "side": side.upper(),
+            "quantity": round(quantity, 6),
+            "tp_price": round(price, 8),
+            "stop_price": round(stop_price, 8),
+            "stop_limit_price": round(stop_limit_price, 8),
+            "status": "SIMULATED (PAPER)",
+            "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600)),
+        }
+        self._paper_oco_log.append(rec)
+        if len(self._paper_oco_log) > 200:
+            self._paper_oco_log = self._paper_oco_log[-200:]
+        self._save_paper_log()
+        log.info(f"[OCO PAPER] {symbol} {side} Qty:{quantity} TP:{price} SL:{stop_price}")
+        return {"ok": True, "paper": True, "order_list_id": rec["id"], "data": rec}
+
+    # ── Real Binance OCO ──
+    def _real_oco(self, symbol: str, side: str, quantity: float,
+                  price: float, stop_price: float, stop_limit_price: float,
+                  api_key: str, secret_key: str, time_in_force: str) -> dict:
+        ts = int(time.time() * 1000)
+        params = {
+            "symbol": symbol,
+            "side": side.upper(),
+            "quantity": round(quantity, 6),
+            "price": round(price, 8),
+            "stopPrice": round(stop_price, 8),
+            "stopLimitPrice": round(stop_limit_price, 8),
+            "stopLimitTimeInForce": time_in_force,
+            "timestamp": ts,
+        }
+        qs = urllib.parse.urlencode(params)
+        sig = hmac.new(secret_key.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        url = f"{BINANCE_HOSTS[-1]}/api/v3/order/oco?{qs}&signature={sig}"
+
+        last_err = ""
+        for host in BINANCE_HOSTS:
+            try:
+                resp = _rq.post(
+                    f"{host}/api/v3/order/oco?{qs}&signature={sig}",
+                    headers={"X-MBX-APIKEY": api_key},
+                    timeout=10,
+                )
+                data = resp.json()
+                if resp.status_code == 200:
+                    log.info(f"[OCO REAL] {symbol} orderListId={data.get('orderListId')}"
+                             f" TP:{price} SL:{stop_price}")
+                    return {
+                        "ok": True,
+                        "paper": False,
+                        "order_list_id": data.get("orderListId"),
+                        "data": data,
+                    }
+                # Binance error format
+                if "code" in data:
+                    last_err = f"Binance {data.get('code')}: {data.get('msg', 'Unknown')}"
+                    # If it's a non-retryable error (e.g. insufficient balance), break immediately
+                    if data.get("code") in [-2010, -2011, -1013]:  # insufficient balance, etc.
+                        break
+                else:
+                    last_err = f"HTTP {resp.status_code}"
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+        log.warning(f"[OCO REAL] Failed for {symbol}: {last_err}")
+        return {"ok": False, "error": last_err, "paper": False}
+
+    def get_paper_log(self) -> list:
+        """Return simulated OCO history for admin dashboard."""
+        return self._paper_oco_log[:]
+
+    def cancel_all_oco(self, api_key: str = "", secret_key: str = "") -> dict:
+        """Emergency: cancel ALL open OCO orders on Binance."""
+        if self.paper_mode:
+            cleared = len(self._paper_oco_log)
+            self._paper_oco_log = []
+            self._save_paper_log()
+            return {"ok": True, "paper": True, "cancelled": cleared}
+
+        if not api_key or not secret_key:
+            return {"ok": False, "error": "No API keys"}
+
+        ts = int(time.time() * 1000)
+        params = {"timestamp": ts}
+        qs = urllib.parse.urlencode(params)
+        sig = hmac.new(secret_key.encode(), qs.encode(), hashlib.sha256).hexdigest()
+
+        for host in BINANCE_HOSTS:
+            try:
+                resp = _rq.delete(
+                    f"{host}/api/v3/openOrderList?{qs}&signature={sig}",
+                    headers={"X-MBX-APIKEY": api_key},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    log.info(f"[OCO CANCEL] All open OCOs cancelled: {len(data)} lists")
+                    return {"ok": True, "cancelled": len(data), "data": data}
+            except Exception as e:
+                log.warning(f"[OCO CANCEL] {host} failed: {e}")
+                continue
+        return {"ok": False, "error": "Failed to cancel OCOs on all hosts"}
+
+========================================
+FILE: ./v6_websocket.py
+========================================
+"""
+v6_websocket.py — V6 Master Pro
+Binance WebSocket live price feed with:
+  • HTTP/SOCKS5 proxy support  (BINANCE_WS_PROXY or BINANCE_PROXY env var)
+  • Exponential backoff on geo-block (HTTP 451)
+  • Automatic REST polling fallback when WS is consistently blocked
+  • Thread-safe price cache shared with logic.py via get_ws_price()
+  • Status reporting via get_ws_status()
+"""
+import os
+import threading
+import time
+import json
+import logging
+from urllib.parse import urlparse
+
+log = logging.getLogger(__name__)
+
+try:
+    import websocket
+    _HAS_WS = True
+except ImportError:
+    _HAS_WS = False
+    log.warning("[WS] websocket-client not installed — REST poll fallback will be used")
+
+# ── Proxy configuration ────────────────────────────────────────────────────────
+# BINANCE_WS_PROXY takes precedence; falls back to BINANCE_PROXY if not set.
+# websocket-client supports HTTP proxies natively.
+# SOCKS5 proxies require: pip install websocket-client[optional] PySocks
+BINANCE_WS_PROXY: str = os.getenv("BINANCE_WS_PROXY", os.getenv("BINANCE_PROXY", "")).strip()
+
+_ws_proxy_host: str   = ""
+_ws_proxy_port: int   = 0
+_ws_proxy_auth: tuple = ()
+
+if BINANCE_WS_PROXY:
+    try:
+        _p = urlparse(BINANCE_WS_PROXY)
+        _ws_proxy_host = _p.hostname or ""
+        _ws_proxy_port = _p.port or 8080
+        _ws_proxy_auth = (_p.username, _p.password) if _p.username else ()
+        log.info(f"[WS] Proxy configured → {_ws_proxy_host}:{_ws_proxy_port}")
+    except Exception as _pe:
+        log.warning(f"[WS] Could not parse BINANCE_WS_PROXY (ignored): {_pe}")
+
+# ── WebSocket stream URLs ──────────────────────────────────────────────────────
+# Port 9443 = Binance standard WS port.
+# Port 443  = HTTPS port, harder to geo-block; same stream, different port.
+_WS_URLS = [
+    "wss://stream.binance.com:9443/ws/!ticker@arr",
+    "wss://stream.binance.com:443/ws/!ticker@arr",
+]
+
+# ── Shared price cache ─────────────────────────────────────────────────────────
+_ws_prices: dict = {}       # symbol → {"price": float, "ts": float, "src": str}
+_ws_lock = threading.Lock()
+_ws_thread = None
+_ws_stop = threading.Event()
+
+# ── Feed status ────────────────────────────────────────────────────────────────
+_ws_status: dict = {
+    "mode":      "starting",  # "websocket" | "rest_poll" | "blocked" | "starting"
+    "last_ok":   0.0,         # epoch of last successful price update
+    "geo_fails": 0,           # consecutive geo-block (451) errors
+}
+
+
+# ── WebSocket callbacks ────────────────────────────────────────────────────────
+
+def _on_message(ws, message):
+    try:
+        data = json.loads(message)
+        now  = time.time()
+        if isinstance(data, list):
+            ticks = data
+        elif isinstance(data, dict) and "data" in data:
+            ticks = [data["data"]]
+        elif isinstance(data, dict) and "c" in data:
+            ticks = [data]
+        else:
+            return
+        with _ws_lock:
+            for tick in ticks:
+                sym   = tick.get("s", "")
+                price = float(tick.get("c") or 0)
+                if sym and price:
+                    _ws_prices[sym] = {"price": price, "ts": now, "src": "ws"}
+        _ws_status["last_ok"]   = now
+        _ws_status["mode"]      = "websocket"
+        _ws_status["geo_fails"] = 0   # reset on live data
+    except Exception as e:
+        log.debug(f"[WS] message parse error: {e}")
+
+
+def _on_error(ws, error):
+    err_str = str(error)
+    if "451" in err_str or "Restricted" in err_str or "legal" in err_str.lower():
+        _ws_status["geo_fails"] += 1
+        log.warning(
+            f"[WS] HTTP 451 geo-block (#{_ws_status['geo_fails']}) — "
+            "server IP blocked by Binance WebSocket."
+        )
+    else:
+        log.warning(f"[WS] error: {error}")
+
+
+def _on_close(ws, close_status_code, close_msg):
+    log.info(f"[WS] closed (code={close_status_code})")
+
+
+def _on_open(ws):
+    _ws_status["geo_fails"] = 0
+    log.info("[WS] connected — subscribed to !ticker@arr")
+
+
+# ── REST polling fallback ──────────────────────────────────────────────────────
+
+def _rest_poll_prices() -> int:
+    """Fetch all USDT prices via data-api.binance.vision (CDN, less geo-blocked).
+    Routes through BINANCE_WS_PROXY if configured. Returns count of prices updated."""
+    try:
+        import requests as _rq
+        proxy_dict = (
+            {"http": BINANCE_WS_PROXY, "https": BINANCE_WS_PROXY}
+            if BINANCE_WS_PROXY else None
+        )
+        resp = _rq.get(
+            "https://data-api.binance.vision/api/v3/ticker/price",
+            timeout=8,
+            proxies=proxy_dict,
+        )
+        if resp.status_code == 200:
+            now   = time.time()
+            count = 0
+            with _ws_lock:
+                for tick in resp.json():
+                    sym   = tick.get("symbol", "")
+                    price = float(tick.get("price") or 0)
+                    if sym and price and sym.endswith("USDT"):
+                        _ws_prices[sym] = {"price": price, "ts": now, "src": "rest"}
+                        count += 1
+            _ws_status["last_ok"] = now
+            _ws_status["mode"]    = "rest_poll"
+            return count
+        elif resp.status_code == 451:
+            log.warning(
+                "[WS-POLL] data-api.binance.vision also returned 451 — "
+                "all Binance endpoints geo-blocked. Set BINANCE_PROXY to bypass."
+            )
+            _ws_status["mode"] = "blocked"
+    except Exception as e:
+        log.debug(f"[WS-POLL] REST poll error: {e}")
+    return 0
+
+
+def _rest_poll_loop():
+    """Background REST polling. Activated when WebSocket is consistently unavailable.
+    Stops automatically if WebSocket reconnects successfully."""
+    log.info("[WS-POLL] REST price polling fallback activated (every 3s)")
+    while not _ws_stop.is_set():
+        # Yield back to WebSocket if it has recovered
+        if _ws_status["mode"] == "websocket" and _ws_status["geo_fails"] == 0:
+            log.info("[WS-POLL] WebSocket recovered — stopping REST poll fallback")
+            break
+        count = _rest_poll_prices()
+        if count > 0:
+            log.debug(f"[WS-POLL] Updated {count} prices via REST")
+        time.sleep(3)
+    log.info("[WS-POLL] REST polling stopped")
+
+
+# ── Main feed ──────────────────────────────────────────────────────────────────
+
+def start_websocket_feed():
+    """Start the live price feed. Tries WebSocket first; falls back to REST polling."""
+    global _ws_thread
+    if not _HAS_WS:
+        log.warning("[WS] websocket-client not installed — starting REST poll fallback")
+        _ws_stop.clear()
+        threading.Thread(target=_rest_poll_loop, daemon=True, name="v6-rest-poll").start()
+        return
+    if _ws_thread and _ws_thread.is_alive():
+        log.info("[WS] already running")
+        return
+    _ws_stop.clear()
+
+    def _run():
+        _url_idx          = 0
+        _reconnect_delay  = 5         # seconds before next attempt
+        _WS_MAX_BACKOFF   = 300       # 5-minute cap for geo-block scenarios
+        _WS_NORM_BACKOFF  = 60        # 1-minute cap for ordinary errors
+        _GEO_FAIL_THRESH  = 4         # consecutive geo-fails before REST fallback
+        _rest_poll_thread = None
+
+        while not _ws_stop.is_set():
+
+            # ── Geo-block threshold reached: activate REST polling ─────────────
+            if _ws_status["geo_fails"] >= _GEO_FAIL_THRESH:
+                if _rest_poll_thread is None or not _rest_poll_thread.is_alive():
+                    _rest_poll_thread = threading.Thread(
+                        target=_rest_poll_loop, daemon=True, name="v6-rest-poll"
+                    )
+                    _rest_poll_thread.start()
+                # Keep retrying WS in the background — very slowly
+                log.info(
+                    f"[WS] Geo-blocked ×{_ws_status['geo_fails']} — "
+                    f"REST polling active. WS retry in {_reconnect_delay}s…"
+                )
+                time.sleep(_reconnect_delay)
+                _reconnect_delay = min(_reconnect_delay * 2, _WS_MAX_BACKOFF)
+                _url_idx += 1
+                continue
+
+            url         = _WS_URLS[_url_idx % len(_WS_URLS)]
+            geo_blocked = False
+
+            try:
+                # ── Proxy kwargs (HTTP only — websocket-client native support) ──
+                proxy_kwargs: dict = {}
+                if _ws_proxy_host:
+                    proxy_kwargs["http_proxy_host"] = _ws_proxy_host
+                    proxy_kwargs["http_proxy_port"] = _ws_proxy_port
+                    if _ws_proxy_auth:
+                        proxy_kwargs["http_proxy_auth"] = _ws_proxy_auth
+
+                ws = websocket.WebSocketApp(
+                    url,
+                    on_open=_on_open,
+                    on_message=_on_message,
+                    on_error=_on_error,
+                    on_close=_on_close,
+                )
+                ws.run_forever(ping_interval=20, ping_timeout=10, **proxy_kwargs)
+                # Clean close — reset backoff, rotate URL for variety
+                _reconnect_delay = 5
+                _url_idx += 1
+
+            except Exception as e:
+                err_str = str(e)
+                if "451" in err_str or "Restricted" in err_str or "legal" in err_str.lower():
+                    geo_blocked = True
+                    _ws_status["geo_fails"] += 1
+                    log.warning(
+                        f"[WS] HTTP 451 geo-block (#{_ws_status['geo_fails']}) "
+                        f"on {url}. Next attempt in {_reconnect_delay}s."
+                    )
+                    _url_idx += 1   # rotate to alternate port/URL
+                else:
+                    log.warning(f"[WS] connection error: {e}")
+
+            if not _ws_stop.is_set():
+                log.info(f"[WS] reconnecting in {_reconnect_delay}s…")
+                time.sleep(_reconnect_delay)
+                if geo_blocked:
+                    _reconnect_delay = min(_reconnect_delay * 2, _WS_MAX_BACKOFF)
+                else:
+                    # Gentle growth for ordinary errors; reset after cap
+                    next_d = min(_reconnect_delay * 2, _WS_NORM_BACKOFF)
+                    _reconnect_delay = next_d if next_d < _WS_NORM_BACKOFF else 5
+
+        log.info("[WS] thread stopped")
+
+    _ws_thread = threading.Thread(target=_run, daemon=True, name="v6-ws-feed")
+    _ws_thread.start()
+    log.info("[WS] feed thread started")
+
+
+# ── Public API ─────────────────────────────────────────────────────────────────
+
+def get_ws_price(symbol: str, max_age: float = 10.0):
+    """Return latest price for symbol, or None if missing / older than max_age seconds."""
+    with _ws_lock:
+        rec = _ws_prices.get(symbol.upper())
+    if not rec:
+        return None
+    if time.time() - rec["ts"] > max_age:
+        return None
+    return rec["price"]
+
+
+def get_ws_status() -> dict:
+    """Return feed status: mode ('websocket'|'rest_poll'|'blocked'|'starting'),
+    last_ok (epoch), geo_fails (consecutive 451 count)."""
+    return dict(_ws_status)
+
+
+def stop_websocket_feed():
+    """Signal all feed threads (WebSocket + REST poll) to stop."""
+    _ws_stop.set()
+
+========================================
+FILE: ./v6_partial_tp.py
+========================================
+"""
+v6_partial_tp.py — V6 Master Pro P1
+Partial Take-Profit Manager. Auto scale-out at TP1/TP2/TP3.
+"""
+import threading
+import time
+import logging
+
+log = logging.getLogger(__name__)
+
+class PartialTPManager:
+    def __init__(self, config: dict):
+        self.config = config
+        self.positions = []
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.monitor_thread = None
+        self._price_fn = None
+
+        tm = config.get("trade_management", {})
+        self.tp1_pct = tm.get("partial_tp1_pct", 25)
+        self.tp2_pct = tm.get("partial_tp2_pct", 35)
+        self.tp3_pct = tm.get("partial_tp3_pct", 40)
+        self.check_interval = tm.get("partial_tp_check_seconds", 10)
+
+    def add_position(self, symbol: str, side: str, entry_price: float,
+                     qty: float, tp1: float, tp2: float, tp3: float,
+                     sl: float, mode: str = "PAPER", order_id: str = ""):
+        pos = {
+            "symbol": symbol.upper(),
+            "side": side.upper(),
+            "entry_price": entry_price,
+            "qty": qty,
+            "remaining_qty": qty,
+            "tp1": tp1, "tp2": tp2, "tp3": tp3, "sl": sl,
+            "tp1_hit": False, "tp2_hit": False, "tp3_hit": False, "sl_hit": False,
+            "mode": mode,
+            "order_id": order_id,
+            "entry_time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600)),
+            "entry_ts": time.time(),
+            "partial_closes": [],
+        }
+        with self.lock:
+            self.positions.append(pos)
+        log.info(f"[PTP] Added {mode} {symbol} qty={qty} TP1={tp1} TP2={tp2} TP3={tp3}")
+        return pos
+
+    def get_positions(self):
+        with self.lock:
+            return [dict(p) for p in self.positions]
+
+    def start_monitor(self, price_fn):
+        self._price_fn = price_fn
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            return
+        self.stop_event.clear()
+        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True, name="v6-ptp")
+        self.monitor_thread.start()
+        log.info("[PTP] monitor started")
+
+    def _monitor_loop(self):
+        while not self.stop_event.is_set():
+            try:
+                self._check_positions()
+            except Exception as e:
+                log.error(f"[PTP] check error: {e}")
+            time.sleep(self.check_interval)
+
+    def _check_positions(self):
+        with self.lock:
+            positions = list(self.positions)
+
+        for pos in positions:
+            if pos["sl_hit"] or (pos["tp3_hit"] and pos["remaining_qty"] <= 0):
+                continue
+
+            price = self._price_fn(pos["symbol"]) if self._price_fn else None
+            if not price:
+                continue
+
+            side = pos["side"]
+            remaining = pos["remaining_qty"]
+            if remaining <= 0:
+                continue
+
+            # SL check
+            if pos["sl"] and not pos["sl_hit"]:
+                hit = (side == "BUY" and price <= pos["sl"]) or (side == "SELL" and price >= pos["sl"])
+                if hit:
+                    self._execute_partial_close(pos, remaining, price, "SL")
+                    pos["sl_hit"] = True
+                    pos["remaining_qty"] = 0
+                    continue
+
+            # TP3 (close all remaining)
+            if pos["tp3"] and not pos["tp3_hit"]:
+                hit = (side == "BUY" and price >= pos["tp3"]) or (side == "SELL" and price <= pos["tp3"])
+                if hit:
+                    self._execute_partial_close(pos, remaining, price, "TP3")
+                    pos["tp3_hit"] = True
+                    pos["remaining_qty"] = 0
+                    continue
+
+            # TP2
+            if pos["tp2"] and not pos["tp2_hit"]:
+                hit = (side == "BUY" and price >= pos["tp2"]) or (side == "SELL" and price <= pos["tp2"])
+                if hit:
+                    close_qty = remaining * (self.tp2_pct / 100.0)
+                    self._execute_partial_close(pos, close_qty, price, "TP2")
+                    pos["tp2_hit"] = True
+                    pos["remaining_qty"] -= close_qty
+                    continue
+
+            # TP1
+            if pos["tp1"] and not pos["tp1_hit"]:
+                hit = (side == "BUY" and price >= pos["tp1"]) or (side == "SELL" and price <= pos["tp1"])
+                if hit:
+                    close_qty = remaining * (self.tp1_pct / 100.0)
+                    self._execute_partial_close(pos, close_qty, price, "TP1")
+                    pos["tp1_hit"] = True
+                    pos["remaining_qty"] -= close_qty
+                    continue
+
+    def _execute_partial_close(self, pos, qty, price, reason):
+        qty = round(qty, 6)
+        if qty <= 0:
+            return
+
+        if pos["side"] == "BUY":
+            pnl = (price - pos["entry_price"]) / pos["entry_price"] * 100
+        else:
+            pnl = (pos["entry_price"] - price) / pos["entry_price"] * 100
+
+        close_rec = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600)),
+            "reason": reason,
+            "price": price,
+            "qty": qty,
+            "pnl_pct": round(pnl, 3),
+        }
+        pos.setdefault("partial_closes", []).append(close_rec)
+        log.info(f"[PTP] {reason} close {pos['mode']} {pos['symbol']} qty={qty} @ {price} (PnL {pnl:.2f}%)")
+
+        if pos["mode"] == "REAL":
+            log.warning(f"[PTP] REAL partial close logged only — integrate exchange sell order here: {pos['symbol']} {reason} qty={qty}")
+
+    def stop(self):
+        self.stop_event.set()
+
+========================================
+FILE: ./v6_multitimeframe.py
+========================================
+"""
+v6_multitimeframe.py — V6 Master Pro P1
+Multi-timeframe signal confluence: 15m + 1h + 4h.
+"""
+import logging
+
+log = logging.getLogger(__name__)
+
+def _ema(values, period):
+    if not values:
+        return []
+    k = 2.0 / (period + 1)
+    out = [values[0]]
+    for v in values[1:]:
+        out.append(v * k + out[-1] * (1 - k))
+    return out
+
+def _rsi(closes, period=14):
+    if len(closes) < period + 1:
+        return 50.0
+    deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+    gains = [d if d > 0 else 0.0 for d in deltas]
+    losses = [-d if d < 0 else 0.0 for d in deltas]
+    avg_g = sum(gains[:period]) / period
+    avg_l = sum(losses[:period]) / period
+    for i in range(period, len(deltas)):
+        avg_g = (avg_g * (period - 1) + gains[i]) / period
+        avg_l = (avg_l * (period - 1) + losses[i]) / period
+    if avg_l == 0:
+        return 100.0
+    return 100.0 - (100.0 / (1 + avg_g / avg_l))
+
+def _macd(closes, fast=12, slow=26, signal=9):
+    if len(closes) < slow + signal:
+        return {"macd": 0, "signal": 0, "hist": 0}
+    ema_fast = _ema(closes, fast)
+    ema_slow = _ema(closes, slow)
+    macd_line = [f - s for f, s in zip(ema_fast, ema_slow)]
+    signal_line = _ema(macd_line, signal)
+    hist = macd_line[-1] - signal_line[-1]
+    return {"macd": macd_line[-1], "signal": signal_line[-1], "hist": hist}
+
+def _score_tf(klines, interval):
+    if not klines or len(klines) < 30:
+        return {"interval": interval, "trend": "NEUTRAL", "score": 50, "rsi": 50, "macd_hist": 0, "label": "WAIT"}
+
+    closes = [float(k[4]) for k in klines]
+    highs = [float(k[2]) for k in klines]
+    lows = [float(k[3]) for k in klines]
+
+    rsi = _rsi(closes)
+    macd_d = _macd(closes)
+    ema12 = _ema(closes, 12)
+    ema26 = _ema(closes, 26)
+    ema_bull = ema12[-1] > ema26[-1] if len(ema12) == len(ema26) and len(ema12) > 0 else False
+
+    recent_highs = highs[-10:]
+    recent_lows = lows[-10:]
+    hh = max(recent_highs) == recent_highs[-1] or recent_highs[-1] > recent_highs[0]
+    ll = min(recent_lows) == recent_lows[-1] or recent_lows[-1] < recent_lows[0]
+
+    score = 50
+    score += 15 if ema_bull else -15
+    if macd_d["hist"] > 0:
+        score += 10
+    elif macd_d["hist"] < 0:
+        score -= 10
+
+    if 35 <= rsi <= 45:
+        score += 15
+    elif 55 <= rsi <= 65:
+        score -= 5
+    elif rsi > 70:
+        score -= 20
+    elif rsi < 30:
+        score += 20
+
+    if hh and not ll:
+        score += 10
+    elif ll and not hh:
+        score -= 10
+
+    score = max(0, min(100, score))
+
+    if score >= 65:
+        label = "BUY"
+    elif score <= 35:
+        label = "AVOID"
+    else:
+        label = "WAIT"
+
+    return {
+        "interval": interval,
+        "trend": "BULLISH" if score > 55 else "BEARISH" if score < 45 else "NEUTRAL",
+        "score": round(score, 1),
+        "rsi": round(rsi, 1),
+        "macd_hist": round(macd_d["hist"], 6),
+        "label": label,
+        "ema_bull": ema_bull,
+    }
+
+def get_mtf_signal(symbol: str, fetch_klines_func):
+    try:
+        k15 = fetch_klines_func(symbol, "15m", 50)
+        k1h = fetch_klines_func(symbol, "1h", 50)
+        k4h = fetch_klines_func(symbol, "4h", 50)
+    except Exception as e:
+        log.warning(f"[MTF] fetch failed {symbol}: {e}")
+        return {"error": str(e)}
+
+    s15 = _score_tf(k15, "15m")
+    s1h = _score_tf(k1h, "1h")
+    s4h = _score_tf(k4h, "4h")
+
+    weights = {"15m": 0.2, "1h": 0.35, "4h": 0.45}
+    wscore = (
+        s15["score"] * weights["15m"] +
+        s1h["score"] * weights["1h"] +
+        s4h["score"] * weights["4h"]
+    )
+
+    labels = [s15["label"], s1h["label"], s4h["label"]]
+    if all(l == "BUY" for l in labels):
+        wscore = min(100, wscore + 10)
+        confluence = "STRONG_BUY"
+    elif all(l == "AVOID" for l in labels):
+        wscore = max(0, wscore - 10)
+        confluence = "STRONG_AVOID"
+    elif labels.count("BUY") >= 2:
+        confluence = "BUY"
+    elif labels.count("AVOID") >= 2:
+        confluence = "AVOID"
+    else:
+        confluence = "MIXED"
+
+    final_score = round(wscore, 1)
+    final_label = "BUY" if final_score >= 68 else "WAIT" if final_score >= 45 else "AVOID"
+
+    return {
+        "symbol": symbol,
+        "confluence": confluence,
+        "score": final_score,
+        "label": final_label,
+        "timeframes": {"15m": s15, "1h": s1h, "4h": s4h},
+        "alignment": {
+            "bullish_count": sum(1 for l in labels if l == "BUY"),
+            "bearish_count": sum(1 for l in labels if l == "AVOID"),
+            "neutral_count": sum(1 for l in labels if l == "WAIT"),
+        },
+    }
+
+========================================
+END OF EXPORT
+========================================

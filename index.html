@@ -758,11 +758,19 @@ function switchTab(name, el) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
+  try{ localStorage.setItem('v6_active_tab', name); }catch(e){}
   if(name==='sniper' && !chart) setTimeout(function(){initChart();fetchChart();},500);
 }
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded',()=>{
+  try{
+    const savedTab = localStorage.getItem('v6_active_tab');
+    if(savedTab && savedTab !== 'sniper'){
+      const btn = document.querySelector(`.tab[onclick*="'${savedTab}'"]`);
+      if(btn) switchTab(savedTab, btn);
+    }
+  }catch(e){}
   setTimeout(function(){initChart();fetchChart();},500);
   fetchAll();
   timer=setInterval(()=>{

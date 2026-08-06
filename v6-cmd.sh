@@ -1,124 +1,75 @@
-#!/usr/bin/env bash
-# V6 Master Pro — one-word command shortcuts
+#!/bin/bash
+# V6 Master Pro — Command Toolkit
+# Usage: source ~/workspace/v6-cmd.sh
 
-aj() {
-    less +G /home/runner/workspace/AGENT_CHAT_LOG.md 2>/dev/null || cat /home/runner/workspace/AGENT_CHAT_LOG.md
-}
+WORKSPACE="$HOME/workspace"
+cd "$WORKSPACE" 2>/dev/null || cd "$HOME" 2>/dev/null
 
-chat-log() { aj; }
+echo "V6 commands loaded: aj | chat-log | back-log | sp | v8 | deploy | stop | restart | status | logs | save | push | full | backup | update | db-migrate | db-backup | db-status"
 
-backlog() {
-    less /home/runner/workspace/V6_BACKLOG.md 2>/dev/null || cat /home/runner/workspace/V6_BACKLOG.md
-}
+# ── Agent & Logs ──
+alias aj='bash ~/workspace/agent_log.sh'
+alias chat-log='bash ~/workspace/agent_log.sh tail 50'
+alias back-log='cat ~/workspace/agent_work_log.txt 2>/dev/null || echo "No log yet"'
 
-deploy() {
-    echo "Deploying V6 Master Pro..."
-    pkill -f "python3 main.py" 2>/dev/null && echo "   killed old process" || echo "   no old process running"
-    sleep 1
-    nohup python3 /home/runner/workspace/main.py > /home/runner/workspace/v6_server.log 2>&1 &
-    echo "   started PID $!"
-}
+# ── Project Export ──
+alias sp='bash ~/workspace/saveproj.sh'
 
+# ── V6 Modules Export ──
+alias v8='bash ~/workspace/v6-export.sh'
+
+# ── Process Control ──
 stop() {
-    echo "Stopping V6 Master Pro..."
-    if pkill -f "python3 main.py"; then echo "   process killed"; else echo "   no running process found"; fi
+    pkill -f "python3 main.py" 2>/dev/null && echo "✅ V6 stopped" || echo "ℹ️ Not running"
 }
-
-restart() { deploy; }
-
+restart() {
+    stop
+    sleep 2
+    nohup python3 main.py > v6.out 2>&1 &
+    echo "🚀 V6 restarted on port ${PORT:-8080}"
+}
 status() {
-    echo "V6 Master Pro status:"
-    PIDS=$(pgrep -f "main.py")
-    if [ -n "$PIDS" ]; then echo "   RUNNING — PID(s): $PIDS"; else echo "   NOT RUNNING"; fi
-    LOG=/home/runner/workspace/v6_server.log
-    if [ -f "$LOG" ]; then echo ""; echo "   Last 5 log lines:"; tail -5 "$LOG" | sed 's/^/      /'; else echo "   (no log file yet)"; fi
+    pgrep -f "python3 main.py" > /dev/null && echo "🟢 V6 is RUNNING (PID: $(pgrep -f 'python3 main.py'))" || echo "🔴 V6 is STOPPED"
 }
-
 logs() {
-    tail -30 /home/runner/workspace/v6_server.log 2>/dev/null || echo "No log file found at v6_server.log"
+    tail -f ~/workspace/v6.out 2>/dev/null || tail -f ~/workspace/error.log 2>/dev/null || echo "No log file found"
 }
 
-v8() {
-    echo "Exporting V6 upgrade modules..."
-    bash /home/runner/workspace/v6-export.sh
-}
+# ── Git / Deploy ──
+save() { bash ~/workspace/saveproj.sh; }
+push() { git add . && git commit -m "V6 update $(date +%H:%M)" && git push; }
+full() { save && push; }
+deploy() { push && echo "🚀 Triggering Render deploy..."; }
+update() { git pull origin main && echo "✅ Updated"; }
 
-save() {
-    echo "Saving project..."
-    bash /home/runner/workspace/saveproj.sh
-}
-
-push() {
-    echo "Saving and pushing to GitHub..."
-    bash /home/runner/workspace/saveproj.sh
-    cd /home/runner/workspace
-    git add .
-    git commit -m "v6 update"
-    git push
-}
-
-full() {
-    echo "Running full sequence: save -> deploy -> push"
-    save
-    deploy
-    push
-}
-
+# ── Backup ──
 backup() {
-    TS=$(date +%Y%m%d_%H%M%S)
-    BAK_DIR="/home/runner/workspace/backups/$TS"
-    mkdir -p "$BAK_DIR"
-    cp /home/runner/workspace/*.py "$BAK_DIR/" 2>/dev/null
-    cp /home/runner/workspace/*.json "$BAK_DIR/" 2>/dev/null
-    cp /home/runner/workspace/*.sh "$BAK_DIR/" 2>/dev/null
-    cp /home/runner/workspace/*.db "$BAK_DIR/" 2>/dev/null
-    echo "Backup created: $BAK_DIR"
+    BACKUP="backup_$(date +%Y%m%d_%H%M).tar.gz"
+    tar -czf "$BACKUP" main.py logic.py config.json requirements.txt *.json *.log V6_Master_Pro_UI/ 2>/dev/null
+    echo "✅ Backup: $BACKUP ($(du -h "$BACKUP" | cut -f1))"
 }
 
-update() {
-    echo "Pulling latest code..."
-    cd /home/runner/workspace
-    git pull
-    echo "Installing dependencies..."
-    pip install -q -r requirements.txt
-    echo "Update complete. Run 'restart' to apply."
-}
-
+# ── Database (SQLite) ──
 db-migrate() {
-    echo "Running JSON -> SQLite migration..."
-    cd /home/runner/workspace
-    python3 migrate_to_sqlite.py
+    if [ -f "v6_database.py" ]; then
+        python3 -c "from v6_database import init_db; init_db()" && echo "✅ DB migrated" || echo "❌ Migration failed"
+    else
+        echo "❌ v6_database.py not found"
+    fi
 }
-
 db-backup() {
-    TS=$(date +%Y%m%d_%H%M%S)
-    BAK="/home/runner/workspace/backups/v6_master_$TS.db"
-    mkdir -p /home/runner/workspace/backups
-    if [ -f /home/runner/workspace/v6_master.db ]; then
-        cp /home/runner/workspace/v6_master.db "$BAK"
-        echo "DB backed up: $BAK"
+    if [ -f "v6_master_pro.db" ]; then
+        cp v6_master_pro.db "v6_master_pro_backup_$(date +%Y%m%d_%H%M).db"
+        echo "✅ DB backed up"
     else
-        echo "No v6_master.db found. Run 'db-migrate' first."
+        echo "❌ No DB file found"
     fi
 }
-
 db-status() {
-    echo "V6 Database Status"
-    if [ -f /home/runner/workspace/v6_master.db ]; then
-        python3 -c "
-from v6_database import db_status
-st = db_status()
-print(f'  DB: {st[\"db_path\"]}')
-print(f'  Size: {st[\"db_size_bytes\"]:,} bytes ({st[\"db_size_bytes\"]/1024:.1f} KB)')
-print()
-print('  Table Rows:')
-for t, c in st['tables'].items():
-    print(f'    • {t:<25} {c:>4} rows')
-"
+    if [ -f "v6_master_pro.db" ]; then
+        ls -lh v6_master_pro.db
+        sqlite3 v6_master_pro.db ".tables" 2>/dev/null || echo "sqlite3 CLI not installed — file exists but can't inspect"
     else
-        echo "  v6_master.db not found."
-        echo "     Run: db-migrate   (to create from JSON files)"
+        echo "❌ No DB file found"
     fi
 }
-
-echo "V6 commands loaded: aj | chat-log | backlog | sp | v8 | deploy | stop | restart | status | logs | save | push | full | backup | update | db-migrate | db-backup | db-status"
