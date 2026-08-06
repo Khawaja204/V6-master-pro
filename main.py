@@ -2430,6 +2430,7 @@ If it goes red, this free Render instance can spin down after 15 min of no traff
   <span style="color:#8b949e;font-size:11px">📜 Startup + Ping History (last 50)</span>
   <span style="display:flex;gap:6px">
     <a href="/admin/uptime_log_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:3px 10px;font-size:10px;text-decoration:none">⬇ Download Full CSV</a>
+    <button onclick="copyUptimeCsv()" id="copy-uptime-btn" class="btn" style="background:#21262d;color:#d29922;border:1px solid #30363d;padding:3px 10px;font-size:10px">📋 Copy CSV</button>
     <button onclick="loadUptimeLog()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 10px;font-size:10px">↻ Refresh</button>
   </span>
 </div>
@@ -2440,6 +2441,23 @@ If it goes red, this free Render instance can spin down after 15 min of no traff
 </div>
 
 <script>
+function copyUptimeCsv(){
+  const btn=document.getElementById('copy-uptime-btn');
+  const orig=btn.textContent;
+  btn.textContent='Fetching...';
+  fetch('/admin/uptime_log_csv').then(r=>r.text()).then(csv=>{
+    navigator.clipboard.writeText(csv).then(()=>{
+      btn.textContent='✓ Copied!';
+      setTimeout(()=>{btn.textContent=orig;}, 2000);
+    }).catch(()=>{
+      btn.textContent='Copy failed';
+      setTimeout(()=>{btn.textContent=orig;}, 2000);
+    });
+  }).catch(()=>{
+    btn.textContent='Fetch failed';
+    setTimeout(()=>{btn.textContent=orig;}, 2000);
+  });
+}
 function loadUptimeLog(){
   const tb=document.getElementById('uptime-log-tbody');
   tb.innerHTML='<tr><td colspan="4" style="color:#d29922">Loading…</td></tr>';
