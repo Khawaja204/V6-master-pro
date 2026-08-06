@@ -1,8 +1,8 @@
 {
-  "total_closed": 18,
+  "total_closed": 20,
   "wins": 15,
   "losses": 1,
-  "timeouts": 2,
+  "timeouts": 4,
   "win_rate": 93.8,
   "avg_win_obi": 0.3107,
   "avg_loss_obi": 0.5146,

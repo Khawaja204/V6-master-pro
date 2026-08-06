@@ -11,6 +11,8 @@ import os, json, time, threading, logging, secrets as _secrets
 from collections import defaultdict
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, session, redirect, render_template_string, Response, send_from_directory
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from logic import (
     process_vmc_signals, process_whale_walls, push_to_google_sheets,
@@ -2203,6 +2205,11 @@ def _admin_required(fn):
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+limiter = Limiter(
+    get_remote_address, app=app,
+    default_limits=["200 per hour", "50 per minute"],
+    storage_uri="memory://",
+)
 app.secret_key = SESSION_SECRET
 # ProxyFix: Replit runs behind a reverse proxy in production.
 # Without this, Flask sees wrong scheme/host and session cookies may fail.
@@ -3024,6 +3031,7 @@ function loadLiveHoldings(){
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def admin_login():
     ip = request.remote_addr
     locked  = _check_lockout(ip)
@@ -4182,6 +4190,7 @@ def _verify_client(username: str, password: str):
 
 
 @app.route("/client/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def client_login():
     ip = request.remote_addr
     if _check_lockout(ip): return render_template_string(CLIENT_LOGIN_HTML, error="⛔ Too many attempts.")

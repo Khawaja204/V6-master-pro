@@ -16,12 +16,16 @@ import random
 _ONCHAIN_CACHE = {"eth_flows": [], "bsc_moves": [], "large_trades": [], "ts": 0}
 
 def _get_eth_price_usd() -> float:
-    """Quick ETH price fetch."""
+    """Quick ETH price fetch — routes through _binance_get for proxy/geo-block handling."""
     try:
-        r = _SESSION.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", timeout=10)
-        return float(r.json().get("price", 3500))
+        resp = _binance_get("/api/v3/ticker/price", params={"symbol": "ETHUSDT"}, timeout=10)
+        if resp is not None and resp.status_code == 200:
+            return float(resp.json().get("price", 3500))
     except Exception:
-        return 3500.0
+        pass
+    # CoinGecko fallback when Binance is geo-blocked
+    cg = _coingecko_price("ETHUSDT")
+    return cg if cg > 0 else 3500.0
 
 
 def get_eth_exchange_flow(limit: int = 10, min_usd: float = 5000) -> list:
@@ -289,6 +293,15 @@ def get_onchain_data(refresh: bool = False) -> dict:
 
 
 
+# ── Optional Binance proxy (bypasses geo-block / IP restrictions) ─────────────
+# Set BINANCE_PROXY in your Render / Replit environment variables:
+#   HTTP:    http://user:pass@host:port
+#   SOCKS5:  socks5://user:pass@host:port   (needs: pip install requests[socks])
+# When set, REST requests automatically route through the proxy after a 451.
+# BINANCE_WS_PROXY in v6_websocket.py inherits this value for WebSocket traffic.
+BINANCE_PROXY: str = os.getenv("BINANCE_PROXY", "").strip()
+
+
 def _tg_proxies():
     p = os.getenv("TELEGRAM_PROXY")
     return {"http": p, "https": p} if p else None
@@ -335,8 +348,36 @@ def _build_session() -> requests.Session:
 
 
 _SESSION = _build_session()
+
+
+def _build_proxy_session(proxy_url: str) -> "requests.Session":
+    """Build a requests Session pre-configured to route through proxy_url.
+    Supports HTTP (http://host:port) and SOCKS5 (socks5://host:port) proxies.
+    SOCKS5 requires: pip install requests[socks]"""
+    s = requests.Session()
+    retry = Retry(
+        total=2, connect=2, read=2, backoff_factor=0.5,
+        status_forcelist=(500, 502, 503, 504),
+        allowed_methods=frozenset(["GET", "POST"]),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=5, pool_maxsize=5)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    s.headers.update({"User-Agent": "V6MasterPro/1.0"})
+    s.proxies = {"http": proxy_url, "https": proxy_url}
+    return s
+
+
+# None when BINANCE_PROXY is not configured; set at startup and reused.
+_PROXY_SESSION: "requests.Session | None" = (
+    _build_proxy_session(BINANCE_PROXY) if BINANCE_PROXY else None
+)
+if BINANCE_PROXY:
+    log.info(f"[BINANCE] Proxy session ready → {BINANCE_PROXY.split('@')[-1]}")
+
 # 451 is handled separately — all Binance hosts return the same 451 so retrying
-# other hosts is pointless. We detect it once, back off, then let it expire.
+# other hosts is pointless. We detect it once, try proxy if available, then back off.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 _health_lock = threading.Lock()
@@ -371,8 +412,18 @@ def _mark_health(ok: bool, host: str = "", error: str = "") -> None:
 
 
 def get_binance_health() -> dict:
+    """Return Binance connectivity health including geo-block and proxy status."""
     with _health_lock:
-        return dict(_BINANCE_HEALTH)
+        h = dict(_BINANCE_HEALTH)
+    h["geo_blocked"]        = _GEO_BLOCK["active"]
+    h["proxy_enabled"]      = bool(BINANCE_PROXY)
+    h["proxy_label"]        = BINANCE_PROXY.split("@")[-1] if BINANCE_PROXY else ""
+    if _GEO_BLOCK["active"]:
+        remaining = max(0, _GEO_BLOCK["cooldown_secs"] - (time.time() - _GEO_BLOCK["detected_at"]))
+        h["geo_block_retry_in"] = int(remaining)
+    else:
+        h["geo_block_retry_in"] = 0
+    return h
 
 
 def _binance_get(path: str, params: dict = None, timeout: int = 10):
@@ -474,6 +525,91 @@ _obi_history: dict = {}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# COINGECKO PRICE FALLBACK
+# Used when Binance REST is geo-blocked (HTTP 451) and no proxy is configured.
+# Covers the ~110 most-traded USDT pairs. Unlisted coins return 0.0 (same
+# behavior as the existing "Binance unreachable" fallback). CoinGecko free tier
+# allows ~30 req/min — individual lookups are cached for 30 s to stay well
+# within that limit.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Binance base symbol → CoinGecko coin ID
+_CG_ID: dict = {
+    "BTC":"bitcoin","ETH":"ethereum","BNB":"binancecoin","SOL":"solana",
+    "XRP":"ripple","ADA":"cardano","DOGE":"dogecoin","AVAX":"avalanche-2",
+    "TRX":"tron","TON":"the-open-network","DOT":"polkadot","LINK":"chainlink",
+    "SHIB":"shiba-inu","LTC":"litecoin","UNI":"uniswap","ATOM":"cosmos",
+    "XLM":"stellar","ETC":"ethereum-classic","NEAR":"near","FIL":"filecoin",
+    "ICP":"internet-computer","HBAR":"hedera-hashgraph","VET":"vechain",
+    "APT":"aptos","ARB":"arbitrum","OP":"optimism","INJ":"injective-protocol",
+    "IMX":"immutable-x","SUI":"sui","GRT":"the-graph","AAVE":"aave",
+    "MKR":"maker","RUNE":"thorchain","ALGO":"algorand","FTM":"fantom",
+    "SAND":"the-sandbox","MANA":"decentraland","AXS":"axie-infinity",
+    "CAKE":"pancakeswap-token","COMP":"compound-governance-token",
+    "SNX":"havven","1INCH":"1inch","KSM":"kusama","ZEC":"zcash",
+    "XMR":"monero","DASH":"dash","NEO":"neo","THETA":"theta-token",
+    "EOS":"eos","ZIL":"zilliqa","XTZ":"tezos","FLOW":"flow",
+    "QNT":"quant-network","MINA":"mina-protocol","CRV":"curve-dao-token",
+    "LDO":"lido-dao","STX":"blockstack","CHZ":"chiliz","APE":"apecoin",
+    "JASMY":"jasmycoin","FLOKI":"floki","PEPE":"pepe","WIF":"dogwifcoin",
+    "BONK":"bonk","JUP":"jupiter-ag","PYTH":"pyth-network","ENA":"ethena",
+    "FET":"fetch-ai","RNDR":"render-token","OCEAN":"ocean-protocol",
+    "AGIX":"singularitynet","KAS":"kaspa","CFX":"conflux-token",
+    "KAVA":"kava","ROSE":"oasis-network","CELO":"celo","BLUR":"blur",
+    "SEI":"sei-network","TIA":"celestia","STRK":"starknet",
+    "WLD":"worldcoin-org","NOT":"notcoin","STORJ":"storj",
+    "MATIC":"matic-network","POL":"matic-network","TAO":"bittensor",
+    "GMT":"stepn","MAGIC":"magic","HIGH":"highstreet",
+    "LUNA":"terra-luna-2","LUNC":"terra-luna","ZRO":"layerzero",
+    "W":"wormhole","DYM":"dymension","PEOPLE":"constitutiondao",
+    "SUSHI":"sushi","GALA":"gala","ACE":"fusionist",
+    "BOME":"book-of-meme","NEIRO":"neiro","ONE":"harmony",
+    "EGLD":"elrond-erd-2","GLMR":"moonbeam","ID":"space-id",
+    "GAL":"galxe","HOOK":"hooked-protocol","ORDI":"ordinals",
+}
+
+_CG_PRICE_CACHE: dict = {}   # symbol → {"price": float, "ts": float}
+_CG_CACHE_TTL:   int  = 30   # seconds
+
+
+def _cg_base(symbol: str) -> str:
+    """'BTCUSDT' → 'BTC'"""
+    s = symbol.upper()
+    if s.endswith("USDT"): return s[:-4]
+    if s.endswith("USD"):  return s[:-3]
+    return s
+
+
+def _coingecko_price(symbol: str) -> float:
+    """Return CoinGecko USD price for a Binance USDT symbol (e.g. 'BTCUSDT').
+    Results are cached for 30 s. Returns 0.0 if unknown or CoinGecko unreachable."""
+    cached = _CG_PRICE_CACHE.get(symbol)
+    if cached and (time.time() - cached["ts"]) < _CG_CACHE_TTL:
+        return cached["price"]
+    base  = _cg_base(symbol)
+    cg_id = _CG_ID.get(base)
+    if not cg_id:
+        return 0.0
+    try:
+        r = _SESSION.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": cg_id, "vs_currencies": "usd"},
+            timeout=6,
+        )
+        if r.status_code == 200:
+            price = float((r.json().get(cg_id) or {}).get("usd") or 0)
+            if price > 0:
+                _CG_PRICE_CACHE[symbol] = {"price": price, "ts": time.time()}
+                log.debug(f"[COINGECKO] {symbol} = ${price:.4f} (geo-block fallback)")
+                return price
+        elif r.status_code == 429:
+            log.warning("[COINGECKO] Rate-limited (429) — CoinGecko fallback throttled")
+    except Exception as e:
+        log.debug(f"[COINGECKO] price fetch failed for {symbol}: {e}")
+    return 0.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # DATA LAYER
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -496,7 +632,7 @@ def fetch_all_tickers(config: dict) -> list:
 
 
 def fetch_ticker_price(symbol: str) -> float:
-    # V6 UPGRADE: WebSocket cache first (near-instant), REST fallback.
+    # 1. WebSocket / REST-poll cache (near-instant, updated every few seconds)
     try:
         from v6_websocket import get_ws_price
         _ws_p = get_ws_price(symbol)
@@ -504,12 +640,18 @@ def fetch_ticker_price(symbol: str) -> float:
             return _ws_p
     except Exception:
         pass
+    # 2. Binance REST (direct connection, or proxy if geo-blocked)
     try:
         resp = _binance_get("/api/v3/ticker/price", params={"symbol": symbol}, timeout=5)
         if resp is not None and resp.status_code == 200:
             return float(resp.json()["price"])
     except Exception as e:
         log.debug(f"Price fetch failed for {symbol}: {e}")
+    # 3. CoinGecko fallback — used when Binance is geo-blocked with no proxy
+    if _GEO_BLOCK["active"] and not _PROXY_SESSION:
+        cg = _coingecko_price(symbol)
+        if cg > 0:
+            return cg
     return 0.0
 
 
