@@ -26,6 +26,7 @@ from logic import (
     detect_whale_copy_signals, is_stablecoin_pair,
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
     estimate_time_to_target, fetch_large_trades, fetch_eth_exchange_flows,
+    detect_combo_signals,
 )
 
 # V6 UPGRADE IMPORTS (P0: SQLite + Crypto + OCO | P1: WS + Partial TP + MTF)
@@ -489,6 +490,62 @@ def _save_combo_trades():
     except Exception as e:
         log.debug(f"Combo trades save failed: {e}")
 
+
+def _record_combo_trade(combo: dict):
+    """COMBO CONFLUENCE BOT — records an entry when V6-BUY and Wall-COPY_BUY
+    agree on the same coin at once. Entry/exit levels come straight from
+    V6's ATR engine (detect_combo_signals() already resolved these) —
+    exit is managed by combo_check_loop() using the same TP/SL/trailing/
+    stale-exit pattern as the other two bots, config: bots.combo."""
+    global COMBO_TRADES
+    if not _entries_allowed("combo") or not _weekly_entries_allowed("combo"):
+        return None
+    sym = combo["symbol"]
+    _held_by = _symbol_open_elsewhere(sym, "combo")
+    if _held_by:
+        log.info(f"[EXPOSURE-GUARD] {sym} COMBO entry skipped — already OPEN on {_held_by} bot")
+        return None
+    if any(t.get("symbol") == sym and t.get("status") == "OPEN" for t in COMBO_TRADES):
+        return None
+    now = time.time()
+    entry = {
+        "id":              f"CB-{int(now)}-{sym[:4]}",
+        "symbol":          sym,
+        "entry_price":     combo.get("entry_low") or combo.get("price", 0),
+        "stop_loss":       combo.get("stop_loss", 0),
+        "original_sl":     combo.get("stop_loss", 0),
+        "trailing":        "",
+        "tp1":             combo.get("tp1", 0),
+        "tp2":             combo.get("tp2", 0),
+        "tp3":             combo.get("tp3", 0),
+        "tp1_hit":         False,
+        "tp2_hit":         False,
+        "tp3_hit":         False,
+        "sl_hit":          False,
+        "v6_score":        combo.get("v6_score", 0),
+        "wall_confidence": combo.get("wall_confidence", 0),
+        "reason":          combo.get("reason", ""),
+        "entry_time":      _pkt_ts(),
+        "entry_ts":        now,
+        "status":          "OPEN",
+        "exit_price":      None,
+        "exit_time":       None,
+        "result":          None,
+        "pnl_pct":         None,
+    }
+    with _ledger_lock:
+        COMBO_TRADES.insert(0, entry)
+        if len(COMBO_TRADES) > 500:
+            COMBO_TRADES.pop()
+    _save_combo_trades()
+    log.info(f"[COMBO] BUY {sym} @ {entry['entry_price']} (v6={combo.get('v6_score')} wall={combo.get('wall_confidence')}%)")
+    notify_all(f"V6 COMBO BUY — {sym.replace('USDT','')}",
+               f"🎯 <b>COMBO CONFLUENCE BUY — {sym.replace('USDT','')}</b>\n"
+               f"Entry: {_fmtP(entry['entry_price'])} | TP1 {_fmtP(entry['tp1'])} | SL {_fmtP(entry['stop_loss'])}\n"
+               f"V6 Score: {combo.get('v6_score')} | Wall Conf: {combo.get('wall_confidence')}%\n"
+               f"📋 {combo.get('reason','')}")
+    return entry
+
 # One-time cleanup: purge any previously-recorded fiat/forex pairs (e.g. EUR)
 # that predate the whale-copy exclude_symbols fiat filter.
 _FIAT_BASES = {"EUR","GBP","AUD","TRY","BRL","RUB","UAH","ZAR","JPY","MXN"}
@@ -727,7 +784,8 @@ def _record_alert(alert_type: str, symbol: str, label: str, price,
 
 def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
                             tp_zones: dict, confidence: int,
-                            traffic: str = "", reason: str = ""):
+                            traffic: str = "", reason: str = "",
+                            score_breakdown: dict = None):
     """Record signal as a tracked entry. Returns the entry dict, or None if the
     entry was filtered out (GREEN-only rule, circuit-breaker, or dedup window).
     Dedup: same coin not tracked twice in 30 min."""
@@ -779,8 +837,10 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         "sl_hit":      False,
         "exit_price":  None,
         "exit_time":   None,
-        "result":      None,   # WIN / LOSS / TIMEOUT
+        "result":      None,   # WIN / LOSS / TIMEOUT / STALE_EXIT
         "pnl_pct":     None,
+        "score_breakdown": json.dumps(score_breakdown) if score_breakdown else None,
+        "price_source":    "rest_scan",  # entry_price comes from the scan cycle's REST ticker data
     }
     with _ledger_lock:
         BACKTEST_SIGNALS.insert(0, entry)
@@ -1009,15 +1069,35 @@ def whale_copy_check_loop():
                                 tr["trailing"]  = "ATR_TRAIL"
                                 changed = True
 
+                _tm_stale2 = CONFIG.get("trade_management", {})
+                _stale_hrs2 = _tm_stale2.get("stale_exit_check_hours", 1)
+                _stale_max2 = _tm_stale2.get("stale_exit_max_flat_checks", 3)
+                _stale_pct2 = _tm_stale2.get("stale_exit_flat_threshold_pct", 0.3)
+                _last_chk_ts2 = tr.get("last_flat_check_ts", tr["entry_ts"])
+                stale_exit2 = False
+                if now - _last_chk_ts2 >= _stale_hrs2 * 3600:
+                    _last_chk_px2 = tr.get("last_flat_check_price", entry_p)
+                    _move_pct2 = abs(current - _last_chk_px2) / _last_chk_px2 * 100 if _last_chk_px2 else 0
+                    if _move_pct2 < _stale_pct2:
+                        tr["flat_checks"] = tr.get("flat_checks", 0) + 1
+                    else:
+                        tr["flat_checks"] = 0
+                    tr["last_flat_check_ts"] = now
+                    tr["last_flat_check_price"] = current
+                    if tr["flat_checks"] >= _stale_max2:
+                        stale_exit2 = True
+
                 hit_target = bool(target) and current >= target
                 hit_sl     = bool(sl) and current <= sl
-                if hit_target or hit_sl or age >= 12 * 3600:
+                if hit_target or hit_sl or age >= 12 * 3600 or stale_exit2:
                     exit_price = target if hit_target else (sl if hit_sl else current)
                     tr["exit_price"] = exit_price
                     tr["exit_time"]  = _pkt_ts()
                     _raw_pnl = (exit_price - entry_p) / entry_p * 100 if entry_p else 0
                     tr["pnl_pct"] = round(_raw_pnl - (BINANCE_FEE_PCT * 2 * 100), 3) if entry_p else 0
-                    if hit_target:
+                    if stale_exit2 and not hit_target and not hit_sl:
+                        tr["result"] = "STALE_EXIT"
+                    elif hit_target:
                         tr["result"] = "WIN"
                     elif hit_sl:
                         tr["result"] = "WIN" if tr["pnl_pct"] > 0 else "LOSS"
@@ -1046,6 +1126,94 @@ def whale_copy_check_loop():
                 log.info("[WHALE COPY] Trade resolutions updated")
         except Exception as e:
             log.warning(f"Whale copy check error: {e}")
+
+
+def combo_check_loop():
+    """Every 5 minutes: resolve OPEN combo trades against TP1/TP2/TP3/SL,
+    using the same ATR-trailing + stale-exit pattern as the other two bots."""
+    global COMBO_TRADES
+    while True:
+        time.sleep(300)
+        try:
+            changed = False
+            now = time.time()
+            for tr in COMBO_TRADES:
+                if tr.get("status") != "OPEN":
+                    continue
+                age = now - tr.get("entry_ts", now)
+                if age < 300:
+                    continue
+                current = fetch_ticker_price(tr["symbol"])
+                if not current:
+                    continue
+                entry_p = tr.get("entry_price", 0)
+                sl      = tr.get("stop_loss", 0)
+                tp1, tp2, tp3 = tr.get("tp1", 0), tr.get("tp2", 0), tr.get("tp3", 0)
+
+                if tp3 and current >= tp3:
+                    tr["tp1_hit"] = tr["tp2_hit"] = tr["tp3_hit"] = True
+                elif tp2 and current >= tp2:
+                    tr["tp1_hit"] = tr["tp2_hit"] = True
+                elif tp1 and current >= tp1:
+                    tr["tp1_hit"] = True
+
+                tm = CONFIG.get("trade_management", {})
+                if tm.get("trailing_stop_enabled", True):
+                    if tr["tp2_hit"] and tm.get("trail_to_tp1_on_tp2", True) and tp1 and sl < tp1:
+                        sl = tp1; tr["stop_loss"] = sl; tr["trailing"] = "TP1"
+                    elif tr["tp1_hit"] and tm.get("breakeven_on_tp1", True) and sl < entry_p:
+                        sl = entry_p; tr["stop_loss"] = sl; tr["trailing"] = "BREAKEVEN"
+
+                if sl and current <= sl:
+                    tr["sl_hit"] = True
+
+                _stale_hrs = tm.get("stale_exit_check_hours", 1)
+                _stale_max = tm.get("stale_exit_max_flat_checks", 3)
+                _stale_pct = tm.get("stale_exit_flat_threshold_pct", 0.3)
+                _last_ts   = tr.get("last_flat_check_ts", tr["entry_ts"])
+                stale_exit = False
+                if now - _last_ts >= _stale_hrs * 3600:
+                    _last_px = tr.get("last_flat_check_price", entry_p)
+                    _move    = abs(current - _last_px) / _last_px * 100 if _last_px else 0
+                    tr["flat_checks"] = (tr.get("flat_checks", 0) + 1) if _move < _stale_pct else 0
+                    tr["last_flat_check_ts"] = now
+                    tr["last_flat_check_price"] = current
+                    if tr["flat_checks"] >= _stale_max:
+                        stale_exit = True
+
+                trailing_exit = tr["sl_hit"] and tr["tp1_hit"] and tr.get("trailing")
+
+                if age >= 21600 or trailing_exit or stale_exit:
+                    exit_price = min(current, sl) if (tr["sl_hit"] and sl) else current
+                    tr["exit_price"] = exit_price
+                    tr["exit_time"]  = _pkt_ts()
+                    _raw_pnl = (exit_price - entry_p) / entry_p * 100 if entry_p else 0
+                    tr["pnl_pct"] = round(_raw_pnl - (BINANCE_FEE_PCT * 2 * 100), 3)
+
+                    if stale_exit and not tr["sl_hit"] and not tr["tp1_hit"]:
+                        tr["result"] = "STALE_EXIT"
+                    elif tr["sl_hit"]:
+                        tr["result"] = "WIN" if tr["pnl_pct"] > 0 else "LOSS"
+                    elif tr["tp1_hit"]:
+                        tr["result"] = "WIN"
+                    else:
+                        tr["result"] = "TIMEOUT" if tr["pnl_pct"] >= -0.5 else "LOSS"
+                    tr["status"] = "CLOSED"
+                    changed = True
+                    _record_trade_result(tr["result"] == "WIN", tr["pnl_pct"], bot="combo")
+                    _record_weekly_pnl("combo", tr["pnl_pct"])
+                    notify_all(
+                        f"V6 COMBO CLOSED — {tr['symbol'].replace('USDT','')} ({tr['result']})",
+                        f"{'✅' if tr['result']=='WIN' else '❌' if tr['result']=='LOSS' else '⏱'} "
+                        f"<b>COMBO CLOSED — {tr['symbol'].replace('USDT','')}</b>\n"
+                        f"Result: {tr['result']} | PnL: {tr['pnl_pct']}%\n"
+                        f"Entry: {_fmtP(entry_p)} | Exit: {_fmtP(exit_price)}"
+                    )
+            if changed:
+                _save_combo_trades()
+                log.info("[COMBO] Trade resolutions updated")
+        except Exception as e:
+            log.warning(f"Combo check error: {e}")
 
 
 def _update_hot_coins(symbol: str) -> bool:
@@ -1213,7 +1381,8 @@ def alert_vip(coin: dict, inst: dict = None, tp_zones: dict = None, confidence: 
         # site — pass "GREEN" here so it satisfies the green_only_entries
         # safety check (circuit-breaker / 30-min dedup still fully apply).
         entry = _record_backtest_signal(coin["symbol"], coin["price"], folder_lbl,
-                                        tp_zones, confidence, traffic="GREEN", reason=reason)
+                                        tp_zones, confidence, traffic="GREEN", reason=reason,
+                                        score_breakdown=coin.get("v6", {}).get("breakdown"))
         if entry:   # an actual entry passed the GREEN-only + circuit-breaker gate
             _open_ct = sum(1 for b in BACKTEST_SIGNALS if b.get("status") == "OPEN")
             if _open_ct >= 3:
@@ -1686,11 +1855,8 @@ def data_refresh_loop():
                 else:
                     _wcs["eta"] = "—"
             GLOBAL_DATA["whale_copy_signals"] = whale_copy_signals
-            wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50) + \
-                          GLOBAL_DATA.get("whale_copy_learning", {}).get("confidence_threshold_adjustment", 0)
-            for sig in whale_copy_signals:
-                if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
-                    _record_whale_copy_trade(sig)
+            # NOTE: whale-copy trade recording moved to the priority-ordered
+            # Fire Alerts section below (COMBO > WALL > V6).
 
             # ── LARGE TRADE DETECTOR: exchange-side whale-activity proxy ─────
             _lt_min_usdt = CONFIG.get("whale_copy", {}).get("large_trade_min_usdt", 50000)
@@ -1879,27 +2045,46 @@ def data_refresh_loop():
             # ── Sync price_alerts to GLOBAL_DATA ────────────────────────────
             GLOBAL_DATA["price_alerts"] = PRICE_ALERTS[:]
 
-            # ── Fire Alerts ──────────────────────────────────────────────────
+            # ── COMBO + WHALE COPY + V6 GATE — priority order COMBO > WALL > V6 ──
+            combo_signals = detect_combo_signals(inst_signals, whale_copy_signals, CONFIG)
+            GLOBAL_DATA["combo_signals"] = combo_signals
+
             if not GLOBAL_DATA.get("btc_pause"):
-                # V6 GATE: auto paper-trade now fires off the fixed 54-point
-                # v6.label=="BUY" for ANY folder's coin, instead of the old
-                # VIP-folder-only + institutional-traffic=="GREEN" gate that
-                # real market data almost never satisfied (root cause of
-                # zero trades over ~2 months).
+                # 1st priority: COMBO (V6-BUY + Wall-COPY_BUY dual confirmation)
+                for combo in combo_signals:
+                    _record_combo_trade(combo)
+
+                # 2nd priority: Whale Copy (adaptive confidence gate)
+                wc_min_conf = CONFIG.get("whale_copy", {}).get("min_confidence", 50) + \
+                              GLOBAL_DATA.get("whale_copy_learning", {}).get("confidence_threshold_adjustment", 0)
+                for sig in whale_copy_signals:
+                    if sig["direction"] == "COPY_BUY" and sig.get("confirmed") and sig["confidence"] >= wc_min_conf:
+                        _record_whale_copy_trade(sig)
+
+                # 3rd priority: Standalone V6 (score/confidence-gated)
                 _seen_buy_syms = set()
+                _tm_gate = CONFIG.get("trade_management", {})
+                _v6_min_score = _tm_gate.get("v6_min_score", 68)
+                _v6_min_conf  = _tm_gate.get("v6_min_confidence", 0)
+                _mtf_min_bull = _tm_gate.get("mtf_min_bullish_count", 0)
                 for s in inst_signals:
                     sym = s["symbol"]
                     if sym in _seen_buy_syms:
                         continue
-                    if s.get("v6", {}).get("label", "") == "BUY":
+                    _v6r = s.get("v6", {})
+                    _mtf_bull = s.get("mtf", {}).get("alignment", {}).get("bullish_count", 0)
+                    if (_v6r.get("label", "") == "BUY"
+                            and _v6r.get("score", 0) >= _v6_min_score
+                            and s.get("confidence", 0) >= _v6_min_conf
+                            and _mtf_bull >= _mtf_min_bull):
                         _seen_buy_syms.add(sym)
                         alert_vip(s, s.get("inst", {}), s.get("tp_zones", {}), s.get("confidence", 0))
 
                 # NOTE: wall/blink/whale-trap Telegram pings intentionally
                 # disabled — too noisy, not actionable. Whale data still shows
                 # live on the dashboard/Sheets WATCH tab. Only BUY signals,
-                # confirmed Whale Copy entries, and inventory sell-checks
-                # reach Telegram now.
+                # confirmed Whale Copy entries, Combo entries, and inventory
+                # sell-checks reach Telegram now.
                 pass
             else:
                 log.info("[SCAN] BTC BEARISH — entries paused.")
@@ -1972,12 +2157,34 @@ def backtest_check_loop():
                 if sig["stop_loss"] and current <= sig["stop_loss"]:
                     sig["sl_hit"] = True
 
+                # ── Stale/Flatline detector: every ~1h, compare price vs the
+                # last checkpoint. 3 consecutive flat checks (< threshold%
+                # movement) means the coin has gone dead — exit at breakeven
+                # instead of waiting for the full 6h timeout. ──
+                _tm_stale = CONFIG.get("trade_management", {})
+                _stale_hrs = _tm_stale.get("stale_exit_check_hours", 1)
+                _stale_max = _tm_stale.get("stale_exit_max_flat_checks", 3)
+                _stale_pct = _tm_stale.get("stale_exit_flat_threshold_pct", 0.3)
+                _last_chk_ts = sig.get("last_flat_check_ts", sig["entry_ts"])
+                stale_exit = False
+                if now - _last_chk_ts >= _stale_hrs * 3600:
+                    _last_chk_px = sig.get("last_flat_check_price", entry)
+                    _move_pct = abs(current - _last_chk_px) / _last_chk_px * 100 if _last_chk_px else 0
+                    if _move_pct < _stale_pct:
+                        sig["flat_checks"] = sig.get("flat_checks", 0) + 1
+                    else:
+                        sig["flat_checks"] = 0
+                    sig["last_flat_check_ts"] = now
+                    sig["last_flat_check_price"] = current
+                    if sig["flat_checks"] >= _stale_max:
+                        stale_exit = True
+
                 # ── Early close: trailing stop hit AFTER a profit target — lock
                 #    the result immediately instead of waiting for 1h. ──
                 trailing_exit = sig["sl_hit"] and sig["tp1_hit"] and sig.get("trailing")
 
-                # Resolve after 1h (or immediately on a trailing-stop exit)
-                if age >= 3600 or trailing_exit:
+                # Resolve after 6h, on a trailing-stop exit, or on a stale/flatline exit
+                if age >= 21600 or trailing_exit or stale_exit:
                     # On an SL hit, fill at the stop level (not the polled price,
                     # which can have gapped past it); otherwise fill at current.
                     if sig["sl_hit"] and sig["stop_loss"]:
@@ -1990,7 +2197,12 @@ def backtest_check_loop():
 
                     # Classify by REALIZED PnL, not merely whether tp1 was tagged
                     # — a trailing stop can exit at breakeven or a small loss.
-                    if sig["sl_hit"]:
+                    if stale_exit and not sig["sl_hit"] and not sig["tp1_hit"]:
+                        sig["result"] = "STALE_EXIT"; sig["status"] = "CLOSED"
+                        # Treat as a neutral outcome — no win/loss streak impact,
+                        # but still feed the circuit-breaker with the (near-zero) pnl.
+                        _record_trade_result(sig["pnl_pct"] > 0, sig["pnl_pct"], bot="v6")
+                    elif sig["sl_hit"]:
                         win = sig["pnl_pct"] > 0
                         sig["result"] = "WIN" if win else "LOSS"
                         sig["status"] = "CLOSED"
@@ -4735,6 +4947,7 @@ if __name__ == "__main__":
     threading.Thread(target=weekly_report_loop,   daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
+    threading.Thread(target=combo_check_loop,      daemon=True).start()
     threading.Thread(target=holdings_check_loop,   daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()

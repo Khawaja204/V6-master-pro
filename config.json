@@ -60,8 +60,8 @@
     "spike_confirm_threshold": 2,
     "yellow_light_whale_power": 50,
     "btc_bearish_drop_pct": 2.0,
-    "atr_stop_loss_multiplier": 1.5,
-    "tp1_atr_multiplier": 1.5,
+    "atr_stop_loss_multiplier": 1.2,
+    "tp1_atr_multiplier": 2.5,
     "tp2_atr_multiplier": 3.0,
     "tp3_atr_multiplier": 5.0,
     "slippage_max_pct": 0.3,
@@ -82,11 +82,17 @@
     "trail_to_tp1_on_tp2": true,
     "daily_max_losses": 5,
     "daily_max_drawdown_pct": 10.0,
-    "partial_tp1_pct": 25,
-    "partial_tp2_pct": 35,
-    "partial_tp3_pct": 40,
+    "partial_tp1_pct": 50,
+    "partial_tp2_pct": 0,
+    "partial_tp3_pct": 50,
     "partial_tp_check_seconds": 10,
-    "weekly_max_drawdown_pct": 20.0
+    "weekly_max_drawdown_pct": 20.0,
+    "v6_min_score": 72,
+    "v6_min_confidence": 75,
+    "stale_exit_check_hours": 1,
+    "stale_exit_max_flat_checks": 3,
+    "stale_exit_flat_threshold_pct": 0.3,
+    "mtf_min_bullish_count": 2
   },
   "security": {
     "max_login_attempts": 3,
@@ -166,5 +172,7 @@
     "max_slippage_pct": 0.3,
     "max_order_delay_seconds": 5,
     "reject_on_stale_price_seconds": 10
-  }
+  },
+  "min_v6_score": 0.65,
+  "filter_low_score_trades": true
 }

@@ -97,7 +97,7 @@ _TABLES = {
             stop_loss REAL, original_sl REAL, trailing TEXT, traffic TEXT,
             reason TEXT, confidence INTEGER, status TEXT, tp1_hit INTEGER,
             tp2_hit INTEGER, tp3_hit INTEGER, sl_hit INTEGER, exit_price REAL,
-            exit_time TEXT, result TEXT, pnl_pct REAL
+            exit_time TEXT, result TEXT, pnl_pct REAL, score_breakdown TEXT, price_source TEXT
         )
     """,
     "api_keys": """
@@ -169,7 +169,7 @@ def save_paper_trades(data: list):
                 c.execute("""
                     INSERT OR REPLACE INTO paper_trades
                     (id, symbol, side, strategy, amount_usdt, price, qty, mode, manual, reason, status, time)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
                     row.get("id"), row.get("symbol"), row.get("side"), row.get("strategy"),
                     row.get("amount_usdt"), row.get("price"), row.get("qty"), row.get("mode"),
@@ -210,7 +210,7 @@ def save_whale_copy_trades(data: list):
                     (id, symbol, direction, entry_price, wall_price, wall_size_usdt, wall_qty,
                      stop_loss, original_sl, trailing, target, obi, obi_velocity, confidence,
                      funding_rate, liq_status, eta, entry_time, entry_ts, mode, status,
-                     exit_price, exit_time, result, pnl_pct)
+                     exit_price, exit_time, result, pnl_pct, score_breakdown, price_source)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
                     row.get("id"), row.get("symbol"), row.get("direction"), row.get("entry_price"),
@@ -219,7 +219,7 @@ def save_whale_copy_trades(data: list):
                     row.get("obi"), row.get("obi_velocity"), row.get("confidence"), row.get("funding_rate"),
                     row.get("liq_status"), row.get("eta"), row.get("entry_time"), row.get("entry_ts"),
                     row.get("mode"), row.get("status"), row.get("exit_price"), row.get("exit_time"),
-                    row.get("result"), row.get("pnl_pct")
+                    row.get("result"), row.get("pnl_pct"), row.get("score_breakdown"), row.get("price_source")
                 ))
             conn.commit()
             conn.close()
