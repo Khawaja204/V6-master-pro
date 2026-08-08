@@ -227,6 +227,17 @@ if _V6_UPGRADE:
                 _API_KEYS[_ex]["passphrase"] = decrypt(_k["passphrase"]) or _k["passphrase"]
     except Exception as _e:
         log.warning(f"[V6 DB] api_keys load failed: {_e}")
+# ── RENDER FREE TIER FIX: read API keys from env vars (persistent) ──
+if not _API_KEYS:
+    _env_key = os.getenv("BINANCE_API_KEY", "").strip()
+    _env_sec = os.getenv("BINANCE_SECRET_KEY", "").strip()
+    if _env_key and _env_sec:
+        _API_KEYS["BINANCE"] = {
+            "api_key": _env_key,
+            "secret_key": _env_sec,
+        }
+        print("[RENDER] Binance API keys loaded from environment variables.")
+
 if not _API_KEYS:
     try:
         with open(_API_KEYS_FILE) as _f:
@@ -4922,11 +4933,21 @@ def self_ping_loop():
 if __name__ == "__main__":
     log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
     _log_uptime_event("STARTUP", note=f"port={PORT}", source_ip="local")
+    # ── Binance connectivity check on startup ──
+    _bn_status = "❌ DISCONNECTED"
+    try:
+        from logic import ping_binance
+        if ping_binance():
+            _bn_status = "✅ CONNECTED"
+    except Exception:
+        pass
     send_telegram(
         f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
         f"PORT:{PORT} | Exchange:BINANCE\n"
         f"🎯 FocusMode✅ CandlestickChart✅ WhalePanels✅\n"
         f"🤖 Bot:/sniper /winrate /status ✅\n"
+        f"🔑 Binance API: {_bn_status}\n"
+        f"📄 Mode: {'PAPER' if GLOBAL_DATA.get('paper_mode',True) else 'REAL'}\n"
         f"Admin:/admin | Client:/client | Focus:/focus"
     )
     audit("SYSTEM", "STARTUP", "OK", f"port={PORT}")
@@ -4976,7 +4997,25 @@ if __name__ == "__main__":
 # end V6 upgrade
 
 
-    # ── Start Flask Server ──
+    
+@app.route("/admin/logs")
+@_admin_required
+def admin_logs():
+    """Show recent logs in browser — Render free tier log alternative."""
+    log_files = ["error.log", "system_audit.log"]
+    output = []
+    for lf in log_files:
+        output.append(f"=== {lf} ===")
+        try:
+            with open(lf, "r") as f:
+                lines = f.readlines()
+            output.extend(lines[-100:])  # last 100 lines
+        except Exception as e:
+            output.append(f"Could not read {lf}: {e}")
+        output.append("")
+    return "<pre style='background:#0d1117;color:#c9d1d9;padding:20px;font-size:11px;white-space:pre-wrap'>" + "\n".join(output) + "</pre>"
+
+# ── Start Flask Server ──
     log.info(f"[STARTUP] Binding to 0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 
