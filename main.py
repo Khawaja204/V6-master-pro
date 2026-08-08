@@ -682,12 +682,12 @@ def _record_weekly_pnl(bot: str, pnl_pct: float) -> None:
             st["tripped_at"] = _pkt_ts()
             log.warning(f"[WEEKLY-BREAKER:{bot.upper()}] Tripped: {st['tripped_reason']}")
             audit("SYSTEM", f"WEEKLY_BREAKER_{bot.upper()}", "TRIPPED", st["tripped_reason"])
-# Bypassed direct call:             send_telegram(
-                f"🛑 <b>{bot.upper()} BOT — WEEKLY DRAWDOWN BREAKER TRIPPED</b>\n"
-                f"Reason: {st['tripped_reason']}\n"
-                f"⛔ {bot.upper()} bot entries paused for the week — "
-                f"reset manually in Admin once you've reviewed what happened."
-            )
+# Bypassed:             send_telegram(
+#                 f"🛑 <b>{bot.upper()} BOT — WEEKLY DRAWDOWN BREAKER TRIPPED</b>\n"
+#                 f"Reason: {st['tripped_reason']}\n"
+#                 f"⛔ {bot.upper()} bot entries paused for the week — "
+#                 f"reset manually in Admin once you've reviewed what happened."
+#             )
         GLOBAL_DATA.setdefault("weekly_circuit_breakers", {})[bot] = dict(st)
         _save_weekly_stats()
 
@@ -761,13 +761,13 @@ def _record_trade_result(is_win: bool, pnl_pct: float, bot: str = "v6") -> None:
     if just_tripped:
         log.warning(f"[CIRCUIT-BREAKER:{bot.upper()}] Tripped: {stats['tripped_reason']} — entries paused for the day")
         audit("SYSTEM", f"CIRCUIT_BREAKER_{bot.upper()}", "TRIPPED", stats["tripped_reason"])
-# Bypassed direct call:         send_telegram(
-            f"🛑 <b>{bot.upper()} BOT — DAILY CIRCUIT-BREAKER TRIPPED</b>\n"
-            f"Reason: {stats['tripped_reason']}\n"
-            f"Today: {stats['wins']}W / {stats['losses']}L | "
-            f"PnL {stats['realized_pnl_pct']}%\n"
-            f"⛔ {bot.upper()} bot entries paused until 00:00 UTC."
-        )
+# Bypassed:         send_telegram(
+#             f"🛑 <b>{bot.upper()} BOT — DAILY CIRCUIT-BREAKER TRIPPED</b>\n"
+#             f"Reason: {stats['tripped_reason']}\n"
+#             f"Today: {stats['wins']}W / {stats['losses']}L | "
+#             f"PnL {stats['realized_pnl_pct']}%\n"
+#             f"⛔ {bot.upper()} bot entries paused until 00:00 UTC."
+#         )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1331,7 +1331,7 @@ def notify_all(subject: str, telegram_msg: str, email_body: str = None):
     Telegram and Email (whichever are configured). Use this for anything
     worth acting on: a v6 BUY, a confirmed Whale Copy entry, or a holdings
     sell-check — never for routine/heartbeat noise."""
-# Bypassed direct call:     send_telegram(telegram_msg)
+# Bypassed:     send_telegram(telegram_msg)
     send_email(subject, email_body or telegram_msg.replace("<b>", "").replace("</b>", ""))
 
 
@@ -1356,8 +1356,8 @@ def notify_trade(symbol: str, side: str, strategy: str, mode: str, reason: str,
         lines.append(f"⏱ Est. Time to TP1: {tp_zones.get('eta_tp1','—')}")
     lines.append(f"📋 <b>Rationale:</b> {reason}")
     msg = "\n".join(lines)
-# Bypassed direct call:     send_telegram(msg, inline_button={"text": f"📊 Sniper: {symbol.replace('USDT','')}",
-                                       "url": _dashboard_url(symbol)})
+# Bypassed:     send_telegram(msg, inline_button={"text": f"📊 Sniper: {symbol.replace('USDT','')}",
+#                                        "url": _dashboard_url(symbol)})
     send_email(f"V6 TRADE {side} — {symbol.replace('USDT','')}",
                msg.replace("<b>", "").replace("</b>", ""))
 
@@ -1463,13 +1463,13 @@ def alert_whale(whale: dict, confidence: int = 0):
     prefix   = "🚨 <b>[CRITICAL_WHALE_ALERT]</b>\n" if critical else ""
     is_hot   = _update_hot_coins(whale["symbol"])
     hot_tag  = " 🔥[HOT]" if is_hot else ""
-# Bypassed direct call:     send_telegram(
-        f"{prefix}🐋 <b>{whale['label']}{hot_tag} — {whale['symbol']}</b>\n"
-        f"WhalePower: {wp}% | Price: {whale['price']}\n"
-        f"Walls: {whale['wall_count']} | Closest: {whale['min_dist_pct']:.2f}%\n"
-        f"Blink→Push: {'YES ⚡' if whale['blink_to_push'] else 'No'} | {whale['spoofing']['details']}",
-        inline_button={"text": f"🐋 Sniper: {whale['symbol'].replace('USDT','')}", "url": _dashboard_url(whale["symbol"])}
-    )
+# Bypassed:     send_telegram(
+#         f"{prefix}🐋 <b>{whale['label']}{hot_tag} — {whale['symbol']}</b>\n"
+#         f"WhalePower: {wp}% | Price: {whale['price']}\n"
+#         f"Walls: {whale['wall_count']} | Closest: {whale['min_dist_pct']:.2f}%\n"
+#         f"Blink→Push: {'YES ⚡' if whale['blink_to_push'] else 'No'} | {whale['spoofing']['details']}",
+#         inline_button={"text": f"🐋 Sniper: {whale['symbol'].replace('USDT','')}", "url": _dashboard_url(whale["symbol"])}
+#     )
     _record_alert("WHALE", whale["symbol"], whale["label"] + (" 🔥" if is_hot else ""),
                   whale["price"],
                   f"WhalePow:{wp}% | Walls:{whale['wall_count']} | MinDist:{whale['min_dist_pct']:.2f}%",
@@ -1493,12 +1493,12 @@ def alert_critical_whale(whale: dict):
     cooldown = CONFIG["telegram"]["critical_whale_cooldown_seconds"]
     if not _can_alert(f"critical_{whale['symbol']}", cooldown):
         return
-# Bypassed direct call:     send_telegram(
-        f"🚨🚨 <b>[CRITICAL_WHALE_ALERT] — {whale['symbol']}</b>\n"
-        f"Whale Power: {whale.get('whale_power',0)}% (>85% THRESHOLD)\n"
-        f"[AGENT_DECISION] INSTANT_ENTRY considered — confirm manually",
-        inline_button={"text": "🚨 CRITICAL — View Sniper", "url": _dashboard_url(whale["symbol"])}
-    )
+# Bypassed:     send_telegram(
+#         f"🚨🚨 <b>[CRITICAL_WHALE_ALERT] — {whale['symbol']}</b>\n"
+#         f"Whale Power: {whale.get('whale_power',0)}% (>85% THRESHOLD)\n"
+#         f"[AGENT_DECISION] INSTANT_ENTRY considered — confirm manually",
+#         inline_button={"text": "🚨 CRITICAL — View Sniper", "url": _dashboard_url(whale["symbol"])}
+#     )
     audit("SYSTEM", "CRITICAL_WHALE", "SENT", f"sym={whale['symbol']}")
 
 
@@ -2357,21 +2357,21 @@ def midnight_report_loop():
             utc_ts = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(time.time() + 5 * 3600))
             pkt_ts = time.strftime("%Y-%m-%d %H:%M:%S PKT", time.gmtime(time.time() + 5 * 3600))
 
-# Bypassed direct call:             send_telegram(
-                f"📊 <b>DAILY MIDNIGHT REPORT</b>\n"
-                f"UTC: {utc_ts}\nPKT: {pkt_ts}\n\n"
-                f"📈 SIGNALS TODAY\n"
-                f"VIP:{len(GLOBAL_DATA['vmc'].get('VIP',[]))} | "
-                f"GOLDEN:{len(GLOBAL_DATA['vmc'].get('GOLDEN',[]))} | "
-                f"ALL:{len(GLOBAL_DATA['vmc'].get('ALL',[]))}\n"
-                f"Whale Signals: {len(GLOBAL_DATA['whale'])}\n"
-                f"Total Alerts: {len(GLOBAL_DATA['alert_history'])}\n\n"
-                f"🏆 BACKTEST\n"
-                f"Win Rate: {wr}% ({wins}W / {losses}L)\n"
-                f"Win Streak: {_win_streak}\n"
-                f"Top Coin: {top.get('symbol','—')} ({top.get('count',0)} signals)\n\n"
-                f"Hot Coins: {len(GLOBAL_DATA['hot_coins'])} active"
-            )
+# Bypassed:             send_telegram(
+#                 f"📊 <b>DAILY MIDNIGHT REPORT</b>\n"
+#                 f"UTC: {utc_ts}\nPKT: {pkt_ts}\n\n"
+#                 f"📈 SIGNALS TODAY\n"
+#                 f"VIP:{len(GLOBAL_DATA['vmc'].get('VIP',[]))} | "
+#                 f"GOLDEN:{len(GLOBAL_DATA['vmc'].get('GOLDEN',[]))} | "
+#                 f"ALL:{len(GLOBAL_DATA['vmc'].get('ALL',[]))}\n"
+#                 f"Whale Signals: {len(GLOBAL_DATA['whale'])}\n"
+#                 f"Total Alerts: {len(GLOBAL_DATA['alert_history'])}\n\n"
+#                 f"🏆 BACKTEST\n"
+#                 f"Win Rate: {wr}% ({wins}W / {losses}L)\n"
+#                 f"Win Streak: {_win_streak}\n"
+#                 f"Top Coin: {top.get('symbol','—')} ({top.get('count',0)} signals)\n\n"
+#                 f"Hot Coins: {len(GLOBAL_DATA['hot_coins'])} active"
+#             )
             if GOOGLE_SHEET_ID and GOOGLE_CREDENTIALS != "{}":
                 push_midnight_report(
                     GLOBAL_DATA["vmc"], GLOBAL_DATA["whale"], BACKTEST_SIGNALS,
@@ -3544,7 +3544,7 @@ def admin_kill_switch():
         f"New entries blocked until daily reset.\n"
         f"⏱ {now_ts}"
     )
-# Bypassed direct call:     send_telegram(_kill_msg)
+# Bypassed:     send_telegram(_kill_msg)
     log.warning(f"[KILL-SWITCH] Activated — bt_closed={closed_bt} wc_closed={closed_wc}")
     return redirect("/admin")
 
@@ -3950,10 +3950,10 @@ def admin_backtest_csv():
 @app.route("/admin/test_telegram")
 @_admin_required
 def admin_test_telegram():
-# Bypassed direct call:     ok = send_telegram(
-        "🧪 <b>V6 Master Pro — Telegram Test</b>\n"
-        "If you can read this, alerts are wired up correctly.\n"
-        f"Time: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+# Bypassed:     ok = send_telegram(
+#         "🧪 <b>V6 Master Pro — Telegram Test</b>\n"
+#         "If you can read this, alerts are wired up correctly.\n"
+#         f"Time: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
     audit(request.remote_addr, "TEST_TELEGRAM", "OK" if ok else "FAIL", "")
     return jsonify({"ok": bool(ok),
                     "message": "Sent — check your Telegram." if ok else
@@ -4941,15 +4941,15 @@ if __name__ == "__main__":
             _bn_status = "✅ CONNECTED"
     except Exception:
         pass
-# Bypassed direct call:     send_telegram(
-        f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
-        f"PORT:{PORT} | Exchange:BINANCE\n"
-        f"🎯 FocusMode✅ CandlestickChart✅ WhalePanels✅\n"
-        f"🤖 Bot:/sniper /winrate /status ✅\n"
-        f"🔑 Binance API: {_bn_status}\n"
-        f"📄 Mode: {'PAPER' if GLOBAL_DATA.get('paper_mode',True) else 'REAL'}\n"
-        f"Admin:/admin | Client:/client | Focus:/focus"
-    )
+# Bypassed:     send_telegram(
+#         f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
+#         f"PORT:{PORT} | Exchange:BINANCE\n"
+#         f"🎯 FocusMode✅ CandlestickChart✅ WhalePanels✅\n"
+#         f"🤖 Bot:/sniper /winrate /status ✅\n"
+#         f"🔑 Binance API: {_bn_status}\n"
+#         f"📄 Mode: {'PAPER' if GLOBAL_DATA.get('paper_mode',True) else 'REAL'}\n"
+#         f"Admin:/admin | Client:/client | Focus:/focus"
+#     )
     audit("SYSTEM", "STARTUP", "OK", f"port={PORT}")
     try:
         from logic import start_health_monitor
