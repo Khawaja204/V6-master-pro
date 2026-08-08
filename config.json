@@ -92,7 +92,8 @@
     "stale_exit_check_hours": 1,
     "stale_exit_max_flat_checks": 3,
     "stale_exit_flat_threshold_pct": 0.3,
-    "mtf_min_bullish_count": 2
+    "mtf_min_bullish_count": 2,
+    "trade_timeout_hours": 6
   },
   "security": {
     "max_login_attempts": 3,

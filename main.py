@@ -1100,7 +1100,8 @@ def whale_copy_check_loop():
 
                 hit_target = bool(target) and current >= target
                 hit_sl     = bool(sl) and current <= sl
-                if hit_target or hit_sl or age >= 12 * 3600 or stale_exit2:
+                _wc_timeout_hrs = CONFIG.get("trade_management", {}).get("trade_timeout_hours", 6)
+                if hit_target or hit_sl or age >= _wc_timeout_hrs * 3600 or stale_exit2:
                     exit_price = target if hit_target else (sl if hit_sl else current)
                     tr["exit_price"] = exit_price
                     tr["exit_time"]  = _pkt_ts()
