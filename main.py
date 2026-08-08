@@ -4991,6 +4991,12 @@ if __name__ == "__main__":
         GLOBAL_DATA["mtf_enabled"] = True
         log.info("[V6 MTF] Multi-timeframe module enabled.")
 
+    # Start Flask Server (MUST be the last thing in __main__: every
+    # background thread above is daemon=True, so once the main thread
+    # returns, Python kills the whole process even if threads are alive)
+    log.info(f"[STARTUP] Binding to 0.0.0.0:{PORT}")
+    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
+
 
 
 
@@ -5014,9 +5020,5 @@ def admin_logs():
             output.append(f"Could not read {lf}: {e}")
         output.append("")
     return "<pre style='background:#0d1117;color:#c9d1d9;padding:20px;font-size:11px;white-space:pre-wrap'>" + "\n".join(output) + "</pre>"
-
-# ── Start Flask Server ──
-    log.info(f"[STARTUP] Binding to 0.0.0.0:{PORT}")
-    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 
 # end V6 upgrade
