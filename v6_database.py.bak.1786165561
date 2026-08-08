@@ -140,25 +140,6 @@ def init_db():
         c = conn.cursor()
         for sql in _TABLES.values():
             c.execute(sql)
-
-    # ── Auto-migrate: add missing columns silently ──
-    c.execute("PRAGMA table_info(backtest_signals)")
-    existing_cols = {row[1] for row in c.fetchall()}
-    
-    if "score_breakdown" not in existing_cols:
-        try:
-            c.execute("ALTER TABLE backtest_signals ADD COLUMN score_breakdown TEXT")
-            print("[V6 DB] Auto-migrated: added column 'score_breakdown'")
-        except Exception as e:
-            print(f"[V6 DB] Migration warning: {e}")
-    
-    if "price_source" not in existing_cols:
-        try:
-            c.execute("ALTER TABLE backtest_signals ADD COLUMN price_source TEXT DEFAULT 'rest_scan'")
-            print("[V6 DB] Auto-migrated: added column 'price_source'")
-        except Exception as e:
-            print(f"[V6 DB] Migration warning: {e}")
-
         conn.commit()
         conn.close()
 
