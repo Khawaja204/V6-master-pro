@@ -88,7 +88,7 @@
     "partial_tp_check_seconds": 10,
     "weekly_max_drawdown_pct": 20.0,
     "v6_min_score": 72,
-    "v6_min_confidence": 75,
+    "v6_min_confidence": 60,
     "stale_exit_check_hours": 1,
     "stale_exit_max_flat_checks": 3,
     "stale_exit_flat_threshold_pct": 0.3,
