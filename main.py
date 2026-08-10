@@ -2920,13 +2920,37 @@ function copyWeeklyReport(){
   const box=document.getElementById('weekly-report-box');
   const btn=document.getElementById('weekly-report-copy-btn');
   const orig=btn.textContent;
-  navigator.clipboard.writeText(box.textContent).then(()=>{
+  const text=box.textContent;
+
+  function showCopied(){
     btn.textContent='✓ Copied!';
     setTimeout(()=>{btn.textContent=orig;},2000);
-  }).catch(()=>{
-    btn.textContent='Copy failed';
-    setTimeout(()=>{btn.textContent=orig;},2000);
-  });
+  }
+  function showFailed(){
+    btn.textContent='Select text manually';
+    setTimeout(()=>{btn.textContent=orig;},2500);
+  }
+  function fallbackCopy(){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;
+      ta.style.position='fixed';
+      ta.style.left='-9999px';
+      ta.style.top='0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok=document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok){ showCopied(); } else { showFailed(); }
+    }catch(e){ showFailed(); }
+  }
+
+  if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(showCopied).catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
 }
 </script>
 
