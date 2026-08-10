@@ -2896,6 +2896,40 @@ loadWeeklyBreaker();
 setInterval(loadWeeklyBreaker, 30000);
 </script>
 
+<!-- === WEEKLY PERFORMANCE REPORT === -->
+<div class="card"><h3>📊 WEEKLY PERFORMANCE REPORT (copy-paste for external analysis)</h3>
+<p style="font-size:11px;color:#8b949e">One block covering V6/Wall/Combo 7-day performance, best/worst coins, weekly-breaker status, and active thresholds — so you don't have to share multiple files.</p>
+<button onclick="loadWeeklyReport()" id="weekly-report-btn" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:6px 14px;font-size:11px">↻ Generate Report</button>
+<button onclick="copyWeeklyReport()" id="weekly-report-copy-btn" class="btn" style="background:#21262d;color:#d29922;border:1px solid #30363d;padding:6px 14px;font-size:11px;display:none">📋 Copy Report</button>
+<pre id="weekly-report-box" style="display:none;background:#0d1117;color:#c9d1d9;padding:14px;font-size:10px;white-space:pre-wrap;margin-top:10px;border:1px solid #30363d;border-radius:6px;max-height:400px;overflow-y:auto"></pre>
+</div>
+<script>
+function loadWeeklyReport(){
+  const btn=document.getElementById('weekly-report-btn');
+  const box=document.getElementById('weekly-report-box');
+  const copyBtn=document.getElementById('weekly-report-copy-btn');
+  btn.textContent='Generating...';
+  fetch('/admin/weekly_report').then(r=>r.json()).then(d=>{
+    box.textContent=d.report||'No data';
+    box.style.display='block';
+    copyBtn.style.display='inline-block';
+    btn.textContent='↻ Regenerate';
+  }).catch(()=>{ btn.textContent='Failed — retry'; });
+}
+function copyWeeklyReport(){
+  const box=document.getElementById('weekly-report-box');
+  const btn=document.getElementById('weekly-report-copy-btn');
+  const orig=btn.textContent;
+  navigator.clipboard.writeText(box.textContent).then(()=>{
+    btn.textContent='✓ Copied!';
+    setTimeout(()=>{btn.textContent=orig;},2000);
+  }).catch(()=>{
+    btn.textContent='Copy failed';
+    setTimeout(()=>{btn.textContent=orig;},2000);
+  });
+}
+</script>
+
 <!-- ══ EXCHANGE SWITCHER ══ -->
 <div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
 <p style="color:#8b949e;font-size:11px;margin-bottom:10px">All market data, order books, and REAL-mode order execution currently run on Binance only. Other exchanges are not wired up yet.</p>
@@ -4173,6 +4207,93 @@ def admin_uptime_log():
     out.reverse()
     return jsonify({"entries": out, "gap_threshold_min": gap_threshold_min,
                     "total_logged": len(lines)})
+
+
+@app.route("/admin/weekly_report")
+@_admin_required
+def admin_weekly_report():
+    """Compile a single copy-paste-ready performance report across V6, Wall,
+    and Combo bots for the last 7 days — coin breakdown, win/loss averages,
+    active thresholds, and current weekly-breaker status. Built so the user
+    can share ONE block of text for external analysis instead of exporting
+    multiple separate CSVs."""
+    now = time.time()
+    cutoff = now - 7 * 86400
+
+    def _bot_stats(trades, label):
+        closed = [t for t in trades if t.get("status") == "CLOSED" and t.get("entry_ts", 0) >= cutoff]
+        wins   = [t for t in closed if t.get("result") == "WIN"]
+        losses = [t for t in closed if t.get("result") == "LOSS"]
+        timeouts = [t for t in closed if t.get("result") == "TIMEOUT"]
+        stale  = [t for t in closed if t.get("result") == "STALE_EXIT"]
+        avg_win  = round(sum(t.get("pnl_pct", 0) for t in wins) / len(wins), 2) if wins else 0
+        avg_loss = round(sum(t.get("pnl_pct", 0) for t in losses) / len(losses), 2) if losses else 0
+        win_rate = round(len(wins) / len(closed) * 100, 1) if closed else 0
+
+        by_coin = {}
+        for t in closed:
+            sym = t.get("symbol", "?")
+            by_coin.setdefault(sym, []).append(t.get("pnl_pct", 0) or 0)
+        coin_avg = {s: round(sum(v) / len(v), 2) for s, v in by_coin.items()}
+        best  = sorted(coin_avg.items(), key=lambda x: -x[1])[:3]
+        worst = sorted(coin_avg.items(), key=lambda x: x[1])[:3]
+
+        lines = [
+            f"[{label}] {len(closed)} closed trades (7d) | Win rate: {win_rate}%",
+            f"  WIN={len(wins)}  LOSS={len(losses)}  TIMEOUT={len(timeouts)}  STALE_EXIT={len(stale)}",
+            f"  Avg win: {avg_win}%  |  Avg loss: {avg_loss}%",
+        ]
+        if best:
+            lines.append("  Best coins:  " + ", ".join(f"{s} ({v}%)" for s, v in best))
+        if worst:
+            lines.append("  Worst coins: " + ", ".join(f"{s} ({v}%)" for s, v in worst))
+        return "\n".join(lines)
+
+    v6_report    = _bot_stats(BACKTEST_SIGNALS, "V6")
+    wall_report  = _bot_stats(WHALE_COPY_TRADES, "WALL")
+    combo_report = _bot_stats(COMBO_TRADES, "COMBO")
+
+    tm = CONFIG.get("trade_management", {})
+    inst = CONFIG.get("institutional", {})
+    thresholds = (
+        f"v6_min_score={tm.get('v6_min_score', 68)}  "
+        f"v6_min_confidence={tm.get('v6_min_confidence', 0)}  "
+        f"mtf_min_bullish_count={tm.get('mtf_min_bullish_count', 0)}\n"
+        f"  atr_stop_loss_multiplier={inst.get('atr_stop_loss_multiplier')}  "
+        f"tp1_atr_multiplier={inst.get('tp1_atr_multiplier')}\n"
+        f"  trade_timeout_hours={tm.get('trade_timeout_hours', 6)}  "
+        f"stale_exit_max_flat_checks={tm.get('stale_exit_max_flat_checks', 3)}\n"
+        f"  bot_fund_limit_usdt={CONFIG.get('bot_fund_limit_usdt', 10.0)}"
+    )
+
+    weekly_breakers = GLOBAL_DATA.get("weekly_circuit_breakers", {})
+    wb_lines = []
+    for bot, st in weekly_breakers.items():
+        status = f"TRIPPED ({st.get('tripped_reason', '')})" if st.get("tripped") else "OK"
+        wb_lines.append(f"  {bot.upper()}: {status}  |  7d PnL: {st.get('cum_pnl_7d', 0)}%  |  trades: {st.get('trades_7d', 0)}")
+    weekly_breaker_report = "\n".join(wb_lines) if wb_lines else "  (no data yet)"
+
+    regime = GLOBAL_DATA.get("market_regime", "UNKNOWN")
+    btc = GLOBAL_DATA.get("btc", {})
+
+    report = f"""=== V6 MASTER PRO — WEEKLY PERFORMANCE REPORT ===
+Generated: {_pkt_ts()}
+Market regime: {regime}  |  BTC: {btc.get('price', '?')} ({btc.get('change_pct', '?')}%)
+
+--- TRADE PERFORMANCE (last 7 days) ---
+{v6_report}
+
+{wall_report}
+
+{combo_report}
+
+--- WEEKLY DRAWDOWN BREAKER STATUS ---
+{weekly_breaker_report}
+
+--- ACTIVE THRESHOLDS ---
+{thresholds}
+"""
+    return jsonify({"report": report})
 
 
 @app.route("/admin/uptime_log_csv")
