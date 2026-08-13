@@ -4238,34 +4238,21 @@ def admin_uptime_log():
 @_admin_required
 def admin_symbol_history():
     """Debug tool: look up every trade (V6, Whale Copy, Combo) for one
-    symbol directly from the LIVE Render database — since Replit's local
-    v6_master.db is a separate file from the one the deployed app actually
-    writes to, this is the only reliable way to inspect a specific trade's
-    entry/stop-loss/exit details after the fact."""
+    symbol from the LIVE in-memory trade lists — same source the Weekly
+    Report uses, so results always match what the dashboard shows."""
     symbol = request.args.get("symbol", "").upper().strip()
     if not symbol:
         return jsonify({"error": "Pass ?symbol=NILUSDT (or similar) in the URL"})
 
-    from v6_database import get_db
-    result = {"symbol": symbol, "v6": [], "wall": [], "combo": []}
-    try:
-        conn = get_db()
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
+    def _match(trades):
+        return [t for t in trades if symbol in t.get("symbol", "").upper()]
 
-        c.execute("SELECT * FROM backtest_signals WHERE symbol LIKE ?", (f"%{symbol}%",))
-        result["v6"] = [dict(r) for r in c.fetchall()]
-
-        c.execute("SELECT * FROM whale_copy_trades WHERE symbol LIKE ?", (f"%{symbol}%",))
-        result["wall"] = [dict(r) for r in c.fetchall()]
-
-        c.execute("SELECT * FROM combo_trades WHERE symbol LIKE ?", (f"%{symbol}%",))
-        result["combo"] = [dict(r) for r in c.fetchall()]
-
-        conn.close()
-    except Exception as e:
-        result["error"] = str(e)
-
+    result = {
+        "symbol": symbol,
+        "v6": _match(BACKTEST_SIGNALS),
+        "wall": _match(WHALE_COPY_TRADES),
+        "combo": _match(COMBO_TRADES),
+    }
     return jsonify(result)
 
 
