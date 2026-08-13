@@ -4741,6 +4741,25 @@ def large_trades_data_route():
     return jsonify({"trades": GLOBAL_DATA.get("large_trades", [])[:50]})
 
 
+def _attach_live_price(trades: list) -> list:
+    """Return a shallow-copied trade list with a 'live_price' field attached
+    to OPEN trades only (closed trades keep their final exit data untouched).
+    Used by /whale_copy_data, /v6_bot_data, /combo_bot_data so all three bot
+    tables can show a live price next to open positions."""
+    out = []
+    for t in trades:
+        t2 = dict(t)
+        if t2.get("status") == "OPEN":
+            try:
+                t2["live_price"] = fetch_ticker_price(t2.get("symbol", ""))
+            except Exception:
+                t2["live_price"] = None
+        else:
+            t2["live_price"] = None
+        out.append(t2)
+    return out
+
+
 @app.route("/whale_copy_data")
 def whale_copy_data_route():
     _wct = [t for t in WHALE_COPY_TRADES if not _is_fiat_symbol(t.get("symbol", ""))]
@@ -4754,7 +4773,7 @@ def whale_copy_data_route():
     _total_pnl_usdt_est = round(sum(v / 100 * _fund for v in _pnl_vals), 2)
     return jsonify({
         "signals":  GLOBAL_DATA.get("whale_copy_signals", []),
-        "trades":   _wct[:50],
+        "trades":   _attach_live_price(_wct[:50]),
         "wins":     wins,
         "losses":   losses,
         "win_rate": round(wins / total * 100, 1) if total else 0.0,
@@ -4767,7 +4786,7 @@ def whale_copy_data_route():
 @app.route("/v6_bot_data")
 def v6_bot_data_route():
     """V6 SCORE BOT — full trade history + PnL, mirrors /whale_copy_data."""
-    trades = BACKTEST_SIGNALS[:50]
+    trades = _attach_live_price(BACKTEST_SIGNALS[:50])
     closed = [t for t in BACKTEST_SIGNALS if t.get("status") == "CLOSED"]
     wins   = sum(1 for t in closed if t.get("result") == "WIN")
     losses = sum(1 for t in closed if t.get("result") == "LOSS")
@@ -4791,7 +4810,7 @@ def v6_bot_data_route():
 @app.route("/combo_bot_data")
 def combo_bot_data_route():
     """COMBO CONFLUENCE BOT — full trade history + PnL, mirrors /whale_copy_data."""
-    trades = COMBO_TRADES[:50]
+    trades = _attach_live_price(COMBO_TRADES[:50])
     closed = [t for t in COMBO_TRADES if t.get("status") == "CLOSED"]
     wins   = sum(1 for t in closed if t.get("result") == "WIN")
     losses = sum(1 for t in closed if t.get("result") == "LOSS")
