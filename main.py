@@ -8,6 +8,7 @@ Run: python3 main.py
 All secrets in Replit Secrets. No hardcoded values.
 """
 import os, json, time, threading, logging, secrets as _secrets
+import sqlite3
 from collections import defaultdict
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, session, redirect, render_template_string, Response, send_from_directory
@@ -4231,6 +4232,41 @@ def admin_uptime_log():
     out.reverse()
     return jsonify({"entries": out, "gap_threshold_min": gap_threshold_min,
                     "total_logged": len(lines)})
+
+
+@app.route("/admin/symbol_history")
+@_admin_required
+def admin_symbol_history():
+    """Debug tool: look up every trade (V6, Whale Copy, Combo) for one
+    symbol directly from the LIVE Render database — since Replit's local
+    v6_master.db is a separate file from the one the deployed app actually
+    writes to, this is the only reliable way to inspect a specific trade's
+    entry/stop-loss/exit details after the fact."""
+    symbol = request.args.get("symbol", "").upper().strip()
+    if not symbol:
+        return jsonify({"error": "Pass ?symbol=NILUSDT (or similar) in the URL"})
+
+    from v6_database import get_db
+    result = {"symbol": symbol, "v6": [], "wall": [], "combo": []}
+    try:
+        conn = get_db()
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        c.execute("SELECT * FROM backtest_signals WHERE symbol LIKE ?", (f"%{symbol}%",))
+        result["v6"] = [dict(r) for r in c.fetchall()]
+
+        c.execute("SELECT * FROM whale_copy_trades WHERE symbol LIKE ?", (f"%{symbol}%",))
+        result["wall"] = [dict(r) for r in c.fetchall()]
+
+        c.execute("SELECT * FROM combo_trades WHERE symbol LIKE ?", (f"%{symbol}%",))
+        result["combo"] = [dict(r) for r in c.fetchall()]
+
+        conn.close()
+    except Exception as e:
+        result["error"] = str(e)
+
+    return jsonify(result)
 
 
 @app.route("/admin/weekly_report")
