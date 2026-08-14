@@ -5155,8 +5155,89 @@ if __name__ == "__main__":
     threading.Thread(target=midnight_report_loop, daemon=True).start()
     threading.Thread(target=weekly_report_loop,   daemon=True).start()
     threading.Thread(target=backtest_check_loop,  daemon=True).start()
+def _refresh_market_cap_data():
+    """Pull top-500 coins from CoinGecko's free /coins/markets endpoint
+    (no API key needed) and build a symbol -> {market_cap, volume_24h,
+    daily_pct, weekly_pct} lookup. daily_pct = 24h volume as % of market
+    cap. weekly_pct = sum of the last 7 daily volume snapshots (this
+    function's own history, refreshed every 6h) as % of market cap —
+    CoinGecko's free tier doesn't give 7d volume directly, so we build it
+    ourselves over time rather than paying for historical data calls."""
+    import requests as _rq
+    try:
+        coins = []
+        for page in (1, 2):
+            r = _rq.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params={"vs_currency": "usd", "order": "market_cap_desc",
+                        "per_page": 250, "page": page, "sparkline": "false"},
+                timeout=15,
+            )
+            if r.status_code == 200:
+                coins.extend(r.json())
+            time.sleep(1.5)  # stay well under CoinGecko's free rate limit
+
+        by_symbol = {}
+        for c in coins:
+            sym = (c.get("symbol") or "").upper()
+            if not sym or sym in by_symbol:
+                continue  # first occurrence per symbol = highest market cap (list is sorted)
+            by_symbol[sym] = {
+                "market_cap": c.get("market_cap") or 0,
+                "volume_24h": c.get("total_volume") or 0,
+                "id": c.get("id", ""),
+            }
+
+        hist = GLOBAL_DATA.setdefault("market_cap_volume_history", {})
+        today = time.strftime("%Y-%m-%d")
+        for sym, d in by_symbol.items():
+            day_list = hist.setdefault(sym, [])
+            if not day_list or day_list[-1].get("date") != today:
+                day_list.append({"date": today, "volume": d["volume_24h"]})
+            else:
+                day_list[-1]["volume"] = d["volume_24h"]
+            hist[sym] = day_list[-7:]  # keep a 7-day rolling window
+
+            mc = d["market_cap"]
+            d["daily_pct"] = round(d["volume_24h"] / mc * 100, 3) if mc else 0.0
+            weekly_vol = sum(x["volume"] for x in hist[sym])
+            d["weekly_pct"] = round(weekly_vol / mc * 100, 3) if mc else 0.0
+
+        GLOBAL_DATA["market_cap_data"] = by_symbol
+        GLOBAL_DATA["market_cap_updated_at"] = _pkt_ts()
+        log.info(f"[MARKET-CAP] Refreshed {len(by_symbol)} symbols from CoinGecko")
+    except Exception as e:
+        log.warning(f"Market cap refresh failed: {e}")
+
+
+def market_cap_refresh_loop():
+    """Runs every 6 hours. Waits 60s on boot so it doesn't compete with the
+    first market scan for outbound bandwidth."""
+    time.sleep(60)
+    while True:
+        _refresh_market_cap_data()
+        time.sleep(6 * 3600)
+
+
+def _market_cap_pct(symbol: str) -> dict:
+    """Look up daily/weekly volume-as-%-of-market-cap for a Binance symbol
+    like 'BTCUSDT' -> strips the quote asset and checks the CoinGecko cache.
+    Returns {} if not found (e.g. very new/illiquid coin not in top 500)."""
+    base = symbol.upper()
+    for suffix in ("USDT", "USDC", "BUSD", "USD", "BTC", "ETH"):
+        if base.endswith(suffix) and len(base) > len(suffix):
+            base = base[: -len(suffix)]
+            break
+    data = GLOBAL_DATA.get("market_cap_data", {})
+    entry = data.get(base)
+    if not entry:
+        return {}
+    return {"daily_pct": entry.get("daily_pct", 0), "weekly_pct": entry.get("weekly_pct", 0)}
+
+
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
     threading.Thread(target=combo_check_loop,      daemon=True).start()
+    threading.Thread(target=market_cap_refresh_loop, daemon=True).start()
     threading.Thread(target=holdings_check_loop,   daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()
