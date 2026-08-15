@@ -4773,7 +4773,7 @@ def whale_copy_data_route():
     _total_pnl_usdt_est = round(sum(v / 100 * _fund for v in _pnl_vals), 2)
     return jsonify({
         "signals":  GLOBAL_DATA.get("whale_copy_signals", []),
-        "trades":   _attach_live_price(_wct[:50]),
+        "trades":   _attach_market_cap(_attach_live_price(_wct[:50])),
         "wins":     wins,
         "losses":   losses,
         "win_rate": round(wins / total * 100, 1) if total else 0.0,
@@ -4786,7 +4786,7 @@ def whale_copy_data_route():
 @app.route("/v6_bot_data")
 def v6_bot_data_route():
     """V6 SCORE BOT — full trade history + PnL, mirrors /whale_copy_data."""
-    trades = _attach_live_price(BACKTEST_SIGNALS[:50])
+    trades = _attach_market_cap(_attach_live_price(BACKTEST_SIGNALS[:50]))
     closed = [t for t in BACKTEST_SIGNALS if t.get("status") == "CLOSED"]
     wins   = sum(1 for t in closed if t.get("result") == "WIN")
     losses = sum(1 for t in closed if t.get("result") == "LOSS")
@@ -4810,7 +4810,7 @@ def v6_bot_data_route():
 @app.route("/combo_bot_data")
 def combo_bot_data_route():
     """COMBO CONFLUENCE BOT — full trade history + PnL, mirrors /whale_copy_data."""
-    trades = _attach_live_price(COMBO_TRADES[:50])
+    trades = _attach_market_cap(_attach_live_price(COMBO_TRADES[:50]))
     closed = [t for t in COMBO_TRADES if t.get("status") == "CLOSED"]
     wins   = sum(1 for t in closed if t.get("result") == "WIN")
     losses = sum(1 for t in closed if t.get("result") == "LOSS")
@@ -5118,14 +5118,24 @@ def self_ping_loop():
         time.sleep(240)   # 4 minutes — well inside Render's 15-min inactivity window
 
 
+MARKET_CAP_SYMBOL_OVERRIDES = {
+    # Binance base symbol -> CoinGecko id, for tickers CoinGecko has multiple
+    # coins sharing (so market-cap-desc "first match" would pick the wrong one).
+    "LUNA": "terra-luna-2",
+}
+
 def _refresh_market_cap_data():
     """Pull top-500 coins from CoinGecko's free /coins/markets endpoint
     (no API key needed) and build a symbol -> {market_cap, volume_24h,
-    daily_pct, weekly_pct} lookup. daily_pct = 24h volume as % of market
-    cap. weekly_pct = sum of the last 7 daily volume snapshots (this
-    function's own history, refreshed every 6h) as % of market cap —
-    CoinGecko's free tier doesn't give 7d volume directly, so we build it
-    ourselves over time rather than paying for historical data calls."""
+    daily_pct, weekly_pct, price_chg_24h_pct, price_chg_7d_pct} lookup.
+    daily_pct = 24h volume as % of market cap. weekly_pct = sum of the
+    last 7 daily volume snapshots (this function's own rolling history,
+    refreshed every 6h) as % of market cap — CoinGecko's free tier
+    doesn't give 7d volume directly, so we build it ourselves over time
+    instead of paying for historical data calls. price_chg_24h_pct /
+    price_chg_7d_pct come straight from CoinGecko (market cap / price
+    change, not volume — a separate advanced metric alongside the
+    volume-based daily/weekly %)."""
     import requests as _rq
     try:
         coins = []
@@ -5133,7 +5143,8 @@ def _refresh_market_cap_data():
             r = _rq.get(
                 "https://api.coingecko.com/api/v3/coins/markets",
                 params={"vs_currency": "usd", "order": "market_cap_desc",
-                        "per_page": 250, "page": page, "sparkline": "false"},
+                        "per_page": 250, "page": page, "sparkline": "false",
+                        "price_change_percentage": "24h,7d"},
                 timeout=15,
             )
             if r.status_code == 200:
@@ -5149,7 +5160,33 @@ def _refresh_market_cap_data():
                 "market_cap": c.get("market_cap") or 0,
                 "volume_24h": c.get("total_volume") or 0,
                 "id": c.get("id", ""),
+                "price_chg_24h_pct": c.get("price_change_percentage_24h_in_currency"),
+                "price_chg_7d_pct": c.get("price_change_percentage_7d_in_currency"),
             }
+
+        override_ids = set(MARKET_CAP_SYMBOL_OVERRIDES.values())
+        if override_ids:
+            try:
+                r2 = _rq.get(
+                    "https://api.coingecko.com/api/v3/coins/markets",
+                    params={"vs_currency": "usd", "ids": ",".join(override_ids),
+                            "price_change_percentage": "24h,7d"},
+                    timeout=15,
+                )
+                if r2.status_code == 200:
+                    by_id = {c["id"]: c for c in r2.json()}
+                    for sym, cg_id in MARKET_CAP_SYMBOL_OVERRIDES.items():
+                        c = by_id.get(cg_id)
+                        if c:
+                            by_symbol[sym] = {
+                                "market_cap": c.get("market_cap") or 0,
+                                "volume_24h": c.get("total_volume") or 0,
+                                "id": cg_id,
+                                "price_chg_24h_pct": c.get("price_change_percentage_24h_in_currency"),
+                                "price_chg_7d_pct": c.get("price_change_percentage_7d_in_currency"),
+                            }
+            except Exception as e:
+                log.warning(f"Market cap override fetch failed: {e}")
 
         hist = GLOBAL_DATA.setdefault("market_cap_volume_history", {})
         today = time.strftime("%Y-%m-%d")
@@ -5159,7 +5196,7 @@ def _refresh_market_cap_data():
                 day_list.append({"date": today, "volume": d["volume_24h"]})
             else:
                 day_list[-1]["volume"] = d["volume_24h"]
-            hist[sym] = day_list[-7:]  # keep a 7-day rolling window
+            hist[sym] = day_list[-7:]
 
             mc = d["market_cap"]
             d["daily_pct"] = round(d["volume_24h"] / mc * 100, 3) if mc else 0.0
@@ -5183,9 +5220,13 @@ def market_cap_refresh_loop():
 
 
 def _market_cap_pct(symbol: str) -> dict:
-    """Look up daily/weekly volume-as-%-of-market-cap for a Binance symbol
-    like 'BTCUSDT' -> strips the quote asset and checks the CoinGecko cache.
-    Returns {} if not found (e.g. very new/illiquid coin not in top 500)."""
+    """Look up daily/weekly volume-as-%-of-market-cap and price-change %
+    for a Binance symbol like 'BTCUSDT'. Binance stays the source of truth
+    for live price/volume everywhere else in the app (this function is
+    the ONLY place CoinGecko data is used) — so there's no duplicate or
+    conflicting price data anywhere, just a supplementary market-cap
+    figure Binance doesn't provide at all. MARKET_CAP_SYMBOL_OVERRIDES
+    resolves the few tickers CoinGecko has multiple coins sharing."""
     base = symbol.upper()
     for suffix in ("USDT", "USDC", "BUSD", "USD", "BTC", "ETH"):
         if base.endswith(suffix) and len(base) > len(suffix):
@@ -5195,7 +5236,24 @@ def _market_cap_pct(symbol: str) -> dict:
     entry = data.get(base)
     if not entry:
         return {}
-    return {"daily_pct": entry.get("daily_pct", 0), "weekly_pct": entry.get("weekly_pct", 0)}
+    return {
+        "daily_pct": entry.get("daily_pct", 0),
+        "weekly_pct": entry.get("weekly_pct", 0),
+        "price_chg_24h_pct": entry.get("price_chg_24h_pct"),
+        "price_chg_7d_pct": entry.get("price_chg_7d_pct"),
+    }
+
+
+def _attach_market_cap(trades: list) -> list:
+    """Return a shallow-copied trade list with market-cap metrics attached
+    to every trade (unlike live_price, this applies to CLOSED trades too —
+    market cap context is informational regardless of trade status)."""
+    out = []
+    for t in trades:
+        t2 = dict(t)
+        t2["market_cap_pct"] = _market_cap_pct(t2.get("symbol", ""))
+        out.append(t2)
+    return out
 
 
 if __name__ == "__main__":
