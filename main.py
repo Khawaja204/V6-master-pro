@@ -5118,43 +5118,6 @@ def self_ping_loop():
         time.sleep(240)   # 4 minutes — well inside Render's 15-min inactivity window
 
 
-if __name__ == "__main__":
-    log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
-    _log_uptime_event("STARTUP", note=f"port={PORT}", source_ip="local")
-    # ── Binance connectivity check on startup ──
-    _bn_status = "❌ DISCONNECTED"
-    try:
-        from logic import ping_binance
-        if ping_binance():
-            _bn_status = "✅ CONNECTED"
-    except Exception:
-        pass
-# Bypassed:     send_telegram(
-#         f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
-#         f"PORT:{PORT} | Exchange:BINANCE\n"
-#         f"🎯 FocusMode✅ CandlestickChart✅ WhalePanels✅\n"
-#         f"🤖 Bot:/sniper /winrate /status ✅\n"
-#         f"🔑 Binance API: {_bn_status}\n"
-#         f"📄 Mode: {'PAPER' if GLOBAL_DATA.get('paper_mode',True) else 'REAL'}\n"
-#         f"Admin:/admin | Client:/client | Focus:/focus"
-#     )
-    audit("SYSTEM", "STARTUP", "OK", f"port={PORT}")
-    try:
-        from logic import start_health_monitor
-        start_health_monitor(interval=30)
-    except Exception as _e:
-        log.warning(f"health monitor start failed: {_e}")
-    try:
-        from logic import start_liquidation_monitor
-        start_liquidation_monitor()
-    except Exception as _e:
-        log.warning(f"liquidation monitor start failed: {_e}")
-    threading.Thread(target=data_refresh_loop,   daemon=True).start()
-    threading.Thread(target=heartbeat_loop,       daemon=True).start()
-    threading.Thread(target=btc_monitor_loop,     daemon=True).start()
-    threading.Thread(target=midnight_report_loop, daemon=True).start()
-    threading.Thread(target=weekly_report_loop,   daemon=True).start()
-    threading.Thread(target=backtest_check_loop,  daemon=True).start()
 def _refresh_market_cap_data():
     """Pull top-500 coins from CoinGecko's free /coins/markets endpoint
     (no API key needed) and build a symbol -> {market_cap, volume_24h,
@@ -5235,6 +5198,43 @@ def _market_cap_pct(symbol: str) -> dict:
     return {"daily_pct": entry.get("daily_pct", 0), "weekly_pct": entry.get("weekly_pct", 0)}
 
 
+if __name__ == "__main__":
+    log.info(f"V6 Master Pro INSTITUTIONAL starting — PORT={PORT}")
+    _log_uptime_event("STARTUP", note=f"port={PORT}", source_ip="local")
+    # ── Binance connectivity check on startup ──
+    _bn_status = "❌ DISCONNECTED"
+    try:
+        from logic import ping_binance
+        if ping_binance():
+            _bn_status = "✅ CONNECTED"
+    except Exception:
+        pass
+# Bypassed:     send_telegram(
+#         f"🚀 <b>V6 MASTER PRO v8 ONLINE</b>\n"
+#         f"PORT:{PORT} | Exchange:BINANCE\n"
+#         f"🎯 FocusMode✅ CandlestickChart✅ WhalePanels✅\n"
+#         f"🤖 Bot:/sniper /winrate /status ✅\n"
+#         f"🔑 Binance API: {_bn_status}\n"
+#         f"📄 Mode: {'PAPER' if GLOBAL_DATA.get('paper_mode',True) else 'REAL'}\n"
+#         f"Admin:/admin | Client:/client | Focus:/focus"
+#     )
+    audit("SYSTEM", "STARTUP", "OK", f"port={PORT}")
+    try:
+        from logic import start_health_monitor
+        start_health_monitor(interval=30)
+    except Exception as _e:
+        log.warning(f"health monitor start failed: {_e}")
+    try:
+        from logic import start_liquidation_monitor
+        start_liquidation_monitor()
+    except Exception as _e:
+        log.warning(f"liquidation monitor start failed: {_e}")
+    threading.Thread(target=data_refresh_loop,   daemon=True).start()
+    threading.Thread(target=heartbeat_loop,       daemon=True).start()
+    threading.Thread(target=btc_monitor_loop,     daemon=True).start()
+    threading.Thread(target=midnight_report_loop, daemon=True).start()
+    threading.Thread(target=weekly_report_loop,   daemon=True).start()
+    threading.Thread(target=backtest_check_loop,  daemon=True).start()
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
     threading.Thread(target=combo_check_loop,      daemon=True).start()
     threading.Thread(target=market_cap_refresh_loop, daemon=True).start()
