@@ -665,8 +665,8 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Live Price</th><th>Funding</th><th>Liq Status</th><th>Trail SL</th><th>Conf%</th><th>Status</th><th>Close Price</th><th>Profit%</th><th>Buy Time</th><th>Sell Time</th></tr></thead>
-        <tbody id="wc-trades-tbody"><tr><td colspan="13" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
+        <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>Funding</th><th>Liq Status</th><th>Trail SL</th><th>Conf%</th><th>Status</th><th>Close Price</th><th>Profit%</th><th>Buy Time</th><th>Sell Time</th></tr></thead>
+        <tbody id="wc-trades-tbody"><tr><td colspan="14" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -692,8 +692,8 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">📋 V6 BOT TRADE HISTORY</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Entry</th><th>Live Price</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry Time</th><th>Exit Time</th></tr></thead>
-        <tbody id="v6bot-trades-tbody"><tr><td colspan="13" style="color:var(--grey)">No V6 bot trades yet</td></tr></tbody>
+        <thead><tr><th>Coin</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry Time</th><th>Exit Time</th></tr></thead>
+        <tbody id="v6bot-trades-tbody"><tr><td colspan="14" style="color:var(--grey)">No V6 bot trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -728,8 +728,8 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">📋 COMBO BOT TRADE HISTORY</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Entry</th><th>Live Price</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>V6 Score</th><th>Wall Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry Time</th></tr></thead>
-        <tbody id="combobot-trades-tbody"><tr><td colspan="13" style="color:var(--grey)">No combo bot trades yet</td></tr></tbody>
+        <thead><tr><th>Coin</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>V6 Score</th><th>Wall Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry Time</th></tr></thead>
+        <tbody id="combobot-trades-tbody"><tr><td colspan="14" style="color:var(--grey)">No combo bot trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1149,10 +1149,15 @@ function fetchV6Bot(){
           const pnlCol=pnlV===null?'var(--grey)':(pnlV>=0?'var(--green)':'var(--red)');
           const pnlTxt=pnlV===null?'—':fmtSigned(pnlV);
           const liveP = (t.status==='OPEN' && t.live_price) ? fmt6(t.live_price) : '—';
+          const mc=t.market_cap_pct||{};
+          const mcap = (mc.daily_pct!==undefined && mc.daily_pct!==null)
+            ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
+            : '—';
           return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
             <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
             <td>${fmt6(t.entry_price||0)}</td>
             <td style="color:var(--yellow,#e8b339)">${liveP}</td>
+            <td style="font-size:9px;color:var(--grey)">${mcap}</td>
             <td style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
             <td style="color:var(--green)">${fmt6(t.tp1||0)}${t.tp1_hit?' ✓':''}</td>
             <td style="color:var(--green)">${fmt6(t.tp2||0)}${t.tp2_hit?' ✓':''}</td>
@@ -1164,7 +1169,7 @@ function fetchV6Bot(){
             <td style="color:var(--grey);font-size:9px">${t.entry_time||'—'}</td>
             <td style="color:var(--grey);font-size:9px">${t.exit_time||'—'}</td>
           </tr>`;
-        }).join('') || '<tr><td colspan="13" style="color:var(--grey)">No V6 bot trades yet</td></tr>';
+        }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No V6 bot trades yet</td></tr>';
       }
     }).catch(e=>console.error('V6 bot fetch:',e));
 }
@@ -1214,10 +1219,15 @@ function fetchComboBot(){
           const pnlCol=pnlV===null?'var(--grey)':(pnlV>=0?'var(--green)':'var(--red)');
           const pnlTxt=pnlV===null?'—':fmtSigned(pnlV);
           const liveP = (t.status==='OPEN' && t.live_price) ? fmt6(t.live_price) : '—';
+          const mc=t.market_cap_pct||{};
+          const mcap = (mc.daily_pct!==undefined && mc.daily_pct!==null)
+            ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
+            : '—';
           return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
             <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
             <td>${fmt6(t.entry_price||0)}</td>
             <td style="color:var(--yellow,#e8b339)">${liveP}</td>
+            <td style="font-size:9px;color:var(--grey)">${mcap}</td>
             <td style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
             <td style="color:var(--green)">${fmt6(t.tp1||0)}${t.tp1_hit?' ✓':''}</td>
             <td style="color:var(--green)">${fmt6(t.tp2||0)}${t.tp2_hit?' ✓':''}</td>
@@ -1229,7 +1239,7 @@ function fetchComboBot(){
             <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
             <td style="color:var(--grey);font-size:9px">${t.entry_time||'—'}</td>
           </tr>`;
-        }).join('') || '<tr><td colspan="13" style="color:var(--grey)">No combo bot trades yet</td></tr>';
+        }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No combo bot trades yet</td></tr>';
       }
     }).catch(e=>console.error('Combo bot fetch:',e));
 }
@@ -1454,11 +1464,16 @@ function updateWhaleCopy(d){
       const pnlCol = pnlV===null ? 'var(--grey)' : (pnlV>=0?'var(--green)':'var(--red)');
       const pnlTxt = pnlV===null ? 'N/A' : (pnlV>=0?'+':'')+pnlV.toFixed(2)+'%';
       const liveP = (t.status==='OPEN' && t.live_price) ? fmt6(t.live_price) : '—';
+      const mc=t.market_cap_pct||{};
+          const mcap = (mc.daily_pct!==undefined && mc.daily_pct!==null)
+            ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
+            : '—';
       return `<tr>
         <td>${sym}</td>
         <td style="color:${dirCol}">${t.direction||'N/A'}</td>
         <td>${fmt6(t.entry_price||t.wall_price||0)}</td>
         <td style="color:var(--yellow,#e8b339)">${liveP}</td>
+        <td style="font-size:9px;color:var(--grey)">${mcap}</td>
         <td>${t.funding_rate!==undefined?t.funding_rate+'%':'0'}</td>
         <td style="font-size:9px">${t.liq_status||'N/A'}</td>
         <td style="font-size:9px">${t.trailing||'N/A'}</td>
@@ -1469,7 +1484,7 @@ function updateWhaleCopy(d){
         <td style="color:var(--grey);font-size:9px">${t.entry_time||'N/A'}</td>
         <td style="color:var(--grey);font-size:9px">${t.exit_time||'—'}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="13" style="color:var(--grey)">No whale copy trades yet</td></tr>';
+    }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No whale copy trades yet</td></tr>';
   }
 
   const tpp = document.getElementById('wc-total-pnl-pct');
