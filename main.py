@@ -1048,10 +1048,11 @@ def whale_copy_check_loop():
         time.sleep(300)
         try:
             changed = False
+            now = time.time()
             for tr in WHALE_COPY_TRADES:
                 if tr.get("status") != "OPEN":
                     continue
-                age = time.time() - tr.get("entry_ts", time.time())
+                age = now - tr.get("entry_ts", now)
                 if age < 300:
                     continue
                 current = fetch_ticker_price(tr["symbol"])
