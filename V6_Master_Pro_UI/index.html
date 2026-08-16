@@ -257,6 +257,7 @@ body.simple-active .ms-sub { font-size:12px }
     <span style="color:var(--grey);font-size:9px">Green Sync</span>
   </div>
   <div class="hbtns">
+    <span id="pkt-clock" style="color:var(--grey);font-size:10px;margin-right:8px;white-space:nowrap">🕐 —</span>
     <button class="hbtn focus" onclick="location.href='/focus'">FOCUS NODE</button>
     <button class="hbtn" id="simple-toggle-btn" onclick="toggleSimpleMode()">SIMPLE NODE</button>
     <button class="hbtn admin" onclick="location.href='/admin'">ADMIN/QUEST</button>
@@ -788,7 +789,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   }catch(e){}
   setTimeout(function(){initChart();fetchChart();},500);
   fetchAll();
+  updatePktClock();
   timer=setInterval(()=>{
+    updatePktClock();
     countdown--;
     const el=document.getElementById('next-cnt');
     if(el) el.textContent=countdown;
@@ -1182,8 +1185,8 @@ function fetchV6Bot(){
             <td>${t.status||'—'}</td>
             <td style="color:${resCol}">${t.result||'—'}</td>
             <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td style="color:var(--grey);font-size:9px">${t.entry_time||'—'}</td>
-            <td style="color:var(--grey);font-size:9px">${t.exit_time||'—'}</td>
+            <td style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.entry_time)}</td>
+            <td style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.exit_time)}</td>
           </tr>`;
         }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No V6 bot trades yet</td></tr>';
       }
@@ -1253,7 +1256,7 @@ function fetchComboBot(){
             <td>${t.status||'—'}</td>
             <td style="color:${resCol}">${t.result||'—'}</td>
             <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td style="color:var(--grey);font-size:9px">${t.entry_time||'—'}</td>
+            <td style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.entry_time)}</td>
           </tr>`;
         }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No combo bot trades yet</td></tr>';
       }
@@ -1528,8 +1531,8 @@ function updateWhaleCopy(d){
         <td style="color:${resCol}">${t.status==='OPEN'?'OPEN':(t.result||'—')}</td>
         <td>${closePx}</td>
         <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-        <td style="color:var(--grey);font-size:9px">${t.entry_time||'N/A'}</td>
-        <td style="color:var(--grey);font-size:9px">${t.exit_time||'—'}</td>
+        <td style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.entry_time)}</td>
+        <td style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.exit_time)}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No whale copy trades yet</td></tr>';
   }
@@ -1770,6 +1773,21 @@ function drawSMD(id,score){
 
 // ── HELPERS ──
 function set(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function fmtCompactTime(s){
+  if(!s || s==='N/A' || s==='—') return '—';
+  const parts=s.split(' ');
+  if(parts.length<2) return s;
+  return parts[0].slice(5)+' '+parts[1].slice(0,5); // "2026-08-05 22:18:21" -> "08-05 22:18"
+}
+function updatePktClock(){
+  const el=document.getElementById('pkt-clock');
+  if(!el) return;
+  const now=new Date(Date.now()+5*3600*1000); // PKT = UTC+5, no DST
+  const hh=String(now.getUTCHours()).padStart(2,'0');
+  const mm=String(now.getUTCMinutes()).padStart(2,'0');
+  const ss=String(now.getUTCSeconds()).padStart(2,'0');
+  el.textContent=`🕐 ${hh}:${mm}:${ss} PKT`;
+}
 function fmt6(n){const f=parseFloat(n);if(isNaN(f)||f===0)return '—';return f<1?f.toFixed(6):f.toFixed(2);}
 function fmtNum(n){n=parseFloat(n);if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return n||'—';}
 function fmtVol(n){n=parseFloat(n);if(n>=1e9)return(n/1e9).toFixed(1)+'B USDT';if(n>=1e6)return(n/1e6).toFixed(1)+'M USDT';if(n>=1e3)return(n/1e3).toFixed(0)+'K USDT';return n+' USDT';}

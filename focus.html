@@ -186,6 +186,7 @@ body { background: #0a0a0f; color: #c9d1d9; font-family: 'Courier New', monospac
   <a class="hdr-back" href="/" onclick="event.preventDefault(); window.history.back();">← MAIN DASHBOARD</a>
   <span class="hdr-title" id="hdr-title">🎯 FOCUS MODE — Institutional Ranking</span>
   <div class="hdr-right">
+    <span id="pkt-clock-focus">🕐 —</span>
     <span>BTC: <span id="hdr-btc" style="color:#58a6ff">—</span></span>
     <span>REGIME: <span id="hdr-regime" class="regime-ranging">—</span></span>
     <span>W/L: <span id="hdr-wl" style="color:#3fb950">—</span></span>
@@ -805,7 +806,17 @@ async function fetchFocusData() {
 }
 
 // ── Countdown & auto-refresh ──────────────────────────────────────────────────
+function updatePktClockFocus(){
+  const el=document.getElementById('pkt-clock-focus');
+  if(!el) return;
+  const now=new Date(Date.now()+5*3600*1000); // PKT = UTC+5, no DST
+  const hh=String(now.getUTCHours()).padStart(2,'0');
+  const mm=String(now.getUTCMinutes()).padStart(2,'0');
+  const ss=String(now.getUTCSeconds()).padStart(2,'0');
+  el.textContent=`🕐 ${hh}:${mm}:${ss} PKT`;
+}
 function tick() {
+  updatePktClockFocus();
   countdown--;
   const el = document.getElementById('hdr-cd');
   if (el) { el.textContent = countdown+'s'; el.style.color = countdown<=5?'#FFD700':'#888'; }
@@ -814,6 +825,7 @@ function tick() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 fetchFocusData();
+updatePktClockFocus();
 setInterval(tick, 1000);
 window.addEventListener('resize', () => {
   if (chart) chart.applyOptions({ width: document.getElementById('chart-container').clientWidth });
