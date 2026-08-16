@@ -101,6 +101,75 @@ def _pkt_ts() -> str:
     """Current timestamp formatted in Pakistan time (UTC+5)."""
     return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))
 
+# ── Large Trades History (persistent SQLite rollup for Buy/Sell Summary) ──────
+_LT_HISTORY_DB = "v6_master_pro.db"
+
+def _init_lt_history_db():
+    try:
+        conn = sqlite3.connect(_LT_HISTORY_DB)
+        conn.execute("""CREATE TABLE IF NOT EXISTS large_trades_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            side TEXT NOT NULL,
+            usdt REAL NOT NULL,
+            ts REAL NOT NULL
+        )""")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_lt_symbol_ts ON large_trades_history(symbol, ts)")
+        conn.commit()
+        conn.close()
+    except Exception as _e:
+        log.warning(f"[LT HISTORY] init failed: {_e}")
+
+def _record_lt_history(trades: list):
+    if not trades:
+        return
+    try:
+        conn = sqlite3.connect(_LT_HISTORY_DB)
+        conn.executemany(
+            "INSERT INTO large_trades_history (symbol, side, usdt, ts) VALUES (?, ?, ?, ?)",
+            [(t["symbol"], t["side"], t["usdt"], t["ts"]) for t in trades]
+        )
+        conn.execute("DELETE FROM large_trades_history WHERE ts < ?", (time.time() - 8 * 86400,))
+        conn.commit()
+        conn.close()
+    except Exception as _e:
+        log.warning(f"[LT HISTORY] record failed: {_e}")
+
+def _get_lt_summary(window_hours: float) -> list:
+    """Per-coin total buy vs sell USDT over the given window."""
+    try:
+        conn = sqlite3.connect(_LT_HISTORY_DB)
+        cur = conn.execute(
+            """SELECT symbol,
+                      SUM(CASE WHEN side='BUY' THEN usdt ELSE 0 END) AS buy_usdt,
+                      SUM(CASE WHEN side='SELL' THEN usdt ELSE 0 END) AS sell_usdt,
+                      COUNT(*) AS trade_count
+               FROM large_trades_history
+               WHERE ts >= ?
+               GROUP BY symbol
+               ORDER BY (buy_usdt + sell_usdt) DESC""",
+            (time.time() - window_hours * 3600,)
+        )
+        rows = cur.fetchall()
+        conn.close()
+        out = []
+        for symbol, buy_usdt, sell_usdt, trade_count in rows:
+            buy_usdt = buy_usdt or 0
+            sell_usdt = sell_usdt or 0
+            net = buy_usdt - sell_usdt
+            out.append({
+                "symbol": symbol,
+                "buy_usdt": round(buy_usdt, 0),
+                "sell_usdt": round(sell_usdt, 0),
+                "net_usdt": round(net, 0),
+                "direction": "BUY" if net > 0 else ("SELL" if net < 0 else "NEUTRAL"),
+                "trade_count": trade_count,
+            })
+        return out
+    except Exception as _e:
+        log.warning(f"[LT HISTORY] summary query failed: {_e}")
+        return []
+
 # ── Config ────────────────────────────────────────────────────────────────────
 with open("config.json") as f:
     CONFIG = json.load(f)
@@ -112,6 +181,8 @@ if _V6_UPGRADE:
         log.info("[V6 DB] SQLite initialized.")
     except Exception as _e:
         log.warning("[V6 DB] init failed: %s" % _e)
+
+_init_lt_history_db()
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
 import hashlib as _hashlib
@@ -1883,6 +1954,7 @@ def data_refresh_loop():
                 _lt_all = _new_large_trades + GLOBAL_DATA.get("large_trades", [])
                 _lt_all.sort(key=lambda x: x["ts"], reverse=True)
                 GLOBAL_DATA["large_trades"] = _lt_all[:100]
+                _record_lt_history(_new_large_trades)
 
             # ── ETH ON-CHAIN EXCHANGE FLOW (Etherscan) ────────────────────────
             _etherscan_key = os.getenv("ETHERSCAN_API_KEY", "")
@@ -4740,6 +4812,13 @@ def eth_onchain_data_route():
 @app.route("/large_trades_data")
 def large_trades_data_route():
     return jsonify({"trades": GLOBAL_DATA.get("large_trades", [])[:50]})
+
+
+@app.route("/large_trades_summary")
+def large_trades_summary_route():
+    window = request.args.get("window", "daily")
+    hours = 24 if window == "daily" else 168
+    return jsonify({"window": window, "summary": _get_lt_summary(hours)})
 
 
 def _attach_live_price(trades: list) -> list:

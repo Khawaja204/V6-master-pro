@@ -652,6 +652,21 @@ body.simple-active .ms-sub { font-size:12px }
   </div>
 
   <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">📊 BUY/SELL SUMMARY (Per-Coin, Large Trades)
+      <span style="float:right">
+        <button onclick="setBSWindow('daily')" style="font-size:9px;padding:2px 8px;margin-right:4px">24H</button>
+        <button onclick="setBSWindow('weekly')" style="font-size:9px;padding:2px 8px">7D</button>
+      </span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="scan-tbl">
+      <thead><tr><th>Coin</th><th>Buy(USDT)</th><th>Sell(USDT)</th><th>Net</th><th>Trades</th></tr></thead>
+      <tbody id="bs-summary-tbody"><tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">Loading summary...</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)</div>
     <div style="overflow-x:auto">
     <table class="scan-tbl">
@@ -1112,6 +1127,7 @@ function fetchAll(){
   fetchChart();
   fetchWhaleCopy();
   fetchLargeTrades();
+  fetchBuySellSummary();
   fetchEthFlow();
   fetchDexSwaps();
   fetchV6Bot();
@@ -1352,6 +1368,37 @@ function fetchDexSwaps(){
         </tr>`;
       }).join('');
     }).catch(e=>console.error('DEX swaps fetch:',e));
+}
+
+window._bsWindow = 'daily';
+function setBSWindow(w){
+  window._bsWindow = w;
+  fetchBuySellSummary();
+}
+function fetchBuySellSummary(){
+  fetch('/large_trades_summary?window='+(window._bsWindow||'daily'))
+    .then(r=>r.json())
+    .then(d=>{
+      const rows=d.summary||[];
+      const tbody=document.getElementById('bs-summary-tbody');
+      if(!tbody) return;
+      if(!rows.length){
+        tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">No data yet for this window</td></tr>';
+        return;
+      }
+      tbody.innerHTML=rows.slice(0,20).map(r=>{
+        const sym=(r.symbol||'').replace('USDT','');
+        const netColor=r.direction==='BUY'?'var(--green)':r.direction==='SELL'?'var(--red)':'var(--grey)';
+        const netSign=r.net_usdt>0?'+':'';
+        return `<tr style="cursor:pointer" onclick="loadCoin('${r.symbol}')">
+          <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+          <td style="color:var(--green)">${fmtNum(r.buy_usdt||0)}</td>
+          <td style="color:var(--red)">${fmtNum(r.sell_usdt||0)}</td>
+          <td style="color:${netColor};font-weight:bold">${netSign}${fmtNum(r.net_usdt||0)}</td>
+          <td style="color:var(--grey)">${r.trade_count||0}</td>
+        </tr>`;
+      }).join('');
+    }).catch(e=>console.error('Buy/Sell summary fetch:',e));
 }
 
 function fetchLargeTrades(){
