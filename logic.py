@@ -1199,9 +1199,80 @@ def detect_rsi_divergence(klines: list) -> str:
         return "NONE"
 
 
-def detect_market_regime(btc_volatility_pct: float, btc_change_pct: float) -> str:
-    if abs(btc_volatility_pct) > 4.0 or abs(btc_change_pct) > 3.0: return "VOLATILE"
-    if abs(btc_change_pct) > 1.5: return "TRENDING"
+def _fetch_btc_klines(interval: str = "1h", limit: int = 100) -> list:
+    """OHLC candles for ADX — pure REST, no extra deps."""
+    try:
+        resp = _binance_get("/api/v3/klines",
+                             params={"symbol": "BTCUSDT", "interval": interval, "limit": limit},
+                             timeout=8)
+        if resp is None:
+            return []
+        resp.raise_for_status()
+        raw = resp.json()
+        return [{"high": float(k[2]), "low": float(k[3]), "close": float(k[4])} for k in raw]
+    except Exception as e:
+        log.debug(f"[ADX] klines fetch failed: {e}")
+        return []
+
+
+def calculate_adx(candles: list, period: int = 14) -> float:
+    """Wilder's Average Directional Index, pure Python (no numpy/ta-lib dep).
+    ADX measures trend STRENGTH (not direction) -- >=25 is a real trending
+    move, <20 is a choppy/ranging market, 20-25 is transitional.
+    Needs >= period*2 candles for a stable reading; returns 0.0 otherwise."""
+    if len(candles) < period * 2:
+        return 0.0
+    plus_dm, minus_dm, tr_list = [], [], []
+    for i in range(1, len(candles)):
+        high, low = candles[i]["high"], candles[i]["low"]
+        prev_high, prev_low, prev_close = candles[i-1]["high"], candles[i-1]["low"], candles[i-1]["close"]
+        up_move, down_move = high - prev_high, prev_low - low
+        plus_dm.append(up_move if (up_move > down_move and up_move > 0) else 0.0)
+        minus_dm.append(down_move if (down_move > up_move and down_move > 0) else 0.0)
+        tr_list.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+
+    def _wilder_smooth(values, per):
+        smoothed = [sum(values[:per])]
+        for v in values[per:]:
+            smoothed.append(smoothed[-1] - (smoothed[-1] / per) + v)
+        return smoothed
+
+    tr_s, pdm_s, mdm_s = (_wilder_smooth(tr_list, period),
+                          _wilder_smooth(plus_dm, period),
+                          _wilder_smooth(minus_dm, period))
+    dx_list = []
+    for tr_v, pdm_v, mdm_v in zip(tr_s, pdm_s, mdm_s):
+        if tr_v == 0:
+            dx_list.append(0.0)
+            continue
+        plus_di, minus_di = 100 * (pdm_v / tr_v), 100 * (mdm_v / tr_v)
+        di_sum = plus_di + minus_di
+        dx_list.append(100 * abs(plus_di - minus_di) / di_sum if di_sum else 0.0)
+
+    if not dx_list:
+        return 0.0
+    if len(dx_list) < period:
+        return round(dx_list[-1], 2)
+    adx = sum(dx_list[:period]) / period
+    for dx in dx_list[period:]:
+        adx = (adx * (period - 1) + dx) / period
+    return round(adx, 2)
+
+
+def detect_market_regime(btc_volatility_pct: float, btc_change_pct: float, adx: float = None) -> str:
+    """ADX-adaptive phase detection. Extreme moves are always VOLATILE
+    regardless of ADX. Otherwise ADX (trend strength) decides TRENDING vs
+    RANGING when available; falls back to the change% heuristic if the
+    klines fetch failed (adx is None) or ADX sits in the 20-25 grey zone."""
+    if abs(btc_volatility_pct) > 4.0 or abs(btc_change_pct) > 3.0:
+        return "VOLATILE"
+    if adx is not None:
+        if adx >= 25:
+            return "TRENDING"
+        if adx < 20:
+            return "RANGING"
+    if abs(btc_change_pct) > 1.5:
+        return "TRENDING"
     return "RANGING"
 
 
@@ -1682,18 +1753,20 @@ def fetch_btc_sentiment() -> dict:
         volatility = (high - low) / low * 100 if low else 0
         pause      = change <= -2.0 or volatility > 5.0
         sentiment  = "BEARISH" if pause else "BULLISH" if change >= 2.0 else "NEUTRAL"
-        regime     = detect_market_regime(volatility, change)
+        _candles   = _fetch_btc_klines("1h", 100)
+        adx        = calculate_adx(_candles, 14) if _candles else None
+        regime     = detect_market_regime(volatility, change, adx)
         return {
             "price": price, "change_pct": round(change, 2),
             "volume": round(float(t["quoteVolume"]), 0),
             "volatility_pct": round(volatility, 2), "sentiment": sentiment,
-            "pause_entries": pause, "regime": regime,
+            "pause_entries": pause, "regime": regime, "adx": adx,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
     except Exception as e:
         log.warning(f"BTC sentiment fetch failed: {e}")
         return {"price": 0, "change_pct": 0, "volume": 0, "volatility_pct": 0,
-                "sentiment": "UNKNOWN", "pause_entries": False, "regime": "RANGING",
+                "sentiment": "UNKNOWN", "pause_entries": False, "regime": "RANGING", "adx": None,
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time() + 5 * 3600))}
 
 

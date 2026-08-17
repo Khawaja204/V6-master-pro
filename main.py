@@ -624,6 +624,7 @@ def _record_combo_trade(combo: dict):
         if len(COMBO_TRADES) > 500:
             COMBO_TRADES.pop()
     _save_combo_trades()
+    _record_trade_open("combo")
     log.info(f"[COMBO] BUY {sym} @ {entry['entry_price']} (v6={combo.get('v6_score')} wall={combo.get('wall_confidence')}%)")
     notify_all(f"V6 COMBO BUY — {sym.replace('USDT','')}",
                f"🎯 <b>COMBO CONFLUENCE BUY — {sym.replace('USDT','')}</b>\n"
@@ -700,7 +701,7 @@ _BOT_NAMES   = ("v6", "wall", "combo")
 
 
 def _blank_bot_stats() -> dict:
-    return {"date": "", "losses": 0, "wins": 0,
+    return {"date": "", "losses": 0, "wins": 0, "opens": 0,
             "realized_pnl_pct": 0.0, "tripped": False, "tripped_reason": ""}
 
 
@@ -775,7 +776,7 @@ def _reset_daily_if_needed(bot: str = "v6") -> None:
     stats = _daily_stats_by_bot[bot]
     today = _today_utc()
     if stats["date"] != today:
-        stats.update({"date": today, "losses": 0, "wins": 0,
+        stats.update({"date": today, "losses": 0, "wins": 0, "opens": 0,
                       "realized_pnl_pct": 0.0, "tripped": False,
                       "tripped_reason": ""})
 
@@ -798,11 +799,32 @@ def _symbol_open_elsewhere(symbol: str, exclude_bot: str) -> str:
 
 
 def _entries_allowed(bot: str = "v6") -> bool:
-    """False when that bot's daily circuit-breaker has tripped.
+    """False when that bot's daily circuit-breaker has tripped, OR when
+    today's opened-trade count has already hit daily_max_trades — an
+    overtrading guard independent of win/loss (caps how many NEW positions
+    a bot can open per day, regardless of how they turn out).
     bot: "v6" | "wall" | "combo" — each gated independently."""
     with _daily_lock:
         _reset_daily_if_needed(bot)
-        return not _daily_stats_by_bot[bot]["tripped"]
+        stats = _daily_stats_by_bot[bot]
+        if stats["tripped"]:
+            return False
+        bot_cfg = CONFIG.get("bots", {}).get(bot, {})
+        tm      = CONFIG.get("trade_management", {})
+        max_trades = bot_cfg.get("daily_max_trades", tm.get("daily_max_trades", 0))
+        if max_trades and stats.get("opens", 0) >= max_trades:
+            return False
+        return True
+
+
+def _record_trade_open(bot: str = "v6") -> None:
+    """Bumps that bot's today-opened counter — called right after a new
+    trade is successfully recorded, so the daily_max_trades cap in
+    _entries_allowed() sees an accurate count on the next entry attempt."""
+    with _daily_lock:
+        _reset_daily_if_needed(bot)
+        _daily_stats_by_bot[bot]["opens"] = _daily_stats_by_bot[bot].get("opens", 0) + 1
+        GLOBAL_DATA.setdefault("circuit_breakers", {})[bot] = dict(_daily_stats_by_bot[bot])
 
 
 def _record_trade_result(is_win: bool, pnl_pct: float, bot: str = "v6") -> None:
@@ -933,6 +955,7 @@ def _record_backtest_signal(symbol: str, entry_price: float, folder: str,
         if len(BACKTEST_SIGNALS) > 100:
             BACKTEST_SIGNALS = BACKTEST_SIGNALS[:100]
         GLOBAL_DATA["backtest"] = BACKTEST_SIGNALS
+    _record_trade_open("v6")
     return entry
 
 
@@ -1014,6 +1037,7 @@ def _record_whale_copy_trade(sig: dict):
         if len(WHALE_COPY_TRADES) > 500:
             WHALE_COPY_TRADES.pop()
     _save_whale_copy_trades()
+    _record_trade_open("wall")
     log.info(f"[WHALE COPY] {sig['direction']} {sym} @ {sig['wall_price']} (conf {sig['confidence']}%)")
     if sig["direction"] == "COPY_BUY":
         wc_msg = (f"🐋 <b>WHALE COPY BUY — {sym.replace('USDT','')}</b>\n"
