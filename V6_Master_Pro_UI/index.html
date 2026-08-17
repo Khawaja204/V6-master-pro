@@ -668,7 +668,13 @@ body.simple-active .ms-sub { font-size:12px }
   </div>
 
   <div class="card" style="margin-top:8px">
-    <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)</div>
+    <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)
+      <span style="float:right">
+        <button onclick="setLTWindow('daily')" style="font-size:9px;padding:2px 8px;margin-right:4px">24H</button>
+        <button onclick="setLTWindow('weekly')" style="font-size:9px;padding:2px 8px">7D</button>
+      </span>
+    </div>
+    <div id="lt-total" style="font-size:9px;color:var(--grey);padding:2px 8px 4px">Loading total...</div>
     <div style="overflow-x:auto">
     <table class="scan-tbl">
       <thead><tr><th>Time</th><th>Coin</th><th>Side</th><th>Price</th><th>Size(USDT)</th></tr></thead>
@@ -681,7 +687,7 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Dir</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>Funding</th><th>Liq Status</th><th>Trail SL</th><th>Conf%</th><th>Status</th><th>Close Price</th><th>Profit%</th><th>Buy/Sell Time</th></tr></thead>
+        <thead><tr><th>Coin</th><th>Dir</th><th>Buy/Sell Time</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>Funding</th><th>Liq Status</th><th>Trail SL</th><th>Conf%</th><th>Status</th><th>Close Price</th><th>Profit%</th></tr></thead>
         <tbody id="wc-trades-tbody"><tr><td colspan="13" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
       </table>
     </div>
@@ -708,7 +714,7 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">📋 V6 BOT TRADE HISTORY</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
-        <thead><tr><th>Coin</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Conf%</th><th>Status</th><th>Result</th><th>PnL%</th><th>Entry/Exit Time</th></tr></thead>
+        <thead><tr><th>Coin</th><th>Entry/Exit Time</th><th>Entry</th><th>Live Price</th><th>Mkt Cap %</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Conf%</th><th>Status</th><th>Result</th><th>PnL%</th></tr></thead>
         <tbody id="v6bot-trades-tbody"><tr><td colspan="13" style="color:var(--grey)">No V6 bot trades yet</td></tr></tbody>
       </table>
     </div>
@@ -1174,6 +1180,7 @@ function fetchV6Bot(){
             : '—';
           return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
             <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+            <td style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
             <td>${fmt6(t.entry_price||0)}</td>
             <td style="color:var(--yellow,#e8b339)">${liveP}</td>
             <td style="font-size:9px;color:var(--grey)">${mcap}</td>
@@ -1185,7 +1192,6 @@ function fetchV6Bot(){
             <td>${t.status||'—'}</td>
             <td style="color:${resCol}">${t.result||'—'}</td>
             <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
           </tr>`;
         }).join('') || '<tr><td colspan="13" style="color:var(--grey)">No V6 bot trades yet</td></tr>';
       }
@@ -1403,18 +1409,25 @@ function fetchBuySellSummary(){
     }).catch(e=>console.error('Buy/Sell summary fetch:',e));
 }
 
+window._ltWindow = 'daily';
+function setLTWindow(w){
+  window._ltWindow = w;
+  fetchLargeTrades();
+}
 function fetchLargeTrades(){
-  fetch('/large_trades_data')
+  fetch('/large_trades_list?window='+(window._ltWindow||'daily'))
     .then(r=>r.json())
     .then(d=>{
       const trades=d.trades||[];
       const tbody=document.getElementById('lt-tbody');
+      const totalEl=document.getElementById('lt-total');
+      if(totalEl) totalEl.textContent=`Total (${d.window==='weekly'?'7D':'24H'}): ${d.count||0} trades · ${fmtNum(d.total_usdt||0)} USDT volume`;
       if(!tbody) return;
       if(!trades.length){
-        tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">No large trades detected yet</td></tr>';
+        tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--grey);padding:12px">No large trades in this window</td></tr>';
         return;
       }
-      tbody.innerHTML=trades.slice(0,25).map(t=>{
+      tbody.innerHTML=trades.slice(0,50).map(t=>{
         const sym=(t.symbol||'').replace('USDT','');
         const sideColor=t.side==='BUY'?'var(--green)':'var(--red)';
         return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
@@ -1520,6 +1533,7 @@ function updateWhaleCopy(d){
       return `<tr>
         <td>${sym}</td>
         <td style="color:${dirCol}">${t.direction||'N/A'}</td>
+        <td style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
         <td>${fmt6(t.entry_price||t.wall_price||0)}</td>
         <td style="color:var(--yellow,#e8b339)">${liveP}</td>
         <td style="font-size:9px;color:var(--grey)">${mcap}</td>
@@ -1530,7 +1544,6 @@ function updateWhaleCopy(d){
         <td style="color:${resCol}">${t.status==='OPEN'?'OPEN':(t.result||'—')}</td>
         <td>${closePx}</td>
         <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-        <td style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="13" style="color:var(--grey)">No whale copy trades yet</td></tr>';
   }

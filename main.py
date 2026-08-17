@@ -115,6 +115,9 @@ def _init_lt_history_db():
             ts REAL NOT NULL
         )""")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lt_symbol_ts ON large_trades_history(symbol, ts)")
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(large_trades_history)").fetchall()]
+        if "price" not in cols:
+            conn.execute("ALTER TABLE large_trades_history ADD COLUMN price REAL DEFAULT 0")
         conn.commit()
         conn.close()
     except Exception as _e:
@@ -126,8 +129,8 @@ def _record_lt_history(trades: list):
     try:
         conn = sqlite3.connect(_LT_HISTORY_DB)
         conn.executemany(
-            "INSERT INTO large_trades_history (symbol, side, usdt, ts) VALUES (?, ?, ?, ?)",
-            [(t["symbol"], t["side"], t["usdt"], t["ts"]) for t in trades]
+            "INSERT INTO large_trades_history (symbol, side, usdt, ts, price) VALUES (?, ?, ?, ?, ?)",
+            [(t["symbol"], t["side"], t["usdt"], t["ts"], t.get("price", 0)) for t in trades]
         )
         conn.execute("DELETE FROM large_trades_history WHERE ts < ?", (time.time() - 8 * 86400,))
         conn.commit()
@@ -4819,6 +4822,29 @@ def large_trades_summary_route():
     window = request.args.get("window", "daily")
     hours = 24 if window == "daily" else 168
     return jsonify({"window": window, "summary": _get_lt_summary(hours)})
+
+
+@app.route("/large_trades_list")
+def large_trades_list_route():
+    window = request.args.get("window", "daily")
+    hours = 24 if window == "daily" else 168
+    try:
+        conn = sqlite3.connect(_LT_HISTORY_DB)
+        cur = conn.execute(
+            "SELECT symbol, side, usdt, price, ts FROM large_trades_history WHERE ts >= ? ORDER BY ts DESC LIMIT 200",
+            (time.time() - hours * 3600,)
+        )
+        rows = cur.fetchall()
+        conn.close()
+        trades = [{
+            "symbol": r[0], "side": r[1], "usdt": r[2], "price": r[3],
+            "time": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(r[4] + 5 * 3600))
+        } for r in rows]
+        total_usdt = sum(r[2] for r in rows)
+        return jsonify({"window": window, "trades": trades, "total_usdt": round(total_usdt, 0), "count": len(rows)})
+    except Exception as _e:
+        log.warning(f"[LT HISTORY] list query failed: {_e}")
+        return jsonify({"window": window, "trades": [], "total_usdt": 0, "count": 0})
 
 
 def _attach_live_price(trades: list) -> list:
