@@ -378,6 +378,7 @@ body.simple-active .ms-sub { font-size:12px }
             <span class="dg-l">Buy Price Ext:</span><span class="dg-v" id="buy-ext">—</span>
             <span class="dg-l">Sell Price Ext:</span><span class="dg-v r" id="sell-ext">—</span>
             <span class="dg-l">Trend:</span><span class="dg-v g" id="coin-trend">ACCUMULATION</span>
+            <span class="dg-l">Candle Pattern:</span><span class="dg-v" id="candle-pattern">—</span>
           </div>
         </div>
       </div>
@@ -946,6 +947,7 @@ function fetchChart(sym){
           pb.style.color=lbl==='BUY'?'#00ff88':'#ff2244';
         }
         set('sniper-basis-tag', '(V6-Score, 54-pt)');
+        setCandlePattern(v6);
         set('vmc-score', fmt6(inst2.vmc_score||match.score||0));
         set('buy-est', fmt6(tp2.entry_low||_price||0));
         set('sell-est', fmt6(tp2.tp1||0));
@@ -984,6 +986,7 @@ function fetchChart(sym){
             if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
             if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
             set('vmc-score','—'); set('buy-est','—'); set('sell-est','—'); set('buy-ext','—'); set('sell-ext','—');
+            setCandlePattern(null);
             const tEl=document.getElementById('coin-trend'); if(tEl){tEl.textContent='—';tEl.className='dg-v';}
             const eb=document.getElementById('eng-badge'); if(eb){eb.textContent='—';eb.style.background='#1a1a1a';eb.style.color='#888';}
             const dot=document.getElementById('tl-dot'); if(dot) dot.className='tl-dot tl-red';
@@ -999,6 +1002,7 @@ function fetchChart(sym){
           if(bs){bs.className=llbl;bs.innerHTML=(icons[llbl]||'⏳')+' '+llbl+' — SCORE: <span id="big-score">'+Math.round(lv6.score||0)+'</span>/100 <span style="font-size:9px;color:#888">(live)</span>';}
           if(pb){pb.textContent=llbl==='BUY'?'BUY – ACCUMULATION (live)':'AVOID – DUMP PREP (live)';pb.style.background=llbl==='BUY'?'#003311':'#440000';pb.style.color=llbl==='BUY'?'#00ff88':'#ff2244';}
         set('sniper-basis-tag', '(V6-Score, live on-demand)');
+          setCandlePattern(lv6);
           set('vmc-score', fmt6(linst.vmc_score||ls.score||0));
           set('buy-est', fmt6(ltp.entry_low||ls.price||0));
           set('sell-est', fmt6(ltp.tp1||0));
@@ -1798,6 +1802,15 @@ function drawSMD(id,score){
 
 // ── HELPERS ──
 function set(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function setCandlePattern(v6obj){
+  const el=document.getElementById('candle-pattern');
+  if(!el) return;
+  const pat=v6obj && v6obj.pattern;
+  const bias=v6obj && v6obj.pattern_bias;
+  if(!pat){ el.textContent='None detected'; el.className='dg-v'; return; }
+  el.textContent=pat.replace(/_/g,' ')+' ('+(bias||'NEUTRAL')+')';
+  el.className='dg-v '+(bias==='BULLISH'?'g':bias==='BEARISH'?'r':'');
+}
 function fmtCompactTime(s){
   if(!s || s==='N/A' || s==='—') return '—';
   const parts=s.split(' ');
