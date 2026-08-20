@@ -1818,6 +1818,7 @@ def _compute_live_signal(symbol: str) -> dict:
     rsi    = fetch_rsi_for_symbol(symbol)
     atr    = calculate_atr(symbol)
     macd_d = fetch_macd_for_symbol(symbol)
+    pattern_d = fetch_candlestick_pattern(symbol)
 
     book  = fetch_order_book(symbol, CONFIG["whale"]["order_book_depth"])
     walls = calculate_wall_proximity(price, book, CONFIG)
@@ -1838,7 +1839,7 @@ def _compute_live_signal(symbol: str) -> dict:
         "volume_usdt": round(volume_usdt, 0), "rsi": rsi, "score": vmc_score,
         "folder": "LIVE", "atr": atr, "macd": macd_d,
         "macd_hist": macd_d.get("hist", 0.0), "tp_zones": tp,
-        "inst": inst, "sizing": sizing, "confidence": conf,
+        "inst": inst, "sizing": sizing, "confidence": conf, "pattern": pattern_d,
     }
     mkt_reg = GLOBAL_DATA.get("market_regime", "RANGING")
     strat, sreason = determine_trading_strategy(signal, GLOBAL_DATA.get("whale", []), mkt_reg)
@@ -2029,6 +2030,7 @@ def data_refresh_loop():
                         _ob_cache[sym] = (walls, spoof, b2p, w_pow, obi_r)
                     atr    = calculate_atr(sym)
                     macd_d = fetch_macd_for_symbol(sym)
+                    pattern_d = fetch_candlestick_pattern(sym)
                     tp     = compute_tp_levels(price, atr, CONFIG)
                     inst   = compute_institutional_score(coin["score"], w_pow, obi_r, walls, CONFIG)
                     conf   = compute_confidence_score(inst, obi_r, coin["score"])
@@ -2050,6 +2052,7 @@ def data_refresh_loop():
                         "sizing":     sizing,
                         "confidence": conf,
                         "mtf":        _mtf_result,
+                        "pattern":    pattern_d,
                     })
 
             inst_signals.sort(key=lambda x: (x["inst"]["spike"], x["confidence"]), reverse=True)

@@ -771,6 +771,64 @@ def fetch_macd_for_symbol(symbol: str, interval: str = "1h", limit: int = 60) ->
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# CANDLESTICK PATTERN DETECTION — curated, higher-reliability subset only.
+# Feeds the V6 score as a small bonus/penalty modifier (like RSI-OBI
+# confluence already does to confidence) — never a standalone buy/sell
+# trigger on its own.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def detect_candlestick_pattern(candles: list) -> dict:
+    """Pure-Python pattern check on the last 2-3 OHLC candles from Binance
+    klines (each candle: [open_time, open, high, low, close, volume, ...]).
+    Returns {"pattern": name|None, "bias": BULLISH/BEARISH/NEUTRAL, "points": int}."""
+    if not candles or len(candles) < 3:
+        return {"pattern": None, "bias": "NEUTRAL", "points": 0}
+    o = [float(k[1]) for k in candles]
+    h = [float(k[2]) for k in candles]
+    l = [float(k[3]) for k in candles]
+    c = [float(k[4]) for k in candles]
+    o1, c1 = o[-2], c[-2]                      # previous candle
+    o2, h2, l2, c2 = o[-1], h[-1], l[-1], c[-1]  # latest candle
+    body2  = abs(c2 - o2)
+    range2 = (h2 - l2) or 1e-9
+    upper_wick = h2 - max(o2, c2)
+    lower_wick = min(o2, c2) - l2
+
+    if c1 < o1 and c2 > o2 and c2 >= o1 and o2 <= c1:
+        return {"pattern": "BULLISH_ENGULFING", "bias": "BULLISH", "points": 3}
+    if c1 > o1 and c2 < o2 and o2 >= c1 and c2 <= o1:
+        return {"pattern": "BEARISH_ENGULFING", "bias": "BEARISH", "points": -3}
+    if lower_wick >= body2 * 2 and upper_wick <= body2 * 0.5 and c1 < o1:
+        return {"pattern": "HAMMER", "bias": "BULLISH", "points": 2}
+    if upper_wick >= body2 * 2 and lower_wick <= body2 * 0.5 and c1 > o1:
+        return {"pattern": "SHOOTING_STAR", "bias": "BEARISH", "points": -2}
+    if body2 <= range2 * 0.1:
+        prior_highs = h[-3:-1] or [h2]
+        prior_lows  = l[-3:-1] or [l2]
+        if c2 >= max(prior_highs):
+            return {"pattern": "DOJI_TOP", "bias": "BEARISH", "points": -1}
+        if c2 <= min(prior_lows):
+            return {"pattern": "DOJI_BOTTOM", "bias": "BULLISH", "points": 1}
+    o0, c0 = o[-3], c[-3]
+    if c0 > o0 and c1 > o1 and c2 > o2 and c0 < c1 < c2:
+        return {"pattern": "THREE_WHITE_SOLDIERS", "bias": "BULLISH", "points": 3}
+    if c0 < o0 and c1 < o1 and c2 < o2 and c0 > c1 > c2:
+        return {"pattern": "THREE_BLACK_CROWS", "bias": "BEARISH", "points": -3}
+    return {"pattern": None, "bias": "NEUTRAL", "points": 0}
+
+
+def fetch_candlestick_pattern(symbol: str, interval: str = "1h") -> dict:
+    """One lightweight klines call (5 candles only) — separate from the
+    RSI/MACD/ATR klines fetches since those don't return raw candle data."""
+    try:
+        candles = fetch_klines(symbol, interval, 5)
+        return detect_candlestick_pattern(candles) if candles else {"pattern": None, "bias": "NEUTRAL", "points": 0}
+    except Exception as e:
+        log.debug(f"[PATTERN] {symbol} failed: {e}")
+        return {"pattern": None, "bias": "NEUTRAL", "points": 0}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # V6 FINAL SCORE — 54-POINT
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -836,6 +894,8 @@ def compute_v6_final_score(signal: dict, regime: str, btc_volatility_pct: float,
 
     raw   = market_regime + inst_whale + technical + smart_divergence + trade_engine
     score = max(0, min(100, round(raw / 54 * 100)))
+    pattern = signal.get("pattern", {}) or {}
+    score = max(0, min(100, score + pattern.get("points", 0)))
     if score >= 68:   label, badge = "BUY",   "badge-buy"
     elif score >= 45: label, badge = "WAIT",  "badge-wait"
     else:             label, badge = "AVOID", "badge-avoid"
@@ -843,6 +903,7 @@ def compute_v6_final_score(signal: dict, regime: str, btc_volatility_pct: float,
     return {
         "score": score, "raw": round(raw, 1), "rr": round(rr, 2),
         "label": label, "badge": badge,
+        "pattern": pattern.get("pattern"), "pattern_bias": pattern.get("bias", "NEUTRAL"),
         "breakdown": {
             "market_regime":    round(market_regime, 1),
             "inst_whale":       round(inst_whale, 1),
