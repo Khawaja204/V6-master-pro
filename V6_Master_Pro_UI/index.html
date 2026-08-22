@@ -457,6 +457,18 @@ body.simple-active .ms-sub { font-size:12px }
     </div>
   </div>
 
+  <!-- SCALPING STRATEGY ADVISOR -->
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">🧭 Best Scalping Strategy Right Now</div>
+    <div class="cb">
+      <div id="strat-best-box" style="background:#0a0a14;border:1px solid var(--border);border-radius:2px;padding:10px;margin-bottom:8px">
+        <div id="strat-best-name" style="font-size:13px;font-weight:bold;color:var(--grey)">Waiting for data...</div>
+        <div id="strat-best-reason" style="font-size:10px;color:var(--grey);margin-top:3px">—</div>
+      </div>
+      <div id="strat-candidates" style="font-size:9px"></div>
+    </div>
+  </div>
+
   <!-- PANIC double-confirmation modal -->
   <div id="panic-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
     <div style="background:#0a0a14;border:1px solid #ff2244;border-radius:4px;padding:18px;max-width:320px;width:88%;text-align:center">
@@ -580,10 +592,10 @@ body.simple-active .ms-sub { font-size:12px }
   <div style="overflow-x:auto">
   <table class="scan-tbl">
     <thead>
-      <tr><th>#</th><th>Coin</th><th>Folder</th><th>Light</th><th>Inst%</th><th>Conf%</th><th>WhalePow</th><th>OFI</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Action</th></tr>
+      <tr><th>#</th><th>Coin</th><th>Folder</th><th>Light</th><th>Inst%</th><th>Conf%</th><th>WhalePow</th><th>OFI</th><th>Strategy</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Action</th></tr>
     </thead>
     <tbody id="scan-tbody">
-      <tr><td colspan="13" style="text-align:center;color:var(--grey);padding:20px">Loading scanner data...</td></tr>
+      <tr><td colspan="14" style="text-align:center;color:var(--grey);padding:20px">Loading scanner data...</td></tr>
     </tbody>
   </table>
   </div>
@@ -951,6 +963,32 @@ function updateQuickTrends(symbol){
   });
 }
 
+function renderStrategyAdvisor(scalping){
+  const nameEl=document.getElementById('strat-best-name');
+  const reasonEl=document.getElementById('strat-best-reason');
+  const listEl=document.getElementById('strat-candidates');
+  if(!scalping || !nameEl){
+    if(nameEl){ nameEl.textContent='Waiting for data...'; nameEl.style.color='var(--grey)'; }
+    if(reasonEl) reasonEl.textContent='—';
+    if(listEl) listEl.innerHTML='';
+    return;
+  }
+  const hasMatch = (scalping.best_score||0) > 0;
+  nameEl.textContent = (hasMatch?'🎯 ':'') + (scalping.best_strategy||'—');
+  nameEl.style.color = hasMatch ? 'var(--green)' : 'var(--grey)';
+  if(reasonEl) reasonEl.textContent = scalping.best_reason || '—';
+  const cands = scalping.candidates || [];
+  if(listEl){
+    listEl.innerHTML = cands.map(c=>{
+      const on = c.score>0;
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #111">
+        <span style="color:${on?'var(--white)':'var(--grey)'}">${c.strategy}</span>
+        <span style="color:${on?'var(--green)':'var(--grey)'}">${c.score}%</span>
+      </div>`;
+    }).join('');
+  }
+}
+
 function fetchChart(sym){
   const s=(sym||document.getElementById('coin-inp')?.value||'BTCUSDT')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -1039,6 +1077,7 @@ function fetchChart(sym){
         const bp2=parseFloat(inst2.ofi_score||50);
         drawGauge('g-bsp',bp2,bp2>50?'#00ff88':'#ff2244');
         set('g-bsp-val', bp2>50?'YES':'NO');
+        renderStrategyAdvisor(match.scalping_strategy);
       } else {
         if(rrEl) rrEl.textContent='--';
         const bs=document.getElementById('big-signal');
@@ -1059,6 +1098,7 @@ function fetchChart(sym){
             set('inst-score','—');
             const wb=document.getElementById('warn-box'); if(wb) wb.style.display='none';
             set('reason-txt','No institutional signal for this coin yet');
+            renderStrategyAdvisor(null);
             return;
           }
           const lv6=ls.v6||{}, linst=ls.inst||{}, ltp=ls.tp_zones||{};
@@ -1092,6 +1132,7 @@ function fetchChart(sym){
             else lmarkers=[{time:lt,position:'inBar',color:'#ffd700',shape:'circle',text:'WAIT '+Math.round(lv6.score||0)+' (live)'}];
             try{candleSeries.setMarkers(lmarkers);}catch(e){}
           }
+          renderStrategyAdvisor(ls.scalping_strategy);
         }).catch(()=>{
           if(bs){bs.className='WAIT';bs.innerHTML='⏳ NO SIGNAL — SCORE: <span id="big-score">—</span>/100';}
           if(pb){pb.textContent='NO SIGNAL DATA';pb.style.background='#1a1a1a';pb.style.color='#888';}
@@ -1345,6 +1386,7 @@ function fetchComboBot(){
 }
 
 let _lastMSKey='';
+/* ── PANIC button double-confirmation modal ── */
 function toggleSMD(){
   window._smdUserToggled = true;
   const body=document.getElementById('smd-body');
@@ -1781,7 +1823,7 @@ function updateScanner(d){
   const tbody=document.getElementById('scan-tbody');
   if(!tbody) return;
 
-  if(!coins.length){tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--grey);padding:16px">Waiting for data...</td></tr>';return;}
+  if(!coins.length){tbody.innerHTML='<tr><td colspan="14" style="text-align:center;color:var(--grey);padding:16px">Waiting for data...</td></tr>';return;}
 
   tbody.innerHTML=coins.slice(0,25).map((c,i)=>{
     const inst=c.inst||{};
@@ -1811,6 +1853,11 @@ function updateScanner(d){
     const actCls=lbl==='BUY'?'at-buy':lbl==='AVOID'?'at-avoid':lbl==='WAIT'?'at-wait':'at-spot';
     const sym=(c.symbol||'').replace('USDT','');
     const rowCls=wp>70?'hot':lbl==='AVOID'?'avoid':'';
+    const scalp=c.scalping_strategy||{};
+    const scalpOn=(scalp.best_score||0)>0;
+    const scalpTag=scalpOn
+      ? `<span style="color:var(--green);font-size:8px" title="${(scalp.best_reason||'').replace(/"/g,'')}">${scalp.best_strategy}</span>`
+      : `<span style="color:var(--grey);font-size:8px">—</span>`;
     return `<tr class="${rowCls}">
       <td style="color:var(--grey)">#${i+1}</td>
       <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
@@ -1820,6 +1867,7 @@ function updateScanner(d){
       <td>${conf}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(conf,100)}%;background:${bc}"></span></span></div></td>
       <td>${wp}%<div><span class="mb-wrap"><span class="mb" style="width:${Math.min(wp,100)}%;background:${wc}"></span></span></div></td>
       <td style="color:var(--grey)">${inst.ofi_score?parseFloat(inst.ofi_score).toFixed(1):'—'}</td>
+      <td>${scalpTag}</td>
       <td style="color:var(--red)">▼${fmt6(tp.stop_loss||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp1||0)}</td>
       <td style="color:var(--green)">▲${fmt6(tp.tp2||0)}</td>

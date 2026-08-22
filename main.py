@@ -28,6 +28,7 @@ from logic import (
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
     estimate_time_to_target, fetch_large_trades, fetch_eth_exchange_flows,
     detect_combo_signals,
+    fetch_strategy_indicators, pick_best_strategy,
 )
 
 # V6 UPGRADE IMPORTS (P0: SQLite + Crypto + OCO | P1: WS + Partial TP + MTF)
@@ -1834,12 +1835,22 @@ def _compute_live_signal(symbol: str) -> dict:
     conf   = compute_confidence_score(inst, obi_r, vmc_score)
     sizing = compute_position_size(inst, CONFIG)
 
+    _strat_ind = fetch_strategy_indicators(symbol)
+    mkt_reg_early = GLOBAL_DATA.get("market_regime", "RANGING")
+    _surge_syms = {v["symbol"] for v in GLOBAL_DATA.get("volume_surge", [])}
+    scalping = pick_best_strategy(
+        rsi=rsi, ema_state=_strat_ind["ema"], boll_state=_strat_ind["bollinger"],
+        walls=walls, obi_r=obi_r, in_volume_surge=(symbol in _surge_syms),
+        price=price, market_regime=mkt_reg_early,
+    )
+
     signal = {
         "symbol": symbol, "price": price, "change_pct": round(change_pct, 2),
         "volume_usdt": round(volume_usdt, 0), "rsi": rsi, "score": vmc_score,
         "folder": "LIVE", "atr": atr, "macd": macd_d,
         "macd_hist": macd_d.get("hist", 0.0), "tp_zones": tp,
         "inst": inst, "sizing": sizing, "confidence": conf, "pattern": pattern_d,
+        "scalping_strategy": scalping,
     }
     mkt_reg = GLOBAL_DATA.get("market_regime", "RANGING")
     strat, sreason = determine_trading_strategy(signal, GLOBAL_DATA.get("whale", []), mkt_reg)
@@ -2041,6 +2052,18 @@ def data_refresh_loop():
                             _mtf_result = get_mtf_signal(sym, fetch_klines)
                         except Exception as _me:
                             log.debug(f"[V6 MTF] {sym} failed: {_me}")
+                    try:
+                        _strat_ind = fetch_strategy_indicators(sym)
+                        _in_surge  = sym in {v["symbol"] for v in GLOBAL_DATA.get("volume_surge", [])}
+                        scalping   = pick_best_strategy(
+                            rsi=coin.get("rsi", 50), ema_state=_strat_ind["ema"],
+                            boll_state=_strat_ind["bollinger"], walls=walls, obi_r=obi_r,
+                            in_volume_surge=_in_surge, price=price,
+                            market_regime=GLOBAL_DATA.get("market_regime", "RANGING"),
+                        )
+                    except Exception as _se:
+                        log.debug(f"[Strategy Advisor] {sym} failed: {_se}")
+                        scalping = {"best_strategy": "—", "best_score": 0, "best_reason": "", "candidates": []}
                     inst_signals.append({
                         **coin,
                         "folder":     folder,
@@ -2053,6 +2076,7 @@ def data_refresh_loop():
                         "confidence": conf,
                         "mtf":        _mtf_result,
                         "pattern":    pattern_d,
+                        "scalping_strategy": scalping,
                     })
 
             inst_signals.sort(key=lambda x: (x["inst"]["spike"], x["confidence"]), reverse=True)

@@ -2543,3 +2543,191 @@ def push_midnight_report(vmc_data: dict, whale_data: list, backtest: list,
         return True
     except Exception as e:
         log.error(f"Midnight report push failed: {e}"); return False
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCALPING STRATEGY ADVISOR — matches current per-coin conditions against the
+# 6 classic scalping strategies (EMA cross, RSI, Bollinger squeeze, S/R bounce,
+# 1-min momentum, order-book) and picks the strongest current match.
+# Reuses existing indicators (RSI/ATR/OBI/walls/volume-surge) plus two new
+# lightweight ones (EMA 9/21, Bollinger Bands) computed from the same closes
+# list already being fetched — no extra API calls beyond one klines fetch.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _ema_series(closes: list, period: int) -> list:
+    """EMA series aligned to `closes` (None-padded for the warm-up window),
+    seeded with a simple average over the first `period` closes."""
+    if len(closes) < period:
+        return [None] * len(closes)
+    ema = [None] * (period - 1)
+    seed = sum(closes[:period]) / period
+    ema.append(seed)
+    k = 2 / (period + 1)
+    for price in closes[period:]:
+        ema.append(ema[-1] * (1 - k) + price * k)
+    return ema
+
+
+def detect_ema_crossover(closes: list, fast: int = 9, slow: int = 21, lookback: int = 3) -> dict:
+    """Detects a fresh EMA fast/slow crossover within the last `lookback`
+    candles. Returns cross direction + whether it JUST happened (fresh)."""
+    n = len(closes)
+    if n < slow + lookback:
+        return {"cross": None, "fresh": False, "fast": None, "slow": None}
+    ema_f = _ema_series(closes, fast)
+    ema_s = _ema_series(closes, slow)
+    diffs = []
+    for i in range(max(0, n - lookback - 1), n):
+        if ema_f[i] is None or ema_s[i] is None:
+            continue
+        diffs.append(ema_f[i] - ema_s[i])
+    if len(diffs) < 2:
+        return {"cross": None, "fresh": False, "fast": ema_f[-1], "slow": ema_s[-1]}
+    cross, fresh = None, False
+    for i in range(1, len(diffs)):
+        if diffs[i - 1] <= 0 and diffs[i] > 0:
+            cross, fresh = "BULLISH", True
+        elif diffs[i - 1] >= 0 and diffs[i] < 0:
+            cross, fresh = "BEARISH", True
+    if cross is None:
+        cross = "BULLISH" if diffs[-1] > 0 else "BEARISH"
+    return {
+        "cross": cross, "fresh": fresh,
+        "fast": round(ema_f[-1], 8) if ema_f[-1] is not None else None,
+        "slow": round(ema_s[-1], 8) if ema_s[-1] is not None else None,
+    }
+
+
+def calculate_bollinger(closes: list, period: int = 20, num_std: float = 2.0) -> dict:
+    """Standard Bollinger Bands (SMA mid, +/- num_std population std-dev)."""
+    if len(closes) < period:
+        return {"upper": None, "lower": None, "mid": None, "bandwidth_pct": None}
+    window = closes[-period:]
+    mid = sum(window) / period
+    variance = sum((c - mid) ** 2 for c in window) / period
+    std = variance ** 0.5
+    upper = mid + num_std * std
+    lower = mid - num_std * std
+    bandwidth_pct = ((upper - lower) / mid * 100) if mid else 0
+    return {
+        "upper": round(upper, 8), "lower": round(lower, 8), "mid": round(mid, 8),
+        "bandwidth_pct": round(bandwidth_pct, 3),
+    }
+
+
+def detect_bollinger_state(closes: list, period: int = 20, num_std: float = 2.0) -> dict:
+    """Current Bollinger bands + a squeeze flag (bandwidth contracted vs.
+    ~10 candles ago) + breakout flag (last close outside current bands).
+    No stored history needed — both windows come from the same closes list."""
+    if len(closes) < period + 10:
+        return {"squeeze": False, "breakout": None, "bandwidth_pct": None,
+                 "upper": None, "lower": None, "mid": None}
+    current = calculate_bollinger(closes, period, num_std)
+    prior = calculate_bollinger(closes[:-10], period, num_std)
+    squeeze = bool(
+        current["bandwidth_pct"] and prior["bandwidth_pct"]
+        and current["bandwidth_pct"] < prior["bandwidth_pct"] * 0.7
+    )
+    breakout = None
+    last_price = closes[-1]
+    if current["upper"] is not None and last_price > current["upper"]:
+        breakout = "UP"
+    elif current["lower"] is not None and last_price < current["lower"]:
+        breakout = "DOWN"
+    return {**current, "squeeze": squeeze, "breakout": breakout}
+
+
+def fetch_strategy_indicators(symbol: str, interval: str = "5m", limit: int = 60) -> dict:
+    """Single klines fetch feeding both the EMA-crossover and Bollinger
+    detectors for the Scalping Strategy Advisor (kept separate from the
+    existing RSI/ATR fetches so callers can reuse a shorter scalp-friendly
+    timeframe like 5m without touching the 1h-based RSI/ATR pipeline)."""
+    klines = fetch_klines(symbol, interval, limit)
+    if not klines:
+        return {"ema": {"cross": None, "fresh": False}, "bollinger": {"squeeze": False, "breakout": None}}
+    closes = [float(k[4]) for k in klines]
+    return {
+        "ema": detect_ema_crossover(closes),
+        "bollinger": detect_bollinger_state(closes),
+    }
+
+
+def pick_best_strategy(rsi: float, ema_state: dict, boll_state: dict,
+                        walls: list, obi_r: dict, in_volume_surge: bool,
+                        price: float, market_regime: str = "RANGING") -> dict:
+    """
+    Scores each of the 6 classic scalping strategies (per the reference
+    doc: EMA 9/21 crossover, RSI reversal, Bollinger squeeze/breakout,
+    Support/Resistance wall bounce, 1-min volume momentum, Order-book/OBI)
+    against the coin's current live conditions, 0-100 each, and returns the
+    strongest match plus every candidate for transparency. Pure heuristic —
+    no ML, mirrors the classic definitions of each strategy.
+    """
+    candidates = []
+
+    # 1. EMA 9/21 Crossover
+    ema_score, ema_reason = 0, "No fresh EMA 9/21 cross"
+    if ema_state and ema_state.get("cross") and ema_state.get("fresh"):
+        ema_score = 80 if market_regime == "TRENDING" else 60
+        ema_reason = f"Fresh {ema_state['cross'].lower()} EMA 9/21 cross"
+    candidates.append({"strategy": "EMA 9/21 Crossover", "score": ema_score, "reason": ema_reason})
+
+    # 2. RSI Scalping
+    rsi_score, rsi_reason = 0, "RSI not at a reversal extreme"
+    if rsi is not None:
+        if rsi <= 32:
+            rsi_score = 70
+            rsi_reason = f"RSI {rsi} near oversold — watch for bounce"
+        elif rsi >= 68:
+            rsi_score = 70
+            rsi_reason = f"RSI {rsi} near overbought — watch for pullback"
+    candidates.append({"strategy": "RSI Scalping", "score": rsi_score, "reason": rsi_reason})
+
+    # 3. Bollinger Bands Squeeze
+    boll_score, boll_reason = 0, "No squeeze/breakout detected"
+    if boll_state:
+        if boll_state.get("breakout"):
+            boll_score = 85
+            boll_reason = (f"Bollinger breakout {boll_state['breakout']} after squeeze"
+                            if boll_state.get("squeeze") else f"Bollinger breakout {boll_state['breakout']}")
+        elif boll_state.get("squeeze"):
+            boll_score = 55
+            boll_reason = "Bands squeezing — breakout may be near"
+    candidates.append({"strategy": "Bollinger Bands Squeeze", "score": boll_score, "reason": boll_reason})
+
+    # 4. Support/Resistance Bounce (whale order-book walls)
+    sr_score, sr_reason = 0, "No strong wall nearby"
+    if walls and price:
+        nearest_bid = next((w for w in walls if w.get("side") == "BID"), None)
+        nearest_ask = next((w for w in walls if w.get("side") == "ASK"), None)
+        if nearest_bid and nearest_bid.get("dist_pct", 99) <= 0.5:
+            sr_score = 75
+            sr_reason = f"Price within {nearest_bid['dist_pct']}% of bid wall support (${nearest_bid.get('size_usdt',0):,.0f})"
+        if nearest_ask and nearest_ask.get("dist_pct", 99) <= 0.5 and nearest_ask.get("dist_pct", 99) < (nearest_bid.get("dist_pct", 99) if nearest_bid else 99):
+            sr_score = 75
+            sr_reason = f"Price within {nearest_ask['dist_pct']}% of ask wall resistance (${nearest_ask.get('size_usdt',0):,.0f})"
+    candidates.append({"strategy": "Support/Resistance Bounce", "score": sr_score, "reason": sr_reason})
+
+    # 5. 1-Minute Momentum (volume surge)
+    mom_score = 90 if in_volume_surge else 0
+    mom_reason = "Active volume surge — momentum play" if in_volume_surge else "No volume surge right now"
+    candidates.append({"strategy": "1-Minute Momentum", "score": mom_score, "reason": mom_reason})
+
+    # 6. Order Book / Level 2 (OBI)
+    ob_score, ob_reason = 0, "No strong order-book imbalance"
+    obi_val = (obi_r or {}).get("obi", 0) or 0
+    if obi_r and obi_r.get("spike"):
+        ob_score = 80
+        ob_reason = f"OBI spike detected ({obi_r.get('direction','')})"
+    elif abs(obi_val) > 0.15:
+        ob_score = 55
+        ob_reason = f"Notable order-book imbalance (OBI {obi_val:.2f})"
+    candidates.append({"strategy": "Order Book / Level 2", "score": ob_score, "reason": ob_reason})
+
+    candidates.sort(key=lambda c: c["score"], reverse=True)
+    best = candidates[0]
+    return {
+        "best_strategy": best["strategy"] if best["score"] > 0 else "No strong scalp setup right now",
+        "best_score": best["score"],
+        "best_reason": best["reason"],
+        "candidates": candidates,
+    }
