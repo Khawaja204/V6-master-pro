@@ -89,7 +89,7 @@ body.simple-active .ms-sub { font-size:12px }
 
 .card{background:var(--card);border:1px solid var(--border);border-radius:3px;overflow:hidden}
 .ch{padding:7px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:bold}
-.cb{padding:8px 10px}
+.cb{padding:8px 10px;overflow-x:auto}
 
 /* SCORE RING */
 .score-ring-wrap{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 0}
@@ -104,6 +104,8 @@ body.simple-active .ms-sub { font-size:12px }
 .cat-val{font-weight:bold}
 
 /* ENGINE ROWS */
+.eng-step-lbl{color:var(--grey);font-size:8px;font-weight:bold;letter-spacing:.6px;text-transform:uppercase;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #1e1e2e}
+.eng-step-lbl:first-child{margin-top:0}
 .eng-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #111;font-size:11px}
 .eng-lbl{color:var(--grey)}
 .tl-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
@@ -120,6 +122,8 @@ body.simple-active .ms-sub { font-size:12px }
 .exec-btn.go:hover{background:#006600}
 .exec-btn.panic{background:#440000;color:var(--red)}
 .exec-btn.panic:hover{background:#660000}
+.exec-btn-primary{padding:15px;font-size:14px;border:1px solid var(--green)}
+.exec-btn-secondary{padding:7px;font-size:10px;opacity:.85;border:1px solid #661111}
 
 /* PROFILE */
 .search-row{display:flex;gap:5px;margin-bottom:6px}
@@ -236,12 +240,27 @@ body.simple-active .ms-sub { font-size:12px }
 @keyframes pgreen{0%,100%{box-shadow:0 0 4px var(--green)}50%{box-shadow:0 0 16px var(--green)}}
 .pg{animation:pgreen 2s infinite}
 
+/* CARD SHADOWS */
+.card{box-shadow:0 2px 6px rgba(0,0,0,0.35)}
+
+/* SENTIMENT & WHALE GRID (explicit responsive spec) */
+.gauge-sec{grid-template-columns:repeat(4,1fr)}
+
 /* MOBILE */
 @media(max-width:600px){
   #sniper-grid{grid-template-columns:1fr}
-  .gauge-sec{grid-template-columns:1fr 1fr}
+  .gauge-sec{grid-template-columns:1fr}
   .bot-grid{grid-template-columns:1fr}
   .tl-bars{grid-template-columns:1fr}
+
+  /* Trade history tables -> card layout on mobile */
+  .bt-tbl thead{display:none}
+  .bt-tbl, .bt-tbl tbody, .bt-tbl tr, .bt-tbl td{display:block;width:100%}
+  .bt-tbl tr{margin-bottom:8px;border:1px solid var(--border);border-radius:4px;padding:6px 8px;background:#0e0e18}
+  .bt-tbl td{display:flex;justify-content:space-between;align-items:center;padding:4px 2px;border-bottom:1px solid #1a1a2e;text-align:right;font-size:10px}
+  .bt-tbl td:last-child{border-bottom:none}
+  .bt-tbl td::before{content:attr(data-label);color:var(--grey);font-weight:bold;text-align:left;margin-right:8px}
+  .bt-tbl td:empty{display:none}
 }
 </style>
 </head>
@@ -392,10 +411,16 @@ body.simple-active .ms-sub { font-size:12px }
           <span id="eng-badge" style="background:#440000;color:var(--red);font-size:9px;padding:2px 8px;border-radius:2px;font-weight:bold">AVOID</span>
         </div>
         <div class="cb">
+
+          <!-- STEP 1: TRAFFIC LIGHT -->
+          <div class="eng-step-lbl">STEP 1 · TRAFFIC LIGHT</div>
           <div class="eng-row">
             <span class="eng-lbl">Traffic Light</span>
             <span class="tl-dot tl-red" id="tl-dot"></span>
           </div>
+
+          <!-- STEP 2: SCORE & ANALYSIS -->
+          <div class="eng-step-lbl">STEP 2 · SCORE &amp; ANALYSIS</div>
           <div class="eng-row">
             <span class="eng-lbl">Inst Score</span>
             <span id="inst-score">—</span>
@@ -422,10 +447,24 @@ body.simple-active .ms-sub { font-size:12px }
                Open on Binance →
             </a>
           </div>
-          <button class="exec-btn go pg">EXECUTE TRADE NOW</button>
-          <button class="exec-btn panic">PANIC – CANCEL ALL</button>
+
+          <!-- STEP 3: ACTION BUTTONS -->
+          <div class="eng-step-lbl">STEP 3 · ACTION BUTTONS</div>
+          <button class="exec-btn go pg exec-btn-primary">✅ EXECUTE TRADE NOW</button>
+          <button class="exec-btn panic exec-btn-secondary" onclick="openPanicModal()">⛔ PANIC – CANCEL ALL</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- PANIC double-confirmation modal -->
+  <div id="panic-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#0a0a14;border:1px solid #ff2244;border-radius:4px;padding:18px;max-width:320px;width:88%;text-align:center">
+      <div style="font-size:26px;margin-bottom:6px">⚠️</div>
+      <div style="font-weight:bold;color:#ff2244;font-size:13px;margin-bottom:6px">Cancel ALL open positions?</div>
+      <div style="font-size:11px;color:var(--grey);margin-bottom:14px">This will attempt to cancel every open trade. This cannot be undone. Are you sure?</div>
+      <button onclick="confirmPanicAction()" style="width:100%;padding:10px;background:#440000;color:var(--red);border:1px solid #ff2244;border-radius:2px;font-weight:bold;font-size:12px;margin-bottom:8px;cursor:pointer">Yes, Cancel All</button>
+      <button onclick="closePanicModal()" style="width:100%;padding:8px;background:#0a0a14;color:#aaa;border:1px solid #333;border-radius:2px;font-size:11px;cursor:pointer">Never mind</button>
     </div>
   </div>
 
@@ -469,17 +508,23 @@ body.simple-active .ms-sub { font-size:12px }
   <!-- BOTTOM PANELS -->
   <div class="bot-grid">
     <!-- SMD -->
-    <div class="card">
-      <div class="ch" style="font-size:10px">🧠 Smart Money Divergence</div>
-      <div class="smd-wrap">
-        <svg id="smd-g" width="120" height="70" viewBox="0 0 140 80"></svg>
-        <div class="smd-lbl-row"><span>Distribution</span><span>Volume Surge</span></div>
-        <div style="font-size:8px;color:var(--grey);text-align:center">Accumulation</div>
+    <div class="card" id="smd-card">
+      <div class="ch" style="font-size:10px;cursor:pointer" onclick="toggleSMD()">
+        <span>🧠 Smart Money Divergence</span>
+        <span id="smd-toggle-icon" style="color:var(--grey);font-size:9px">▾</span>
       </div>
-      <div style="padding:0 8px 8px">
-        <div style="font-size:8px;color:var(--orange);margin-bottom:3px">🚀 VOLUME SURGE &gt;2.5x</div>
-        <div id="vol-list"></div>
+      <div id="smd-body">
+        <div class="smd-wrap">
+          <svg id="smd-g" width="120" height="70" viewBox="0 0 140 80"></svg>
+          <div class="smd-lbl-row"><span>Distribution</span><span>Volume Surge</span></div>
+          <div style="font-size:8px;color:var(--grey);text-align:center">Accumulation</div>
+        </div>
+        <div style="padding:0 8px 8px">
+          <div style="font-size:8px;color:var(--orange);margin-bottom:3px">🚀 VOLUME SURGE &gt;2.5x</div>
+          <div id="vol-list"></div>
+        </div>
       </div>
+      <div id="smd-empty-note" style="display:none;padding:10px 8px;font-size:9px;color:var(--grey);text-align:center">No Smart Money Divergence data available right now</div>
     </div>
     <!-- WATCH CARDS -->
     <div>
@@ -656,8 +701,8 @@ body.simple-active .ms-sub { font-size:12px }
   <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">📊 BUY/SELL SUMMARY (Per-Coin, Large Trades)
       <span style="float:right">
-        <button onclick="setBSWindow('daily')" style="font-size:9px;padding:2px 8px;margin-right:4px">24H</button>
-        <button onclick="setBSWindow('weekly')" style="font-size:9px;padding:2px 8px">7D</button>
+        <button id="bs-tab-daily" onclick="setBSWindow('daily')" style="font-size:9px;padding:2px 8px;margin-right:4px;background:#003311;border:1px solid #00ff88;color:#00ff88;border-radius:2px;cursor:pointer">24H</button>
+        <button id="bs-tab-weekly" onclick="setBSWindow('weekly')" style="font-size:9px;padding:2px 8px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;cursor:pointer">7D</button>
       </span>
     </div>
     <div style="overflow-x:auto">
@@ -671,8 +716,8 @@ body.simple-active .ms-sub { font-size:12px }
   <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">💰 LARGE TRADES (Exchange Whale Orders, $50k+)
       <span style="float:right">
-        <button onclick="setLTWindow('daily')" style="font-size:9px;padding:2px 8px;margin-right:4px">24H</button>
-        <button onclick="setLTWindow('weekly')" style="font-size:9px;padding:2px 8px">7D</button>
+        <button id="lt-tab-daily" onclick="setLTWindow('daily')" style="font-size:9px;padding:2px 8px;margin-right:4px;background:#003311;border:1px solid #00ff88;color:#00ff88;border-radius:2px;cursor:pointer">24H</button>
+        <button id="lt-tab-weekly" onclick="setLTWindow('weekly')" style="font-size:9px;padding:2px 8px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;cursor:pointer">7D</button>
       </span>
     </div>
     <div id="lt-total" style="font-size:9px;color:var(--grey);padding:2px 8px 4px">Loading total...</div>
@@ -685,12 +730,33 @@ body.simple-active .ms-sub { font-size:12px }
   </div>
 
   <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px">📊 Paper Trades Summary</div>
+    <div class="cb">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <div><span style="color:var(--grey);font-size:9px">TOTAL</span><br><span id="wcp-total" style="font-size:14px;font-weight:bold">—</span></div>
+        <div><span style="color:var(--grey);font-size:9px">WIN RATE</span><br><span id="wcp-winrate" style="font-size:14px;font-weight:bold">—</span></div>
+        <div><span style="color:var(--grey);font-size:9px">PnL</span><br><span id="wcp-pnl" style="font-size:14px;font-weight:bold">—</span></div>
+        <div style="font-size:10px"><span style="color:var(--green)">Wins: <b id="wcp-wins">0</b></span></div>
+        <div style="font-size:10px"><span style="color:var(--red)">Losses: <b id="wcp-losses">0</b></span></div>
+        <div style="font-size:10px"><span style="color:var(--grey)">Open: <b id="wcp-open">0</b></span></div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="wcp-filter-btn" data-filter="all" onclick="setWCPFilter('all')" style="font-size:9px;padding:3px 10px;background:#003311;border:1px solid #00ff88;color:#00ff88;border-radius:2px;cursor:pointer">All</button>
+        <button class="wcp-filter-btn" data-filter="win" onclick="setWCPFilter('win')" style="font-size:9px;padding:3px 10px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;cursor:pointer">Wins</button>
+        <button class="wcp-filter-btn" data-filter="loss" onclick="setWCPFilter('loss')" style="font-size:9px;padding:3px 10px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;cursor:pointer">Losses</button>
+        <button class="wcp-filter-btn" data-filter="open" onclick="setWCPFilter('open')" style="font-size:9px;padding:3px 10px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;cursor:pointer">Open</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px">
     <div class="ch" style="font-size:10px">📋 WHALE COPY PAPER TRADES</div>
     <div class="cb">
       <table class="bt-tbl" style="width:100%">
         <thead><tr><th>Coin</th><th>Dir</th><th>Status</th><th>Profit%</th><th>Buy/Sell Time</th><th>Entry</th><th>Trail SL</th><th>Close Price</th><th>Live Price</th><th>Conf%</th><th>Mkt Cap %</th><th>Funding</th></tr></thead>
         <tbody id="wc-trades-tbody"><tr><td colspan="12" style="color:var(--grey)">No whale copy trades yet</td></tr></tbody>
       </table>
+      <button id="wcp-load-more" onclick="loadMoreWCP()" style="display:none;width:100%;margin-top:8px;padding:8px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;cursor:pointer;font-size:10px">Load More</button>
     </div>
   </div>
 </div>
@@ -728,7 +794,7 @@ body.simple-active .ms-sub { font-size:12px }
 <div class="panel" id="tab-combobot">
   <div class="scan-hdr">
     <span class="scan-title">🎯 COMBO BOT — V6-BUY + Wall-COPY_BUY Confluence</span>
-    <span class="scan-meta" id="combobot-meta">Loading...</span>
+    <span class="scan-meta"><span id="combobot-status-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--grey);margin-right:5px;vertical-align:middle" class="blink"></span><span id="combobot-meta">Loading...</span></span>
   </div>
   <div class="card" style="margin-bottom:8px;padding:10px">
     <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
@@ -742,8 +808,8 @@ body.simple-active .ms-sub { font-size:12px }
     <div class="ch" style="font-size:10px">🎯 LIVE COMBO SIGNALS</div>
     <div style="overflow-x:auto">
     <table class="scan-tbl">
-      <thead><tr><th>Coin</th><th>V6 Score</th><th>Wall Conf%</th><th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>Time</th></tr></thead>
-      <tbody id="combobot-signals-tbody"><tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">No confluence signals right now</td></tr></tbody>
+      <thead><tr><th>Coin</th><th style="text-align:right">V6 Score</th><th style="text-align:right">Wall Conf%</th><th style="text-align:right">Entry</th><th style="text-align:right">SL</th><th style="text-align:right">TP1</th><th style="text-align:right">TP2</th><th style="text-align:right">TP3</th><th style="text-align:right">Time</th></tr></thead>
+      <tbody id="combobot-signals-tbody"><tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">🎯 Combo signals will appear here when V6-BUY + Wall-Copy confluence is detected</td></tr></tbody>
     </table>
     </div>
   </div>
@@ -1183,19 +1249,19 @@ function fetchV6Bot(){
             ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
             : '—';
           return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
-            <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-            <td style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
-            <td>${t.status||'—'}</td>
-            <td style="color:${resCol}">${t.result||'—'}</td>
-            <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td>${fmt6(t.entry_price||0)}</td>
-            <td style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp1||0)}${t.tp1_hit?' ✓':''}</td>
-            <td style="color:var(--green)">${fmt6(t.tp2||0)}${t.tp2_hit?' ✓':''}</td>
-            <td style="color:var(--green)">${fmt6(t.tp3||0)}${t.tp3_hit?' ✓':''}</td>
-            <td>${t.confidence||0}%</td>
-            <td style="color:var(--yellow,#e8b339)">${liveP}</td>
-            <td style="font-size:9px;color:var(--grey)">${mcap}</td>
+            <td data-label="Coin"><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+            <td data-label="Entry/Exit" style="color:var(--grey);font-size:9px;white-space:nowrap">Entry: ${fmtCompactTime(t.entry_time)}<br>Exit: ${fmtCompactTime(t.exit_time)}</td>
+            <td data-label="Status">${t.status||'—'}</td>
+            <td data-label="Result" style="color:${resCol};font-weight:bold">${t.result||'—'}</td>
+            <td data-label="PnL%" style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
+            <td data-label="Entry">${fmt6(t.entry_price||0)}</td>
+            <td data-label="SL" style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
+            <td data-label="TP1" style="color:var(--green)">${fmt6(t.tp1||0)}${t.tp1_hit?' ✓':''}</td>
+            <td data-label="TP2" style="color:var(--green)">${fmt6(t.tp2||0)}${t.tp2_hit?' ✓':''}</td>
+            <td data-label="TP3" style="color:var(--green)">${fmt6(t.tp3||0)}${t.tp3_hit?' ✓':''}</td>
+            <td data-label="Conf%">${t.confidence||0}%</td>
+            <td data-label="Live Price" style="color:var(--yellow,#e8b339)">${liveP}</td>
+            <td data-label="Mkt Cap%" style="font-size:9px;color:var(--grey)">${mcap}</td>
           </tr>`;
         }).join('') || '<tr><td colspan="13" style="color:var(--grey)">No V6 bot trades yet</td></tr>';
       }
@@ -1209,6 +1275,12 @@ function fetchComboBot(){
     .then(d=>{
       const meta=document.getElementById('combobot-meta');
       if(meta) meta.textContent=`${d.open_count||0} open | Win Rate: ${d.win_rate||0}% (${d.wins||0}W/${d.losses||0}L)`;
+      const statusDot=document.getElementById('combobot-status-dot');
+      if(statusDot){
+        const hasSignals=(d.signals||[]).length>0;
+        statusDot.style.background = hasSignals ? 'var(--green)' : 'var(--grey)';
+        statusDot.className = hasSignals ? '' : 'blink';
+      }
       const modeEl=document.getElementById('combobot-mode');
       if(modeEl){ modeEl.textContent=(d.mode||'paper').toUpperCase(); modeEl.style.color=(d.mode==='real')?'var(--red)':'var(--green)'; }
       const pp=document.getElementById('combobot-total-pnl-pct');
@@ -1225,16 +1297,16 @@ function fetchComboBot(){
           const sym=(s.symbol||'').replace('USDT','');
           return `<tr style="cursor:pointer" onclick="loadCoin('${s.symbol}')">
             <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-            <td style="color:var(--green)">${s.v6_score||0}</td>
-            <td style="color:var(--green)">${s.wall_confidence||0}%</td>
-            <td>${fmt6(s.entry_low||s.price||0)}</td>
-            <td style="color:var(--red)">${fmt6(s.stop_loss||0)}</td>
-            <td style="color:var(--green)">${fmt6(s.tp1||0)}</td>
-            <td style="color:var(--green)">${fmt6(s.tp2||0)}</td>
-            <td style="color:var(--green)">${fmt6(s.tp3||0)}</td>
-            <td style="color:var(--grey);font-size:9px">${s.detected_at||'—'}</td>
+            <td style="color:var(--green);text-align:right">${s.v6_score||0}</td>
+            <td style="color:var(--green);text-align:right">${s.wall_confidence||0}%</td>
+            <td style="text-align:right">${fmt6(s.entry_low||s.price||0)}</td>
+            <td style="color:var(--red);text-align:right">${fmt6(s.stop_loss||0)}</td>
+            <td style="color:var(--green);text-align:right">${fmt6(s.tp1||0)}</td>
+            <td style="color:var(--green);text-align:right">${fmt6(s.tp2||0)}</td>
+            <td style="color:var(--green);text-align:right">${fmt6(s.tp3||0)}</td>
+            <td style="color:var(--grey);font-size:9px;text-align:right">${s.detected_at||'—'}</td>
           </tr>`;
-        }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">No confluence signals right now</td></tr>';
+        }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--grey);padding:16px">🎯 Combo signals will appear here when V6-BUY + Wall-Copy confluence is detected</td></tr>';
       }
 
       const tbody=document.getElementById('combobot-trades-tbody');
@@ -1252,20 +1324,20 @@ function fetchComboBot(){
             ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
             : '—';
           return `<tr style="cursor:pointer" onclick="loadCoin('${t.symbol}')">
-            <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
-            <td>${fmt6(t.entry_price||0)}</td>
-            <td style="color:var(--yellow,#e8b339)">${liveP}</td>
-            <td style="font-size:9px;color:var(--grey)">${mcap}</td>
-            <td style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
-            <td style="color:var(--green)">${fmt6(t.tp1||0)}${t.tp1_hit?' ✓':''}</td>
-            <td style="color:var(--green)">${fmt6(t.tp2||0)}${t.tp2_hit?' ✓':''}</td>
-            <td style="color:var(--green)">${fmt6(t.tp3||0)}${t.tp3_hit?' ✓':''}</td>
-            <td>${t.v6_score||0}</td>
-            <td>${t.wall_confidence||0}%</td>
-            <td>${t.status||'—'}</td>
-            <td style="color:${resCol}">${t.result||'—'}</td>
-            <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-            <td style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.entry_time)}</td>
+            <td data-label="Coin"><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
+            <td data-label="Entry">${fmt6(t.entry_price||0)}</td>
+            <td data-label="Live Price" style="color:var(--yellow,#e8b339)">${liveP}</td>
+            <td data-label="Mkt Cap%" style="font-size:9px;color:var(--grey)">${mcap}</td>
+            <td data-label="SL" style="color:var(--red)">${fmt6(t.stop_loss||0)}</td>
+            <td data-label="TP1" style="color:var(--green)">${fmt6(t.tp1||0)}${t.tp1_hit?' ✓':''}</td>
+            <td data-label="TP2" style="color:var(--green)">${fmt6(t.tp2||0)}${t.tp2_hit?' ✓':''}</td>
+            <td data-label="TP3" style="color:var(--green)">${fmt6(t.tp3||0)}${t.tp3_hit?' ✓':''}</td>
+            <td data-label="V6 Score">${t.v6_score||0}</td>
+            <td data-label="Wall Conf%">${t.wall_confidence||0}%</td>
+            <td data-label="Status">${t.status||'—'}</td>
+            <td data-label="Result" style="color:${resCol};font-weight:bold">${t.result||'—'}</td>
+            <td data-label="PnL%" style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
+            <td data-label="Entry Time" style="color:var(--grey);font-size:9px;white-space:nowrap">${fmtCompactTime(t.entry_time)}</td>
           </tr>`;
         }).join('') || '<tr><td colspan="14" style="color:var(--grey)">No combo bot trades yet</td></tr>';
       }
@@ -1273,6 +1345,30 @@ function fetchComboBot(){
 }
 
 let _lastMSKey='';
+function toggleSMD(){
+  window._smdUserToggled = true;
+  const body=document.getElementById('smd-body');
+  const empty=document.getElementById('smd-empty-note');
+  const icon=document.getElementById('smd-toggle-icon');
+  const collapsed = body && body.style.display==='none';
+  if(body) body.style.display = collapsed ? '' : 'none';
+  if(empty) empty.style.display = 'none';
+  if(icon) icon.textContent = collapsed ? '▾' : '▸';
+}
+function openPanicModal(){
+  const el = document.getElementById('panic-modal-backdrop');
+  if(el) el.style.display = 'flex';
+}
+function closePanicModal(){
+  const el = document.getElementById('panic-modal-backdrop');
+  if(el) el.style.display = 'none';
+}
+function confirmPanicAction(){
+  closePanicModal();
+  // TODO: wire to a real cancel-all-positions backend endpoint when one exists.
+  console.log('PANIC confirmed — cancel all positions requested');
+}
+
 function toggleSimpleMode(){
   const active = document.body.classList.toggle('simple-active');
   const btn = document.getElementById('simple-toggle-btn');
@@ -1385,6 +1481,10 @@ function fetchDexSwaps(){
 window._bsWindow = 'daily';
 function setBSWindow(w){
   window._bsWindow = w;
+  const d=document.getElementById('bs-tab-daily'), wk=document.getElementById('bs-tab-weekly');
+  const on={background:'#003311',border:'1px solid #00ff88',color:'#00ff88'}, off={background:'#0a0a14',border:'1px solid #333',color:'#aaa'};
+  if(d) Object.assign(d.style, w==='daily'?on:off);
+  if(wk) Object.assign(wk.style, w==='weekly'?on:off);
   fetchBuySellSummary();
 }
 function fetchBuySellSummary(){
@@ -1413,7 +1513,7 @@ function fetchBuySellSummary(){
       </tr>`;
       tbody.innerHTML=totRow+rows.slice(0,20).map(r=>{
         const sym=(r.symbol||'').replace('USDT','');
-        const netColor=r.direction==='BUY'?'var(--green)':r.direction==='SELL'?'var(--red)':'var(--grey)';
+        const netColor=(r.net_usdt||0)>0?'var(--green)':(r.net_usdt||0)<0?'var(--red)':'var(--grey)';
         const netSign=r.net_usdt>0?'+':'';
         return `<tr style="cursor:pointer" onclick="loadCoin('${r.symbol}')">
           <td><span class="cc" style="background:${coinClr(sym)}"></span><b>${sym}</b></td>
@@ -1429,6 +1529,10 @@ function fetchBuySellSummary(){
 window._ltWindow = 'daily';
 function setLTWindow(w){
   window._ltWindow = w;
+  const d=document.getElementById('lt-tab-daily'), wk=document.getElementById('lt-tab-weekly');
+  const on={background:'#003311',border:'1px solid #00ff88',color:'#00ff88'}, off={background:'#0a0a14',border:'1px solid #333',color:'#aaa'};
+  if(d) Object.assign(d.style, w==='daily'?on:off);
+  if(wk) Object.assign(wk.style, w==='weekly'?on:off);
   fetchLargeTrades();
 }
 function fetchLargeTrades(){
@@ -1456,6 +1560,92 @@ function fetchLargeTrades(){
         </tr>`;
       }).join('');
     }).catch(e=>console.error('Large trades fetch:',e));
+}
+
+/* ── Whale Copy Paper Trades: summary + filter + pagination ── */
+window._wcpFilter = 'all';
+window._wcpPageSize = 20;
+window._wcpShown = 20;
+
+function updateWCPSummary(trades){
+  const total = trades.length;
+  const wins = trades.filter(t=>t.result==='WIN').length;
+  const losses = trades.filter(t=>t.result==='LOSS').length;
+  const open = trades.filter(t=>t.status==='OPEN').length;
+  const closed = wins + losses;
+  const winRate = closed>0 ? ((wins/closed)*100).toFixed(1) : '0.0';
+  const pnlPct = trades.reduce((s,t)=>s+((t.pnl_pct!==null&&t.pnl_pct!==undefined)?t.pnl_pct:0),0);
+  const el = id => document.getElementById(id);
+  if(el('wcp-total')) el('wcp-total').textContent = total;
+  if(el('wcp-winrate')) el('wcp-winrate').textContent = winRate+'%';
+  const pnlEl = el('wcp-pnl');
+  if(pnlEl){ pnlEl.textContent = (pnlPct>=0?'+':'')+pnlPct.toFixed(2)+'%'; pnlEl.style.color = pnlPct>=0?'var(--green)':'var(--red)'; }
+  if(el('wcp-wins')) el('wcp-wins').textContent = wins;
+  if(el('wcp-losses')) el('wcp-losses').textContent = losses;
+  if(el('wcp-open')) el('wcp-open').textContent = open;
+}
+
+function setWCPFilter(f){
+  window._wcpFilter = f;
+  window._wcpShown = window._wcpPageSize;
+  document.querySelectorAll('.wcp-filter-btn').forEach(b=>{
+    const active = b.dataset.filter===f;
+    b.style.background = active ? '#003311' : '#0a0a14';
+    b.style.borderColor = active ? '#00ff88' : '#333';
+    b.style.color = active ? '#00ff88' : '#aaa';
+  });
+  renderWCPTrades();
+}
+
+function loadMoreWCP(){
+  window._wcpShown = (window._wcpShown||20) + window._wcpPageSize;
+  renderWCPTrades();
+}
+
+function renderWCPTrades(){
+  const all = window._wcpAllTrades || [];
+  const filter = window._wcpFilter || 'all';
+  let filtered = all;
+  if(filter==='win') filtered = all.filter(t=>t.result==='WIN');
+  else if(filter==='loss') filtered = all.filter(t=>t.result==='LOSS');
+  else if(filter==='open') filtered = all.filter(t=>t.status==='OPEN');
+
+  const shown = Math.min(window._wcpShown||20, filtered.length);
+  const ttbody = document.getElementById('wc-trades-tbody');
+  if(ttbody){
+    ttbody.innerHTML = filtered.slice(0,shown).map(t=>{
+      const sym = (t.symbol||'').replace('USDT','');
+      const dirCol = t.direction==='COPY_BUY' ? 'var(--green)' : 'var(--red)';
+      const resCol = t.result==='WIN' ? 'var(--green)' : t.result==='LOSS' ? 'var(--red)' : 'var(--grey)';
+      const closePx = (t.exit_price!==null && t.exit_price!==undefined) ? fmt6(t.exit_price) : 'N/A';
+      const pnlV = (t.pnl_pct!==null && t.pnl_pct!==undefined) ? t.pnl_pct : null;
+      const pnlCol = pnlV===null ? 'var(--grey)' : (pnlV>=0?'var(--green)':'var(--red)');
+      const pnlTxt = pnlV===null ? 'N/A' : (pnlV>=0?'+':'')+pnlV.toFixed(2)+'%';
+      const liveP = (t.status==='OPEN' && t.live_price) ? fmt6(t.live_price) : '—';
+      const mc=t.market_cap_pct||{};
+      const mcap = (mc.daily_pct!==undefined && mc.daily_pct!==null)
+        ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
+        : '—';
+      const slTxt = t.stop_loss ? fmt6(t.stop_loss) : 'N/A';
+      const slNote = t.trailing && t.trailing!=='N/A' ? ` (${t.trailing})` : '';
+      return `<tr>
+        <td data-label="Coin">${sym}</td>
+        <td data-label="Dir" style="color:${dirCol}">${t.direction||'N/A'}</td>
+        <td data-label="Status" style="color:${resCol}">${t.status==='OPEN'?'OPEN':(t.result||'—')}</td>
+        <td data-label="Profit%" style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
+        <td data-label="Buy/Sell Time" style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
+        <td data-label="Entry">${fmt6(t.entry_price||t.wall_price||0)}</td>
+        <td data-label="Trail SL" style="color:var(--red);font-size:9px;white-space:nowrap">${slTxt}${slNote}</td>
+        <td data-label="Close Price">${closePx}</td>
+        <td data-label="Live Price" style="color:var(--yellow,#e8b339)">${liveP}</td>
+        <td data-label="Conf%">${t.confidence||0}%</td>
+        <td data-label="Mkt Cap%" style="font-size:9px;color:var(--grey)">${mcap}</td>
+        <td data-label="Funding">${t.funding_rate!==undefined?t.funding_rate+'%':'0'}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="12" style="color:var(--grey)">No whale copy trades yet</td></tr>';
+  }
+  const moreBtn = document.getElementById('wcp-load-more');
+  if(moreBtn) moreBtn.style.display = (shown < filtered.length) ? 'block' : 'none';
 }
 
 function fetchWhaleCopy(){
@@ -1532,39 +1722,9 @@ function updateWhaleCopy(d){
 
 
   const trades = d.trades || [];
-  const ttbody = document.getElementById('wc-trades-tbody');
-  if(ttbody){
-    ttbody.innerHTML = trades.slice(0,20).map(t=>{
-      const sym = (t.symbol||'').replace('USDT','');
-      const dirCol = t.direction==='COPY_BUY' ? 'var(--green)' : 'var(--red)';
-      const resCol = t.result==='WIN' ? 'var(--green)' : t.result==='LOSS' ? 'var(--red)' : 'var(--grey)';
-      const closePx = (t.exit_price!==null && t.exit_price!==undefined) ? fmt6(t.exit_price) : 'N/A';
-      const pnlV = (t.pnl_pct!==null && t.pnl_pct!==undefined) ? t.pnl_pct : null;
-      const pnlCol = pnlV===null ? 'var(--grey)' : (pnlV>=0?'var(--green)':'var(--red)');
-      const pnlTxt = pnlV===null ? 'N/A' : (pnlV>=0?'+':'')+pnlV.toFixed(2)+'%';
-      const liveP = (t.status==='OPEN' && t.live_price) ? fmt6(t.live_price) : '—';
-      const mc=t.market_cap_pct||{};
-          const mcap = (mc.daily_pct!==undefined && mc.daily_pct!==null)
-            ? `D:${mc.daily_pct}% / W:${mc.weekly_pct}%`
-            : '—';
-      const slTxt = t.stop_loss ? fmt6(t.stop_loss) : 'N/A';
-      const slNote = t.trailing && t.trailing!=='N/A' ? ` (${t.trailing})` : '';
-      return `<tr>
-        <td>${sym}</td>
-        <td style="color:${dirCol}">${t.direction||'N/A'}</td>
-        <td style="color:${resCol}">${t.status==='OPEN'?'OPEN':(t.result||'—')}</td>
-        <td style="color:${pnlCol};font-weight:bold">${pnlTxt}</td>
-        <td style="color:var(--grey);font-size:9px;white-space:nowrap">B:${fmtCompactTime(t.entry_time)}<br>S:${fmtCompactTime(t.exit_time)}</td>
-        <td>${fmt6(t.entry_price||t.wall_price||0)}</td>
-        <td style="color:var(--red);font-size:9px;white-space:nowrap">${slTxt}${slNote}</td>
-        <td>${closePx}</td>
-        <td style="color:var(--yellow,#e8b339)">${liveP}</td>
-        <td>${t.confidence||0}%</td>
-        <td style="font-size:9px;color:var(--grey)">${mcap}</td>
-        <td>${t.funding_rate!==undefined?t.funding_rate+'%':'0'}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="12" style="color:var(--grey)">No whale copy trades yet</td></tr>';
-  }
+  window._wcpAllTrades = trades;
+  updateWCPSummary(trades);
+  renderWCPTrades();
 
   const tpp = document.getElementById('wc-total-pnl-pct');
   const tpu = document.getElementById('wc-total-pnl-usdt');
@@ -1740,6 +1900,16 @@ function updateBottom(d){
       <span class="vi-mult">🚀${parseFloat(s.multiplier||s.ratio||1).toFixed(1)}x</span>
       <span class="vi-vol">${fmtVol(s.volume||0)}</span>
     </div>`).join('')||'<div style="color:var(--grey);font-size:9px">No surges</div>';
+
+  const smdHasData = surges.length>0 || !!(smd.score && smd.score!==50);
+  const smdBody=document.getElementById('smd-body');
+  const smdEmpty=document.getElementById('smd-empty-note');
+  const smdIcon=document.getElementById('smd-toggle-icon');
+  if(smdBody && smdEmpty && !window._smdUserToggled){
+    smdBody.style.display = smdHasData ? '' : 'none';
+    smdEmpty.style.display = smdHasData ? 'none' : '';
+    if(smdIcon) smdIcon.textContent = smdHasData ? '▾' : '▸';
+  }
 
   // Alerts
   const alerts=d.alert_history||[];
