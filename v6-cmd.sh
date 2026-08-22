@@ -73,3 +73,10 @@ db-status() {
         echo "❌ No DB file found"
     fi
 }
+
+gpush() {
+if [ -z "$1" ]; then
+ 1
+fi
+git add -A && git commit -m "$1" && git push origin main
+}
