@@ -68,6 +68,7 @@ body.simple-active .ms-sub { font-size:12px }
 
 /* TABS */
 #tabs{display:flex;background:#08080f;border-bottom:2px solid var(--border);padding:0 10px}
+#more-tabs-row{display:flex;background:#08080f;border-bottom:2px solid var(--border);padding:0 10px;overflow-x:auto}
 .tab{padding:8px 16px;cursor:pointer;font-size:11px;font-weight:bold;color:var(--grey);border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--font);background:transparent;border-left:none;border-right:none;border-top:none}
 .tab.active{color:var(--green);border-bottom-color:var(--green)}
 .tab:hover{color:var(--white)}
@@ -302,7 +303,7 @@ body.simple-active .ms-sub { font-size:12px }
 <div id="paper">📋 PAPER MODE — Simulated. Safe for testing & monitoring.</div>
 
 <!-- MASTER SIGNAL -->
-<div id="master-signal" class="WAIT" onclick="document.querySelector('[onclick*=sniper]').click()">
+<div id="master-signal" class="WAIT" onclick="document.querySelector('[onclick*=command]').click()">
   <span class="ms-icon" id="ms-icon">⏳</span>
   <div class="ms-text">
     <span class="ms-label" id="ms-label">WAIT</span>
@@ -338,7 +339,11 @@ body.simple-active .ms-sub { font-size:12px }
 
 <!-- TABS -->
 <div id="tabs">
-  <button class="tab active" onclick="switchTab('sniper',this)">⚡ SNIPER</button>
+  <button class="tab active" onclick="switchTab('command',this)">🎯 COMMAND</button>
+  <button class="tab" onclick="toggleMoreTabs()" id="more-tabs-btn" style="background:#0a0a14;color:#888">More ▾</button>
+</div>
+<div id="more-tabs-row" style="display:none;gap:0">
+  <button class="tab" onclick="switchTab('sniper',this)">⚡ SNIPER</button>
   <button class="tab" onclick="switchTab('scanner',this)">📊 SCANNER</button>
   <button class="tab" onclick="switchTab('traffic',this)">🚦 SIGNAL</button>
   <button class="tab" onclick="switchTab('whalecopy',this)">🐋 WHALE COPY</button>
@@ -347,9 +352,74 @@ body.simple-active .ms-sub { font-size:12px }
 </div>
 
 <!-- ═══════════════════════════════
+     TAB 0: COMMAND CENTER (Decision-First Flow, default view)
+═══════════════════════════════ -->
+<div class="panel active" id="tab-command">
+
+  <!-- VERDICT BOX -->
+  <div id="cmd-verdict-box" style="border-radius:4px;padding:16px;text-align:center;margin-bottom:8px;background:#1a1a1a;border:2px solid #333">
+    <div id="cmd-coin-name" style="font-size:11px;color:var(--grey);letter-spacing:.5px;margin-bottom:4px">Scanning for best setup...</div>
+    <div id="cmd-verdict-label" style="font-size:32px;font-weight:bold;color:var(--grey);letter-spacing:1px">—</div>
+    <div id="cmd-verdict-sub" style="font-size:12px;color:var(--grey);margin-top:4px">Score — / 100 &nbsp;|&nbsp; Confidence —%</div>
+  </div>
+
+  <!-- QUICK PLAN -->
+  <div class="card">
+    <div class="ch" style="font-size:10px">📋 Quick Plan</div>
+    <div class="cb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+        <div><span style="color:var(--grey);font-size:9px">ENTRY</span><br><b id="cmd-entry">—</b></div>
+        <div><span style="color:var(--grey);font-size:9px">STOP LOSS</span><br><b id="cmd-sl" style="color:var(--red)">—</b></div>
+        <div><span style="color:var(--grey);font-size:9px">TAKE PROFIT</span><br><b id="cmd-tp" style="color:var(--green)">—</b></div>
+        <div><span style="color:var(--grey);font-size:9px">SIZE</span><br><b id="cmd-size">—</b></div>
+      </div>
+      <button id="cmd-execute-btn" disabled class="exec-btn go pg exec-btn-primary" onclick="cmdExecuteTrade()" style="margin-top:12px;opacity:.4;cursor:not-allowed;background:#222;color:#666;border-color:#333">
+        EXECUTE TRADE NOW
+      </button>
+    </div>
+  </div>
+
+  <!-- WHY? -->
+  <div class="card">
+    <div class="ch" style="font-size:10px">🤔 Why?</div>
+    <div class="cb">
+      <ul id="cmd-why-list" style="margin:0;padding-left:18px;font-size:11px;line-height:1.9;color:var(--grey)">
+        <li>Waiting for scan data...</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ACCORDIONS -->
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px;cursor:pointer" onclick="toggleAccordion('acc-chart')">
+      <span>📈 Live Chart &amp; Indicators</span><span id="acc-chart-icon" style="color:var(--grey);font-size:9px">▸</span>
+    </div>
+    <div id="acc-chart" class="cb" style="display:none;font-size:10px"></div>
+  </div>
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px;cursor:pointer" onclick="toggleAccordion('acc-whale')">
+      <span>🐋 Whale Copy Data</span><span id="acc-whale-icon" style="color:var(--grey);font-size:9px">▸</span>
+    </div>
+    <div id="acc-whale" class="cb" style="display:none;font-size:10px"></div>
+  </div>
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px;cursor:pointer" onclick="toggleAccordion('acc-history')">
+      <span>📜 Trade History</span><span id="acc-history-icon" style="color:var(--grey);font-size:9px">▸</span>
+    </div>
+    <div id="acc-history" class="cb" style="display:none;font-size:10px"></div>
+  </div>
+  <div class="card" style="margin-top:8px">
+    <div class="ch" style="font-size:10px;cursor:pointer" onclick="toggleAccordion('acc-onchain')">
+      <span>⛓ On-Chain Flow</span><span id="acc-onchain-icon" style="color:var(--grey);font-size:9px">▸</span>
+    </div>
+    <div id="acc-onchain" class="cb" style="display:none;font-size:10px"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
      TAB 1: SNIPER
 ═══════════════════════════════ -->
-<div class="panel active" id="tab-sniper">
+<div class="panel" id="tab-sniper">
 
   <!-- Big signal -->
   <div id="big-signal" class="WAIT">⏳ WAIT — SCORE: <span id="big-score">—</span>/100</div>
@@ -863,11 +933,27 @@ function switchTab(name, el) {
   if(name==='sniper' && !chart) setTimeout(function(){initChart();fetchChart();},500);
 }
 
+function toggleMoreTabs(){
+  const strip=document.getElementById('more-tabs-row');
+  const btn=document.getElementById('more-tabs-btn');
+  if(!strip) return;
+  const show = strip.style.display==='none';
+  strip.style.display = show ? 'flex' : 'none';
+  if(btn) btn.textContent = show ? 'Less ▴' : 'More ▾';
+}
+
 // ── INIT ──
 document.addEventListener('DOMContentLoaded',()=>{
   try{
     const savedTab = localStorage.getItem('v6_active_tab');
-    if(savedTab && savedTab !== 'sniper'){
+    if(savedTab && savedTab !== 'command'){
+      const legacyTabs=['sniper','scanner','traffic','whalecopy','v6bot','combobot'];
+      if(legacyTabs.includes(savedTab)){
+        const strip=document.getElementById('more-tabs-row');
+        const moreBtn=document.getElementById('more-tabs-btn');
+        if(strip) strip.style.display='flex';
+        if(moreBtn) moreBtn.textContent='Less ▴';
+      }
       const btn = document.querySelector(`.tab[onclick*="'${savedTab}'"]`);
       if(btn) switchTab(savedTab, btn);
     }
@@ -1229,6 +1315,238 @@ function updateBinancePlan(symbol,label,tp,price){
 function doSearch(){fetchChart();fetchAll();}
 
 // ── MAIN FETCH ──
+/* ══════════════════════════════════════════════════════════════
+   COMMAND CENTER — Decision-First Flow (auto-best-coin, no manual search)
+   ══════════════════════════════════════════════════════════════ */
+window._cmdCoin = null;
+window._cmdChart = null;
+window._cmdCandleSeries = null;
+
+function pickBestCoinAuto(d){
+  const sigs = d.inst_signals || [];
+  if(!sigs.length) return null;
+  const scored = sigs.map(s=>({
+    ...s,
+    _score: (s.v6 && s.v6.score) || 0,
+    _label: (s.v6 && s.v6.label) || 'WAIT',
+  }));
+  const buys = scored.filter(s=>s._label==='BUY');
+  const pool = buys.length ? buys : scored;
+  pool.sort((a,b)=> (b._score - a._score) || ((b.confidence||0) - (a.confidence||0)));
+  return pool[0];
+}
+
+function toggleAccordion(id){
+  const body=document.getElementById(id);
+  const icon=document.getElementById(id+'-icon');
+  if(!body) return;
+  const opening = body.style.display==='none';
+  body.style.display = opening ? 'block' : 'none';
+  if(icon) icon.textContent = opening ? '▾' : '▸';
+  if(opening){
+    if(id==='acc-chart') renderCmdChart();
+    else if(id==='acc-whale') renderCmdWhale();
+    else if(id==='acc-history') renderCmdHistory();
+    else if(id==='acc-onchain') renderCmdOnchain();
+  }
+}
+
+function renderCmdChart(){
+  const container=document.getElementById('acc-chart');
+  if(!container || !window._cmdCoin) return;
+  if(!container.querySelector('#cmd-chart-box')){
+    container.innerHTML = `
+      <div id="cmd-chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
+      <div id="cmd-chart-status" style="font-size:9px;color:#666;margin-bottom:8px"></div>
+      <button onclick="loadCoin(window._cmdCoin)" style="width:100%;padding:6px;background:#0a0a14;border:1px solid #333;color:#aaa;border-radius:2px;font-size:10px;cursor:pointer">Open full Sniper view →</button>
+    `;
+  }
+  const box=document.getElementById('cmd-chart-box');
+  if(!window._cmdChart && box && typeof LightweightCharts!=='undefined'){
+    try{
+      window._cmdChart=LightweightCharts.createChart(box,{
+        autoSize:true,
+        layout:{background:{color:'#040408'},textColor:'#666'},
+        grid:{vertLines:{color:'#0f0f18'},horzLines:{color:'#0f0f18'}},
+        rightPriceScale:{borderColor:'#1e1e2e'},
+        timeScale:{borderColor:'#1e1e2e',timeVisible:true},
+      });
+      window._cmdCandleSeries=window._cmdChart.addCandlestickSeries({
+        upColor:'#00cc44',downColor:'#cc2200',
+        borderUpColor:'#00cc44',borderDownColor:'#cc2200',
+        wickUpColor:'#00cc44',wickDownColor:'#cc2200',
+      });
+    }catch(e){console.warn('Command chart init failed:',e);}
+  }
+  const st=document.getElementById('cmd-chart-status');
+  if(st) st.textContent='Loading '+window._cmdCoin+'...';
+  fetch(`/chart_data?symbol=${window._cmdCoin}&interval=15m&limit=50`).then(r=>r.json()).then(d=>{
+    if(!window._cmdCandleSeries || !d.candles || !d.candles.length){ if(st) st.textContent='No candle data'; return; }
+    const candles=d.candles.map(c=>({time:c.time,open:parseFloat(c.open),high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)}));
+    window._cmdCandleSeries.setData(candles);
+    if(st) st.textContent=candles.length+' candles ('+window._cmdCoin+' 15m)';
+  }).catch(()=>{ if(st) st.textContent='Chart fetch failed'; });
+}
+
+function renderCmdWhale(){
+  const container=document.getElementById('acc-whale');
+  if(!container || !window._cmdCoin) return;
+  const d=window._lastDD||{};
+  const match=(d.whale||[]).find(w=>w.symbol===window._cmdCoin);
+  if(!match){
+    container.innerHTML='<div style="color:var(--grey)">No whale wall/OBI data for this coin right now</div>';
+    return;
+  }
+  const walls=match.walls||[];
+  const obi=(match.obi&&match.obi.obi)||0;
+  const wp=match.whale_power||0;
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #111"><span style="color:var(--grey)">Whale Power</span><b style="color:${wp>60?'var(--green)':wp>30?'#ffd700':'var(--red)'}">${wp}%</b></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #111"><span style="color:var(--grey)">OBI</span><b style="color:${obi>0?'var(--green)':obi<0?'var(--red)':'var(--grey)'}">${obi.toFixed(3)}</b></div>
+    <div style="padding:6px 0 2px"><span style="color:var(--grey)">Nearby Walls</span></div>
+    ${walls.slice(0,4).map(w=>`<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:9px">
+      <span style="color:${w.side==='BID'?'var(--green)':'var(--red)'}">${w.side} @ ${fmt6(w.price_level)}</span>
+      <span style="color:var(--grey)">$${(w.size_usdt||0).toLocaleString()} (${w.dist_pct}%)</span>
+    </div>`).join('') || '<div style="color:var(--grey);font-size:9px">No walls within proximity</div>'}
+  `;
+}
+
+function renderCmdHistory(){
+  const container=document.getElementById('acc-history');
+  if(!container) return;
+  const d=window._lastDD||{};
+  const bt=(d.backtest||[]).slice(0,5);
+  if(!bt.length){
+    container.innerHTML='<div style="color:var(--grey)">No trade history yet</div>';
+    return;
+  }
+  container.innerHTML = bt.map(b=>{
+    const win=b.win || b.result==='WIN';
+    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #111;font-size:10px">
+      <span>${(b.symbol||'').replace('USDT','')}</span>
+      <span>${fmt6(b.entry||0)} → ${fmt6(b.tp_hit||b.exit||0)}</span>
+      <span style="color:${win?'var(--green)':'var(--red)'}">${win?'WIN':'LOSS'}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderCmdOnchain(){
+  const container=document.getElementById('acc-onchain');
+  if(!container) return;
+  const d=window._lastDD||{};
+  const flows=(d.eth_onchain_flows||[]).slice(0,5);
+  container.innerHTML = (flows.length
+    ? flows.map(f=>{
+        const isIn=(f.direction||'').startsWith('INFLOW');
+        return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:9px;border-bottom:1px solid #111">
+          <span style="color:${isIn?'var(--red)':'var(--green)'}">${f.direction||''}</span>
+          <span>${f.eth||0} ETH</span>
+          <span style="color:var(--grey)">${f.time||''}</span>
+        </div>`;
+      }).join('')
+    : '<div style="color:var(--grey);font-size:9px">No large ETH exchange moves detected yet</div>')
+    + '<div style="color:var(--grey);font-size:9px;margin:8px 0 4px">DEX LARGE SWAPS</div>'
+    + '<div id="cmd-dex-body" style="font-size:9px;color:var(--grey)">Loading...</div>';
+
+  fetch('/api/onchain').then(r=>r.json()).then(od=>{
+    const swaps=(od.dex_swaps||[]).slice(0,5);
+    const body=document.getElementById('cmd-dex-body');
+    if(!body) return;
+    body.innerHTML = swaps.length ? swaps.map(s=>{
+      const isBuy=(s.direction||'').startsWith('BUY');
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #111">
+        <span style="color:${isBuy?'var(--green)':'var(--red)'}">${s.direction||''}</span>
+        <span>${s.pool||''}</span>
+        <span>$${(s.usd||0).toLocaleString()}</span>
+      </div>`;
+    }).join('') : 'No large on-chain swaps detected yet';
+  }).catch(()=>{ const body=document.getElementById('cmd-dex-body'); if(body) body.textContent='DEX swap fetch failed'; });
+}
+
+function cmdExecuteTrade(){
+  if(!window._cmdCoin) return;
+  // TODO: wire to a real trade-execution endpoint reachable from the main
+  // dashboard (the existing /admin/manual_trade route requires an admin
+  // login session, which this page doesn't have) — flag for a backend
+  // decision before enabling live execution here.
+  console.log('EXECUTE TRADE NOW requested for', window._cmdCoin);
+  alert('Execute wiring pending — see chat notes on /admin/manual_trade auth.');
+}
+
+function updateCommandCenter(d){
+  const best = pickBestCoinAuto(d);
+  const nameEl=document.getElementById('cmd-coin-name');
+  const lblEl=document.getElementById('cmd-verdict-label');
+  const subEl=document.getElementById('cmd-verdict-sub');
+  const box=document.getElementById('cmd-verdict-box');
+  const execBtn=document.getElementById('cmd-execute-btn');
+  const entryEl=document.getElementById('cmd-entry');
+  const slEl=document.getElementById('cmd-sl');
+  const tpEl=document.getElementById('cmd-tp');
+  const sizeEl=document.getElementById('cmd-size');
+  const whyEl=document.getElementById('cmd-why-list');
+  if(!nameEl) return;
+
+  if(!best){
+    nameEl.textContent='Scanning for best setup...';
+    if(lblEl){ lblEl.textContent='—'; lblEl.style.color='var(--grey)'; }
+    if(subEl) subEl.textContent='Score — / 100  |  Confidence —%';
+    if(box) box.style.borderColor='#333';
+    if(execBtn){ execBtn.disabled=true; execBtn.style.opacity='.4'; execBtn.style.cursor='not-allowed'; execBtn.style.background='#222'; execBtn.style.color='#666'; execBtn.style.borderColor='#333'; }
+    if(whyEl) whyEl.innerHTML='<li>Waiting for scan data...</li>';
+    return;
+  }
+
+  window._cmdCoin = best.symbol;
+  const v6=best.v6||{};
+  const inst=best.inst||{};
+  const tp=best.tp_zones||{};
+  const sizing=best.sizing||{};
+  const scalping=best.scalping_strategy||{};
+  let label=(v6.label||'WAIT').toUpperCase();
+  if(label==='AVOID') label='SELL'; // spot-only bot: AVOID = don't buy / exit if held
+  const score=Math.round(v6.score||0);
+  const conf=Math.round(best.confidence||0);
+  const sym=(best.symbol||'').replace('USDT','');
+
+  nameEl.textContent = sym+' / USDT  (auto-selected — highest scoring setup)';
+  const colors    = {BUY:'var(--green)', SELL:'var(--red)', WAIT:'var(--grey)'};
+  const bgColors  = {BUY:'#003311',      SELL:'#440000',    WAIT:'#1a1a1a'};
+  if(lblEl){ lblEl.textContent=label; lblEl.style.color=colors[label]||'var(--grey)'; }
+  if(subEl) subEl.textContent = `Score ${score}/100  |  Confidence ${conf}%`;
+  if(box){ box.style.background=bgColors[label]||'#1a1a1a'; box.style.borderColor=colors[label]||'#333'; }
+
+  if(entryEl) entryEl.textContent = fmt6(tp.entry_low||best.price||0);
+  if(slEl) slEl.textContent = fmt6(tp.stop_loss||0);
+  if(tpEl) tpEl.textContent = fmt6(tp.tp1||0);
+  if(sizeEl) sizeEl.textContent = (sizing.alloc_usdt ? '$'+sizing.alloc_usdt+' ('+(sizing.alloc_pct||0)+'%)' : '—');
+
+  const canExecute = label==='BUY';
+  if(execBtn){
+    execBtn.disabled = !canExecute;
+    execBtn.style.opacity    = canExecute ? '1' : '.4';
+    execBtn.style.cursor     = canExecute ? 'pointer' : 'not-allowed';
+    execBtn.style.background = canExecute ? '#004400' : '#222';
+    execBtn.style.color      = canExecute ? 'var(--green)' : '#666';
+    execBtn.style.borderColor= canExecute ? 'var(--green)' : '#333';
+  }
+
+  const reasons=[];
+  if(inst.reason) reasons.push(inst.reason);
+  if((scalping.best_score||0)>0 && scalping.best_reason) reasons.push(`${scalping.best_strategy}: ${scalping.best_reason}`);
+  if(best.trading_strategy_reason) reasons.push(best.trading_strategy_reason);
+  if(reasons.length<3) reasons.push(`Market regime: ${d.market_regime||'RANGING'}`);
+  if(reasons.length<3 && best.folder) reasons.push(`${best.folder} folder signal`);
+  if(whyEl) whyEl.innerHTML = reasons.slice(0,3).map(r=>`<li>${r}</li>`).join('') || '<li>No strong reasons yet</li>';
+
+  const accChart=document.getElementById('acc-chart');
+  const accWhale=document.getElementById('acc-whale');
+  const accHistory=document.getElementById('acc-history');
+  if(accChart && accChart.style.display==='block') renderCmdChart();
+  if(accWhale && accWhale.style.display==='block') renderCmdWhale();
+  if(accHistory && accHistory.style.display==='block') renderCmdHistory();
+}
+
 function fetchAll(){
   fetch('/dashboard_data')
     .then(r=>r.json())
@@ -1241,6 +1559,7 @@ function fetchAll(){
       updateBottom(d);
       updateCA(d);
       updateMasterSignal();
+      updateCommandCenter(d);
       if(d.paper_mode) document.getElementById('paper').classList.add('show');
       else document.getElementById('paper').classList.remove('show');
     }).catch(e=>console.error('Fetch:',e));
