@@ -29,6 +29,7 @@ from logic import (
     estimate_time_to_target, fetch_large_trades, fetch_eth_exchange_flows,
     detect_combo_signals,
     fetch_strategy_indicators, pick_best_strategy,
+    fetch_candlestick_pattern,
 )
 
 # V6 UPGRADE IMPORTS (P0: SQLite + Crypto + OCO | P1: WS + Partial TP + MTF)
