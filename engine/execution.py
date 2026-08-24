@@ -20,7 +20,7 @@ def _with_main_state(fn):
     """Bind dependency names to the live main-module objects for each call."""
     @functools.wraps(fn)
     def wrapped(*args, **kwargs):
-        main = sys.modules.get("main")
+        main = sys.modules.get("main") or sys.modules.get("__main__")
         if main is None:
             raise RuntimeError("main module is not loaded")
         local_names = set(globals()) | _EXTRACTED_NAMES
