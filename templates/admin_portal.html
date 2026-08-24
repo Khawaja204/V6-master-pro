@@ -1,0 +1,733 @@
+<!DOCTYPE html><html><head><title>V6 Admin Portal</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0a0a0f;color:#c9d1d9;font-family:monospace;font-size:13px}
+.header{background:#111827;padding:12px 20px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.title{color:#FFD700;font-size:15px;font-weight:bold}.logout{color:#FF4500;text-decoration:none;font-size:12px}
+.container{padding:20px;max-width:1100px;margin:0 auto}.card{background:#161b22;border:1px solid #21262d;border-radius:6px;padding:16px;margin-bottom:16px}
+.card h3{color:#58a6ff;margin-bottom:12px;font-size:13px}.stat{display:inline-block;background:#0d1117;padding:8px 16px;border-radius:4px;margin:4px;border:1px solid #30363d}
+.stat .val{color:#00FF00;font-size:18px;font-weight:bold;display:block}.stat .lbl{color:#555;font-size:10px}
+table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0d1117;color:#58a6ff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #1a1a2e}
+.green{color:#00FF00}.yellow{color:#FFD700}.red{color:#FF4500}.btn{padding:6px 14px;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-family:monospace}
+.btn-blue{background:#1f6feb;color:#fff}.btn-red{background:#da3633;color:#fff}.btn-green{background:#238636;color:#fff}.btn-orange{background:#d97706;color:#fff}
+.form-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+input,select{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6px 10px;border-radius:4px;font-family:monospace;font-size:12px}
+.log-box{background:#0d1117;border:1px solid #30363d;padding:10px;border-radius:4px;height:200px;overflow-y:auto;font-size:10px;color:#6e7681;white-space:pre-wrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.dot-green{background:#00FF00;box-shadow:0 0 6px #00FF00}.dot-red{background:#FF4500}.dot-yellow{background:#FFD700}
+.trade-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.trade-grid{grid-template-columns:1fr}}
+</style></head>
+<body><div class="header">
+<span class="title">🔐 V6 MASTER PRO — ADMIN PORTAL</span>
+<span style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span id="mode-badge" style="font-size:12px;padding:4px 12px;border-radius:4px;font-weight:bold;border:2px solid {{ '#FFD700' if paper_mode else '#FF4500' }};color:{{ '#FFD700' if paper_mode else '#FF4500' }}">
+    {{ '📄 PAPER MODE' if paper_mode else '⚡ REAL MODE LIVE' }}
+  </span>
+  <span style="color:#555;font-size:11px">Session: 15 min idle</span>
+  <a href="/admin/logout" class="logout">LOGOUT</a>
+</span></div>
+<div class="container">
+
+<!-- ══ SYSTEM STATUS ══ -->
+<div class="card"><h3>📊 SYSTEM STATUS</h3>
+<div>
+<div class="stat"><span class="val {{ 'green' if status=='live' else 'red' }}">{{ status.upper() }}</span><span class="lbl">Status</span></div>
+<div class="stat"><span class="val">{{ cycles }}</span><span class="lbl">Cycles</span></div>
+<div class="stat"><span class="val">{{ uptime }}</span><span class="lbl">Uptime</span></div>
+<div class="stat"><span class="val {{ 'red' if btc_pause else 'green' }}">{{ 'PAUSED' if btc_pause else 'ACTIVE' }}</span><span class="lbl">Entries</span></div>
+<div class="stat"><span class="val">{{ win_rate }}%</span><span class="lbl">Win Rate</span></div>
+<div class="stat"><span class="val">{{ win_streak }}</span><span class="lbl">Win Streak</span></div>
+<div class="stat"><span class="val">{{ total_wins }}W / {{ total_losses }}L</span><span class="lbl">Backtest</span></div>
+<div class="stat"><span class="val">{{ hot_cnt }}</span><span class="lbl">Hot Coins</span></div>
+<div class="stat"><span class="val">{{ hist_cnt }}</span><span class="lbl">Alerts</span></div>
+</div></div>
+
+<!-- ══ UPTIME MONITOR STATUS ══ -->
+<div class="card"><h3>🔌 UPTIME MONITOR STATUS</h3>
+<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+  <span><span class="dot dot-yellow" id="dot-uptime"></span><span id="lbl-uptime" style="font-size:12px">Checking…</span></span>
+  <button onclick="pingNow()" class="btn" style="background:#1f6feb;color:#fff;border:none;padding:5px 14px;font-size:11px">📡 Ping Now</button>
+  <span id="ping-now-result" style="font-size:10px;color:#555"></span>
+</div>
+<p style="color:#8b949e;font-size:11px;margin-top:8px">
+This tracks whether your external uptime monitor (e.g. UptimeRobot) is actively hitting <code>/health</code> on schedule.
+If it goes red, this free Render instance can spin down after 15 min of no traffic — recheck your monitor is active there.
+</p>
+<div style="margin-top:14px;border-top:1px solid #21262d;padding-top:10px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <span style="color:#8b949e;font-size:11px">📜 Startup + Ping History (last 50)</span>
+  <span style="display:flex;gap:6px">
+    <a href="/admin/uptime_log_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:3px 10px;font-size:10px;text-decoration:none">⬇ Download Full CSV</a>
+    <button onclick="copyUptimeCsv()" id="copy-uptime-btn" class="btn" style="background:#21262d;color:#d29922;border:1px solid #30363d;padding:3px 10px;font-size:10px">📋 Copy CSV</button>
+    <button onclick="loadUptimeLog()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 10px;font-size:10px">↻ Refresh</button>
+  </span>
+</div>
+<table class="ca-tbl"><thead><tr><th>Time (PKT)</th><th>Event</th><th>PID</th><th>Source IP</th><th>Gap Since Prev</th><th>Status</th></tr></thead>
+<tbody id="uptime-log-tbody"><tr><td colspan="4" style="color:#555">Click Refresh to load…</td></tr></tbody>
+</table>
+</div>
+</div>
+
+<script>
+function copyUptimeCsv(){
+  const btn=document.getElementById('copy-uptime-btn');
+  const orig=btn.textContent;
+  btn.textContent='Fetching...';
+  fetch('/admin/uptime_log_csv').then(r=>r.text()).then(csv=>{
+    navigator.clipboard.writeText(csv).then(()=>{
+      btn.textContent='✓ Copied!';
+      setTimeout(()=>{btn.textContent=orig;}, 2000);
+    }).catch(()=>{
+      btn.textContent='Copy failed';
+      setTimeout(()=>{btn.textContent=orig;}, 2000);
+    });
+  }).catch(()=>{
+    btn.textContent='Fetch failed';
+    setTimeout(()=>{btn.textContent=orig;}, 2000);
+  });
+}
+function loadUptimeLog(){
+  const tb=document.getElementById('uptime-log-tbody');
+  tb.innerHTML='<tr><td colspan="4" style="color:#d29922">Loading…</td></tr>';
+  fetch('/admin/uptime_log?limit=50').then(r=>r.json()).then(d=>{
+    const es=d.entries||[];
+    if(!es.length){ tb.innerHTML='<tr><td colspan="4" style="color:#555">No entries logged yet.</td></tr>'; return; }
+    tb.innerHTML=es.map(e=>{
+      const isDown=e.likely_downtime;
+      const evColor=e.type==='STARTUP'?'#FFD700':'#3fb950';
+      const gapTxt=e.gap_min_since_prev!==null?e.gap_min_since_prev+' min':'—';
+      const statusTxt=isDown?'🔴 Likely downtime gap':(e.type==='STARTUP'?'🟡 Process (re)started':'🟢 Normal');
+      return `<tr style="${isDown?'background:#2d0000':''}">
+        <td>${e.pkt||'—'}</td>
+        <td style="color:${evColor};font-weight:bold">${e.type}${e.note?' ('+e.note+')':''}</td>
+        <td style="color:#8b949e;font-size:10px">${e.pid||'—'}</td>
+        <td style="color:#8b949e;font-size:10px">${e.source_ip||'—'}</td>
+        <td style="${isDown?'color:#FF4500;font-weight:bold':''}">${gapTxt}</td>
+        <td style="font-size:10px">${statusTxt}</td>
+      </tr>`;
+    }).join('');
+  }).catch(e=>{ tb.innerHTML=`<tr><td colspan="4" style="color:#FF4500">Failed: ${e}</td></tr>`; });
+}
+</script>
+
+<!-- ══ CONNECTION STATUS ══ -->
+<div class="card"><h3>🔌 CONNECTION STATUS</h3>
+<div id="conn-status-row" style="display:flex;gap:20px;flex-wrap:wrap">
+  <span><span class="dot dot-yellow" id="dot-tg"></span><span id="lbl-tg" style="font-size:12px">Telegram: checking…</span></span>
+  <span><span class="dot dot-yellow" id="dot-gs"></span><span id="lbl-gs" style="font-size:12px">Google Sheets: checking…</span></span>
+  <span><span class="dot dot-yellow" id="dot-ex"></span><span id="lbl-ex" style="font-size:12px">Exchange API: checking…</span></span>
+  <span><span class="dot dot-yellow" id="dot-pm"></span><span id="lbl-pm" style="font-size:12px">Trade Mode: checking…</span></span>
+</div>
+<div style="margin-top:8px;font-size:10px;color:#555" id="conn-meta">Last checked: —</div>
+<script>
+function refreshHealth(){
+  fetch('/system_health',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+    const set=(id,ok,label)=>{
+      const dot=document.getElementById('dot-'+id), lbl=document.getElementById('lbl-'+id);
+      if(dot) dot.className='dot '+(ok?'dot-green':'dot-red');
+      if(lbl) lbl.textContent=label;
+    };
+    set('tg', d.telegram==='CONNECTED',     'Telegram: '+(d.telegram==='CONNECTED'?'✅ Connected':'❌ BOT_TOKEN not set'));
+    set('gs', d.google_sheets==='CONNECTED','Google Sheets: '+(d.google_sheets==='CONNECTED'?'✅ Connected':'❌ GOOGLE_CREDENTIALS not set'));
+    const exUp = d.exchange_api==='CONNECTED';
+    set('ex', exUp, 'Exchange API: '+(exUp?'✅ Connected ('+(d.exchange_host||'binance').replace('https://','')+')':'❌ '+(d.exchange_detail||'Disconnected')));
+    set('pm', true, 'Trade Mode: '+(d.paper_mode?'📄 PAPER (safe)':'⚡ REAL LIVE'));
+    document.getElementById('dot-pm').className='dot '+(d.paper_mode?'dot-green':'dot-red');
+    const meta=document.getElementById('conn-meta');
+    if(meta) meta.textContent='Last checked: '+new Date().toLocaleTimeString()+(d.exchange_last_ok?'  ·  Exchange last OK: '+d.exchange_last_ok:'');
+  }).catch(()=>{
+    const meta=document.getElementById('conn-meta');
+    if(meta) meta.textContent='Health check failed — retrying…';
+  });
+}
+refreshHealth();
+setInterval(refreshHealth, 15000);
+
+function refreshUptimeMonitor(){
+  fetch('/admin/uptime_monitor_status',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+    const dot=document.getElementById('dot-uptime'), lbl=document.getElementById('lbl-uptime');
+    if(!dot||!lbl) return;
+    dot.className='dot '+(d.ok?'dot-green':'dot-red');
+    if(d.last_ping){
+      lbl.textContent=(d.ok?'✅ ':'❌ ')+'Last ping: '+d.last_ping+' ('+d.seconds_ago+'s ago)';
+    } else {
+      lbl.textContent='⏳ No external ping received yet on this instance.';
+    }
+  }).catch(()=>{});
+}
+function pingNow(){
+  const el=document.getElementById('ping-now-result');
+  if(el) el.textContent='Pinging…';
+  fetch('/health',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+    if(el) el.textContent='✅ Responded: '+(d.status||'ok')+' @ '+(d.timestamp||'');
+    setTimeout(refreshUptimeMonitor, 500);
+  }).catch(e=>{ if(el) el.textContent='❌ Failed: '+e; });
+}
+refreshUptimeMonitor();
+setInterval(refreshUptimeMonitor, 20000);
+
+function refreshBotCmp(){
+  fetch('/admin/bot_comparison',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+    const tb=document.getElementById('bot-cmp-tbody');
+    if(!tb) return;
+    const rows=['v6','wall','combo'].map(k=>{
+      const b=d[k]||{};
+      const modeColor=b.mode==='real'?'#FF4500':'#3fb950';
+      const modeLabel=b.mode==='real'?'⚡ REAL':'📄 PAPER';
+      const circ=b.circuit||{};
+      const circLabel=circ.tripped?('🛑 TRIPPED: '+(circ.reason||'')):('✅ OK ('+(circ.losses_today||0)+'L today)');
+      const circColor=circ.tripped?'#FF4500':'#3fb950';
+      return '<tr><td style="color:#FFD700;font-weight:bold">'+k.toUpperCase()+'</td>'+
+        '<td style="color:'+modeColor+'">'+modeLabel+'</td>'+
+        '<td>$'+(b.fund_limit||0)+'</td>'+
+        '<td>'+(b.open||0)+'</td>'+
+        '<td>'+(b.wins||0)+'W / '+(b.losses||0)+'L</td>'+
+        '<td style="color:'+(b.win_rate>=50?'#3fb950':'#d29922')+'">'+(b.win_rate||0)+'%</td>'+
+        '<td style="color:'+circColor+';font-size:10px">'+circLabel+'</td>'+
+        '<td style="color:#555;font-size:10px">use form below</td></tr>';
+    });
+    tb.innerHTML=rows.join('');
+  }).catch(()=>{});
+}
+refreshBotCmp();
+setInterval(refreshBotCmp, 15000);
+</script></div>
+
+<!-- ══ RISK CALCULATOR + FUND LIMIT ══ -->
+<div class="card"><h3>💰 RISK CALCULATOR &amp; FUND LIMIT</h3>
+<div class="trade-grid">
+<div>
+<p style="color:#8b949e;font-size:11px;margin-bottom:8px">Account Balance (for position sizing)</p>
+<form method="POST" action="/admin/set_balance"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<input type="number" name="balance" value="{{ balance }}" placeholder="Balance (USDT)" style="width:180px"/>
+<button type="submit" class="btn btn-blue">Update</button></div>
+<small style="color:#555">GREEN: {{ green_pct }}% | YELLOW: {{ yellow_pct }}% | RED: 0%</small></form>
+</div>
+<div>
+<p style="color:#FF6B35;font-size:11px;margin-bottom:8px">🛡️ Bot Safety — Max Fund Per Trade</p>
+<form method="POST" action="/admin/set_fund_limit"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<input type="number" name="fund_limit" value="{{ fund_limit }}" placeholder="e.g. 10" step="0.01" min="1" style="width:130px"/>
+<span style="color:#555;font-size:11px">USDT max / trade</span>
+<button type="submit" class="btn btn-orange">Set Limit</button></div>
+<small style="color:#555">Bot will NEVER place a trade larger than this limit regardless of account size</small></form>
+</div>
+</div></div>
+
+<!-- ══ 3-BOT CONTROL PANEL ══ -->
+<div class="card"><h3>🤖 3-BOT CONTROL PANEL</h3>
+<table class="ca-tbl" style="width:100%;font-size:11px">
+<thead><tr><th>Bot</th><th>Mode</th><th>Fund/Trade</th><th>Open</th><th>W/L</th><th>Win%</th><th>Circuit</th><th>Controls</th></tr></thead>
+<tbody id="bot-cmp-tbody"><tr><td colspan="8" style="color:#555">Loading…</td></tr></tbody>
+</table>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+<button onclick="refreshBotCmp()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:5px 12px;font-size:11px">↻ Refresh</button>
+</div>
+<div id="bot-cmp-forms" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+{% for b in ['v6','wall','combo'] %}
+<form method="POST" action="/admin/set_bot_config" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<input type="hidden" name="bot" value="{{ b }}"/>
+<div style="color:#FFD700;font-weight:bold;font-size:12px;margin-bottom:6px">{{ b.upper() }} BOT</div>
+<label style="color:#8b949e;font-size:10px">Mode</label>
+<select name="mode" style="width:100%;margin-bottom:6px">
+<option value="paper" {{ 'selected' if bots_cfg.get(b,{}).get('mode','paper')=='paper' else '' }}>📄 PAPER</option>
+<option value="real" {{ 'selected' if bots_cfg.get(b,{}).get('mode','paper')=='real' else '' }}>⚡ REAL</option>
+</select>
+<label style="color:#8b949e;font-size:10px">Fund/Trade (USDT)</label>
+<input type="number" name="fund_limit" value="{{ bots_cfg.get(b,{}).get('fund_limit_usdt',10) }}" step="0.01" min="1" style="width:100%;margin-bottom:8px"/>
+<button type="submit" class="btn btn-blue" style="width:100%;padding:6px"
+  onclick="return confirm('Update {{ b.upper() }} bot config?')">Save</button>
+</form>
+{% endfor %}
+</div>
+</div>
+
+<!-- ══ WHALE HISTORY LOGGER ══ -->
+<div class="card"><h3>💾 WHALE HISTORY LOGGER <span style="font-size:10px;color:#555;font-weight:normal">(building your own historical whale/OBI dataset)</span></h3>
+<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Binance doesn't retain historical order-book data, so this logs whale_power/OBI/traffic-light for every scanned coin, every cycle, going forward. Once enough days accumulate, this can be joined with price history to backtest the Whale/Institutional and Smart-Money categories.</p>
+<div id="whale-history-stats" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px">
+  <div class="stat"><span class="val" id="wh-rows">—</span><span class="lbl">Rows Logged</span></div>
+  <div class="stat"><span class="val" id="wh-span">—</span><span class="lbl">Days Covered</span></div>
+  <div class="stat"><span class="val" id="wh-size">—</span><span class="lbl">File Size</span></div>
+</div>
+<a href="/admin/whale_history_csv" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:5px 14px;font-size:11px;text-decoration:none">⬇ Download Full CSV</a>
+</div>
+<script>
+function loadWhaleHistoryStats(){
+  fetch('/admin/whale_history_status').then(r=>r.json()).then(d=>{
+    const r=document.getElementById('wh-rows'), s=document.getElementById('wh-span'), z=document.getElementById('wh-size');
+    if(r) r.textContent=(d.rows||0).toLocaleString();
+    if(s) s.textContent=(d.span_days||0)+'d';
+    if(z) z.textContent=(d.size_mb||0)+' MB';
+  }).catch(()=>{});
+}
+loadWhaleHistoryStats();
+setInterval(loadWhaleHistoryStats, 60000);
+</script>
+
+<!-- ══ WEEKLY DRAWDOWN BREAKER ══ -->
+<div class="card"><h3>📅 WEEKLY DRAWDOWN BREAKER (7-day rolling, per bot)</h3>
+<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Catches slow bleed across several days that never individually trips the daily breaker. Stays tripped until manually reset here — review what happened before resetting.</p>
+<table class="ca-tbl"><thead><tr><th>Bot</th><th>7d Cumulative PnL</th><th>Trades (7d)</th><th>Status</th><th></th></tr></thead>
+<tbody id="weekly-breaker-tbody"><tr><td colspan="5" style="color:#555">Loading…</td></tr></tbody>
+</table>
+</div>
+<script>
+function loadWeeklyBreaker(){
+  fetch('/admin/weekly_breaker_status').then(r=>r.json()).then(d=>{
+    const tb=document.getElementById('weekly-breaker-tbody');
+    if(!tb) return;
+    tb.innerHTML=Object.keys(d).map(b=>{
+      const s=d[b];
+      const pnlCol=s.cum_pnl_7d>=0?'#3fb950':'#FF4500';
+      const statusHtml=s.tripped
+        ? `<span style="color:#FF4500;font-weight:bold">🛑 TRIPPED</span> <span style="font-size:9px;color:#555">(${s.tripped_at})</span><br><span style="font-size:9px;color:#8b949e">${s.reason}</span>`
+        : '<span style="color:#3fb950">✅ OK</span>';
+      const resetBtn = s.tripped
+        ? `<form method="POST" action="/admin/reset_weekly_breaker" style="display:inline" onsubmit="return confirm('Reset weekly breaker for ${b.toUpperCase()}?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+             <input type="hidden" name="bot" value="${b}"/>
+             <button type="submit" class="btn btn-orange" style="padding:3px 10px;font-size:10px">Reset</button>
+           </form>`
+        : '';
+      return `<tr><td style="color:#FFD700;font-weight:bold">${b.toUpperCase()}</td>
+        <td style="color:${pnlCol}">${s.cum_pnl_7d}%</td>
+        <td>${s.trades_7d}</td>
+        <td>${statusHtml}</td>
+        <td>${resetBtn}</td></tr>`;
+    }).join('');
+  }).catch(()=>{});
+}
+loadWeeklyBreaker();
+setInterval(loadWeeklyBreaker, 30000);
+</script>
+
+<!-- === WEEKLY PERFORMANCE REPORT === -->
+<div class="card"><h3>📊 WEEKLY PERFORMANCE REPORT (copy-paste for external analysis)</h3>
+<p style="font-size:11px;color:#8b949e">One block covering V6/Wall/Combo 7-day performance, best/worst coins, weekly-breaker status, and active thresholds — so you don't have to share multiple files.</p>
+<button onclick="loadWeeklyReport()" id="weekly-report-btn" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:6px 14px;font-size:11px">↻ Generate Report</button>
+<button onclick="copyWeeklyReport()" id="weekly-report-copy-btn" class="btn" style="background:#21262d;color:#d29922;border:1px solid #30363d;padding:6px 14px;font-size:11px;display:none">📋 Copy Report</button>
+<pre id="weekly-report-box" style="display:none;background:#0d1117;color:#c9d1d9;padding:14px;font-size:10px;white-space:pre-wrap;margin-top:10px;border:1px solid #30363d;border-radius:6px;max-height:400px;overflow-y:auto"></pre>
+</div>
+<script>
+function loadWeeklyReport(){
+  const btn=document.getElementById('weekly-report-btn');
+  const box=document.getElementById('weekly-report-box');
+  const copyBtn=document.getElementById('weekly-report-copy-btn');
+  btn.textContent='Generating...';
+  fetch('/admin/weekly_report').then(r=>r.json()).then(d=>{
+    box.textContent=d.report||'No data';
+    box.style.display='block';
+    copyBtn.style.display='inline-block';
+    btn.textContent='↻ Regenerate';
+  }).catch(()=>{ btn.textContent='Failed — retry'; });
+}
+function copyWeeklyReport(){
+  const box=document.getElementById('weekly-report-box');
+  const btn=document.getElementById('weekly-report-copy-btn');
+  const orig=btn.textContent;
+  const text=box.textContent;
+
+  function showCopied(){
+    btn.textContent='✓ Copied!';
+    setTimeout(()=>{btn.textContent=orig;},2000);
+  }
+  function showFailed(){
+    btn.textContent='Select text manually';
+    setTimeout(()=>{btn.textContent=orig;},2500);
+  }
+  function fallbackCopy(){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;
+      ta.style.position='fixed';
+      ta.style.left='-9999px';
+      ta.style.top='0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok=document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok){ showCopied(); } else { showFailed(); }
+    }catch(e){ showFailed(); }
+  }
+
+  if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(showCopied).catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
+}
+</script>
+
+<!-- ══ EXCHANGE SWITCHER ══ -->
+<div class="card"><h3>🔄 EXCHANGE SWITCHER</h3>
+<p style="color:#8b949e;font-size:11px;margin-bottom:10px">All market data, order books, and REAL-mode order execution currently run on Binance only. Other exchanges are not wired up yet.</p>
+<form method="POST" action="/admin/set_exchange"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<select name="exchange">{% for ex in exchanges %}<option value="{{ ex }}" {{ 'selected' if ex == exchange else '' }}>{{ ex }}</option>{% endfor %}</select>
+<button type="submit" class="btn btn-blue">Switch</button></div></form></div>
+
+<!-- ══ PRICE ALERTS ══ -->
+<div class="card"><h3>🎯 PRICE ALERTS ({{ price_alerts|length }} active)</h3>
+<form method="POST" action="/admin/set_price_alert"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<input type="text" name="symbol" placeholder="BTCUSDT" style="width:110px" required/>
+<input type="number" name="target_price" step="any" placeholder="Target Price" style="width:130px" required/>
+<select name="direction" style="width:90px"><option value="ABOVE">ABOVE ↑</option><option value="BELOW">BELOW ↓</option></select>
+<input type="text" name="note" placeholder="My reason…" style="flex:1"/>
+<button type="submit" class="btn btn-blue">+ Add Alert</button></div></form>
+{% if price_alerts %}
+<table style="margin-top:10px"><thead><tr><th>Symbol</th><th>Target</th><th>Dir</th><th>Note</th><th>Set At</th><th></th></tr></thead><tbody>
+{% for a in price_alerts %}<tr>
+<td style="color:#FFD700">{{ a.symbol.replace('USDT','') }}</td>
+<td style="color:#3fb950">{{ a.target_price }}</td>
+<td><span style="color:{{ '#3fb950' if a.direction=='ABOVE' else '#FF4500' }}">{{ a.direction }}</span></td>
+<td style="color:#555;font-size:10px">{{ a.note or '—' }}</td>
+<td style="color:#444;font-size:10px">{{ a.created_at }}</td>
+<td><form method="POST" action="/admin/delete_price_alert" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<input type="hidden" name="alert_id" value="{{ a.id }}"/>
+<button type="submit" class="btn btn-red" style="padding:2px 8px">✕</button></form></td>
+</tr>{% endfor %}</tbody></table>
+{% else %}<p style="color:#444;font-size:11px;margin-top:8px">No active alerts. Set a price target above — Telegram fires when hit.</p>{% endif %}
+</div>
+
+<!-- ══ API KEY MANAGEMENT ══ -->
+<div class="card"><h3>🔑 API KEY MANAGEMENT</h3>
+<p style="background:#1a0000;border:1px solid #FF4500;padding:8px;border-radius:4px;color:#FF4500;font-size:11px;margin-bottom:12px">
+⚠️ <b>SECURITY:</b> Enable <b>Read + Trade only.</b> NEVER enable Withdraw permission. Keys are masked after saving.
+</p>
+{% for ex in ['BINANCE'] %}
+<details style="margin-bottom:6px;background:#0d1117;border-radius:4px;border:1px solid {{ '#30363d' if ex not in saved_keys else '#3fb950' }};padding:6px 10px">
+<summary style="cursor:pointer;color:{{ '#3fb950' if ex in saved_keys else '#8b949e' }};font-weight:bold;font-size:12px">
+{{ '✅' if ex in saved_keys else '⬜' }} {{ ex }}{{ ' — Configured' if ex in saved_keys else ' — Not set' }}
+</summary>
+<form method="POST" action="/admin/set_api_key" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<input type="hidden" name="exchange" value="{{ ex }}"/>
+<div class="form-row">
+<input type="text" name="api_key" placeholder="API Key" style="flex:1"/>
+<input type="password" name="secret_key" placeholder="Secret Key" style="flex:1"/>
+{% if ex == 'OKX' %}<input type="password" name="passphrase" placeholder="Passphrase" style="width:130px"/>{% endif %}
+<button type="submit" class="btn btn-blue">Save</button>
+<form method="POST" action="/admin/test_connection" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="exchange" value="{{ ex }}"/><button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d">Test ⚡</button></form>
+</div></form>
+{% if ex in saved_keys %}<p style="color:#555;font-size:10px;margin-top:4px">API Key: {{ saved_keys[ex]['api_key_mask'] }} | Secret: ●●●●●●●●●●●● (saved)</p>{% endif %}
+</details>{% endfor %}
+</div>
+
+<!-- ══ PAPER MODE INTELLIGENCE ══ -->
+<div class="card"><h3>🧠 PAPER MODE INTELLIGENCE</h3>
+<div>
+<div class="stat"><span class="val">{{ ld.get('paper_trades',0) }}</span><span class="lbl">Trades</span></div>
+<div class="stat"><span class="val {{ 'green' if ld.get('paper_win_rate',0)>=65 else 'yellow' if ld.get('paper_win_rate',0)>=50 else 'red' }}">{{ ld.get('paper_win_rate',0) }}%</span><span class="lbl">Win Rate</span></div>
+<div class="stat"><span class="val">{{ ld.get('wp_threshold',50) }}%</span><span class="lbl">WP Min</span></div>
+<div class="stat"><span class="val">{{ ld.get('conf_threshold',50) }}%</span><span class="lbl">Conf Min</span></div>
+{% if ld.get('ready_for_real') %}<div class="stat"><span class="val green">🏆 READY</span><span class="lbl">Real Mode</span></div>{% endif %}
+</div>
+{% if ld.get('adjustment_log') %}
+<div class="log-box" style="height:100px;margin-top:10px">{% for l in ld.get('adjustment_log',[])[-8:] %}{{ l }}
+{% endfor %}</div>{% endif %}
+<p style="color:#555;font-size:10px;margin-top:8px">Bot learns from every paper trade. Thresholds auto-adjust every 10 trades. Telegram alert fires at 65%+ win rate.</p>
+</div>
+
+<!-- ══ MODE SWITCH — PROMINENT ══ -->
+<div class="card" style="border:2px solid {{ '#FFD700' if paper_mode else '#FF4500' }}">
+<h3 style="color:{{ '#FFD700' if paper_mode else '#FF4500' }};font-size:15px">
+  {{ '📄 PAPER MODE — Simulation Active' if paper_mode else '💰 REAL MODE — LIVE EXECUTION ACTIVE ⚠️' }}
+</h3>
+<div style="margin:12px 0;padding:12px;background:#0d1117;border-radius:4px">
+  <span style="color:{{ '#FFD700' if paper_mode else '#FF4500' }};font-size:16px;font-weight:bold;display:block;margin-bottom:6px">
+    {{ '✅ Safe — No real money at risk. All trades simulated.' if paper_mode else '🚨 LIVE — Real money execution enabled. Trade carefully.' }}
+  </span>
+  <p style="color:#555;font-size:11px">{{ 'System is learning from signals in paper mode. Switch to REAL MODE only when paper win rate ≥ 65%.' if paper_mode else 'REAL MODE: Signals trigger actual exchange orders. Bot fund limit applies per trade.' }}</p>
+</div>
+<form method="POST" action="/admin/set_mode"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  {% if paper_mode %}
+  <button type="submit" class="btn btn-red" style="padding:10px 24px;font-size:13px;font-weight:bold"
+    onclick="return confirm('⚠️ SWITCH TO REAL MODE?\n\nThis will enable LIVE TRADE EXECUTION.\nReal money will be used for every signal.\n\nOnly proceed if:\n• Paper Win Rate ≥ 65%\n• API keys are configured\n• Fund limit is set\n\nAre you ABSOLUTELY sure?')">
+    ⚡ Switch to REAL MODE
+  </button>
+  {% else %}
+  <button type="submit" class="btn btn-blue" style="padding:10px 24px;font-size:13px;font-weight:bold">
+    📄 Switch to PAPER MODE (Safe)
+  </button>
+  {% endif %}
+</form></div>
+
+<!-- ══ MANUAL TRADING PANEL ══ -->
+<div class="card" style="border-color:#f0883e">
+<h3 style="color:#f0883e">🎮 MANUAL TRADING PANEL
+  <span style="font-size:10px;padding:2px 8px;border-radius:3px;margin-left:8px;background:{{ '#1a3a00' if paper_mode else '#3a0000' }};color:{{ '#3fb950' if paper_mode else '#FF4500' }}">
+    {{ 'PAPER MODE — Simulated' if paper_mode else '⚡ REAL MODE — Live Money' }}
+  </span>
+</h3>
+<div style="background:#0d1117;border:1px solid #30363d;padding:12px;border-radius:4px;margin-bottom:12px">
+<form method="POST" action="/admin/manual_trade"
+  onsubmit="return confirm('{% if paper_mode %}PAPER TRADE — This will be SIMULATED. No real money.\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nConfirm paper trade?{% else %}⚠️ REAL TRADE ALERT ⚠️\n\nThis will execute a REAL order with REAL money!\n\nCoin: ' + this.symbol.value + '\nSide: ' + this.side.value + '\nAmount: $' + this.amount_usdt.value + '\nStrategy: ' + this.strategy.value + '\n\nAre you ABSOLUTELY SURE?{% endif %}')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<div class="form-row" style="margin-bottom:10px">
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">ASSET</label>
+    <input type="text" name="symbol" placeholder="BTCUSDT" style="width:120px;text-transform:uppercase" required/>
+  </div>
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">AMOUNT (USDT)</label>
+    <input type="number" name="amount_usdt" placeholder="10" min="1" step="0.01" style="width:110px" required/>
+  </div>
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">SIDE</label>
+    <select name="side" style="width:90px">
+      <option value="BUY">🟢 BUY</option>
+      <option value="SELL">🔴 SELL</option>
+    </select>
+  </div>
+  <div>
+    <label style="color:#8b949e;font-size:10px;display:block;margin-bottom:3px">STRATEGY</label>
+    <select name="strategy" style="width:120px">
+      <option value="SPOT">⚡ SPOT</option>
+      <option value="SPOT_GRID">⊞ SPOT GRID</option>
+    </select>
+  </div>
+  <div style="align-self:flex-end">
+    <button type="submit" class="btn {{ 'btn-blue' if paper_mode else 'btn-red' }}" style="padding:8px 18px;font-weight:bold">
+      {{ '📄 Execute (Paper)' if paper_mode else '⚡ Execute (REAL)' }}
+    </button>
+  </div>
+</div>
+<small style="color:#444">SPOT = market order | SPOT GRID = 5 limit buy orders spread below current price (0.5% spacing)</small>
+</form>
+</div>
+<div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <span style="color:#8b949e;font-size:11px">Recent Paper Trades</span>
+  <button onclick="loadTrades()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:3px 8px;font-size:10px">↻ Refresh</button>
+</div>
+<div id="paper-trades-log" style="background:#0d1117;border:1px solid #30363d;padding:10px;border-radius:4px;min-height:60px;font-size:10px;color:#6e7681">
+  <i>Click Refresh to load recent trades…</i>
+</div>
+</div>
+<script>
+function loadTrades(){
+  fetch('/admin/paper_trades').then(r=>r.json()).then(trades=>{
+    const el=document.getElementById('paper-trades-log');
+    if(!trades.length){el.innerHTML='<i style="color:#444">No trades logged yet.</i>';return;}
+    el.innerHTML=trades.slice(0,15).map(t=>{
+      const sc=t.side==='BUY'?'#3fb950':'#FFD700';
+      const reason=t.reason?`<div style="color:#8b949e;font-size:9px;margin-top:2px">📋 ${t.reason}</div>`:'';
+      return `<div style="border-bottom:1px solid #1a1a2e;padding:4px 0">
+        <span style="color:${sc};font-weight:bold">${t.side}</span>
+        <span style="color:#c9d1d9"> ${(t.symbol||'').replace('USDT','')}</span>
+        <span style="color:#58a6ff"> $${t.amount_usdt}</span>
+        <span style="color:#555"> @ ${t.price||'?'}</span>
+        <span style="color:#555"> · ${t.strategy||'SPOT'}</span>
+        <span style="color:#444;float:right">${t.time}</span>
+        ${reason}
+      </div>`;
+    }).join('');
+  }).catch(()=>{document.getElementById('paper-trades-log').innerHTML='<i style="color:#FF4500">Error loading trades</i>';});
+}
+loadTrades();
+</script>
+</div>
+
+<!-- ══ HISTORICAL BACKTEST (Phase 2) ══ -->
+<div class="card"><h3>📊 HISTORICAL BACKTEST</h3>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+  <select id="bt-months" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;padding:5px;border-radius:4px;font-size:11px">
+    <option value="1">1 month</option>
+    <option value="3" selected>3 months</option>
+    <option value="6">6 months</option>
+  </select>
+  <button onclick="runBacktest()" class="btn" style="background:#1f6feb;color:#fff;border:none;padding:5px 12px;font-size:11px">▶ Run Backtest</button>
+  <a id="bt-csv" href="#" onclick="downloadBtCsv(event)" class="btn" style="background:#21262d;color:#3fb950;border:1px solid #30363d;padding:5px 12px;font-size:11px;text-decoration:none">⬇ Download CSV</a>
+  <button onclick="testTelegram()" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:5px 12px;font-size:11px">🧪 Test Telegram</button>
+</div>
+<div id="bt-status" style="color:#6e7681;font-size:11px;margin-bottom:8px"><i>Pick a window and run a backtest. First run fetches history and may take ~30–60s.</i></div>
+<div id="bt-metrics" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
+<canvas id="bt-equity" height="120" style="display:none;width:100%;background:#0d1117;border:1px solid #30363d;border-radius:4px;margin-bottom:8px"></canvas>
+<div id="bt-note" style="color:#6e7681;font-size:9px;font-style:italic"></div>
+</div>
+<script>
+function btCard(label,val,color){return `<div style="flex:1;min-width:90px;background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:8px"><div style="color:#6e7681;font-size:9px">${label}</div><div style="color:${color};font-size:16px;font-weight:bold">${val}</div></div>`;}
+function drawEquity(curve){
+  const cv=document.getElementById('bt-equity');cv.style.display='block';
+  const ctx=cv.getContext('2d');const W=cv.width=cv.clientWidth,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  if(!curve||curve.length<2)return;
+  const eq=curve.map(p=>p.equity);const mn=Math.min(...eq),mx=Math.max(...eq);const rng=(mx-mn)||1;
+  ctx.strokeStyle='#3fb950';ctx.lineWidth=1.5;ctx.beginPath();
+  curve.forEach((p,i)=>{const x=i/(curve.length-1)*(W-8)+4;const y=H-8-((p.equity-mn)/rng)*(H-16);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+  ctx.strokeStyle='#30363d';ctx.lineWidth=0.5;ctx.beginPath();
+  const y0=H-8-((curve[0].equity-mn)/rng)*(H-16);ctx.moveTo(4,y0);ctx.lineTo(W-4,y0);ctx.stroke();
+}
+function runBacktest(){
+  const m=document.getElementById('bt-months').value;
+  const st=document.getElementById('bt-status');
+  st.innerHTML='<span style="color:#d29922">⏳ Running backtest over '+m+' month(s)… fetching Binance history…</span>';
+  fetch('/admin/historical_backtest?months='+m).then(r=>r.json()).then(d=>{
+    if(d.error){st.innerHTML='<span style="color:#FF4500">Error: '+d.error+'</span>';return;}
+    st.innerHTML='<span style="color:#3fb950">✓ '+d.start+' → '+d.end+' · '+d.total_trades+' trades ('+d.skipped_by_circuit_breaker+' skipped by circuit-breaker)</span>';
+    const pfc=d.profit_factor>=1.5?'#3fb950':(d.profit_factor>=1?'#d29922':'#FF4500');
+    const wrc=d.win_rate>=50?'#3fb950':'#d29922';
+    const ddc=d.max_drawdown_pct<=15?'#3fb950':(d.max_drawdown_pct<=30?'#d29922':'#FF4500');
+    const nrc=d.net_return_pct>=0?'#3fb950':'#FF4500';
+    const mt=document.getElementById('bt-metrics');mt.style.display='flex';
+    mt.innerHTML=btCard('Win Rate',d.win_rate+'%',wrc)+btCard('Profit Factor',d.profit_factor,pfc)
+      +btCard('Max Drawdown',d.max_drawdown_pct+'%',ddc)+btCard('Net Return',d.net_return_pct+'%',nrc)
+      +btCard('End Equity','$'+d.end_equity,nrc)+btCard('W / L',d.wins+' / '+d.losses,'#c9d1d9');
+    drawEquity(d.equity_curve);
+    document.getElementById('bt-note').textContent='ℹ '+d.note;
+  }).catch(e=>{st.innerHTML='<span style="color:#FF4500">Request failed: '+e+'</span>';});
+}
+function downloadBtCsv(ev){ev.preventDefault();const m=document.getElementById('bt-months').value;window.location='/admin/backtest_csv?months='+m;}
+function testTelegram(){
+  const st=document.getElementById('bt-status');st.innerHTML='<span style="color:#d29922">⏳ Sending test message…</span>';
+  fetch('/admin/test_telegram').then(r=>r.json()).then(d=>{
+    st.innerHTML='<span style="color:'+(d.ok?'#3fb950':'#FF4500')+'">'+(d.ok?'✓ ':'✗ ')+d.message+'</span>';
+  }).catch(e=>{st.innerHTML='<span style="color:#FF4500">Request failed: '+e+'</span>';});
+}
+</script>
+
+<!-- ══ MY HOLDINGS / INVENTORY ══ -->
+<div class="card"><h3>📦 MY HOLDINGS (INVENTORY)</h3>
+<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Track coins you already own — get a Telegram+Email alert when it looks like a good time to sell.</p>
+<form method="POST" action="/admin/add_holding"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<input type="text" name="symbol" placeholder="BTC" style="width:90px" required/>
+<input type="number" name="quantity" placeholder="Quantity" step="any" style="width:110px" required/>
+<input type="number" name="buy_price" placeholder="Buy Price" step="any" style="width:110px" required/>
+<input type="number" name="target_pct" placeholder="Target %" value="15" style="width:100px"/>
+<button type="submit" class="btn btn-blue">+ Add Holding</button></div></form>
+<table style="margin-top:10px"><thead><tr><th>Symbol</th><th>Qty</th><th>Buy Price</th><th>Current</th><th>P/L%</th><th></th></tr></thead>
+<tbody id="holdings-tbody"><tr><td colspan="6" style="color:#444">Loading…</td></tr></tbody></table>
+</div>
+<script>
+function loadHoldings(){
+  fetch('/admin/holdings_status').then(r=>r.json()).then(hs=>{
+    const tb=document.getElementById('holdings-tbody');
+    if(!hs.length){tb.innerHTML='<tr><td colspan="6" style="color:#444">No holdings added yet</td></tr>';return;}
+    tb.innerHTML=hs.map(h=>{
+      const pnlColor=h.pnl_pct>=0?'#3fb950':'#FF4500';
+      return `<tr>
+        <td style="color:#FFD700">${h.symbol.replace('USDT','')}</td>
+        <td>${h.quantity}</td>
+        <td>${h.buy_price}</td>
+        <td>${h.current_price||'—'}</td>
+        <td style="color:${pnlColor}">${h.pnl_pct}%</td>
+        <td><form method="POST" action="/admin/delete_holding" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="symbol" value="${h.symbol}"/>
+          <button type="submit" class="btn btn-red" style="padding:2px 8px">✕</button></form></td>
+      </tr>`;
+    }).join('');
+  }).catch(()=>{});
+}
+loadHoldings();
+setInterval(loadHoldings, 20000);
+</script>
+
+<!-- ══ LIVE BINANCE HOLDINGS (real account balances, read-only) ══ -->
+<div class="card"><h3>🏦 LIVE BINANCE HOLDINGS <span style="font-size:10px;color:#555;font-weight:normal">(real account balances — read-only)</span></h3>
+<p style="color:#8b949e;font-size:11px;margin-bottom:10px">Pulled directly from your connected Binance API key. Requires "Enable Reading" permission — no trading is performed here.</p>
+<button onclick="loadLiveHoldings()" class="btn btn-blue" style="padding:6px 14px;font-size:11px;margin-bottom:10px">↻ Fetch Live Holdings</button>
+<table class="ca-tbl"><thead><tr><th>Asset</th><th>Free</th><th>Locked</th><th>Total</th><th>Est. USD</th></tr></thead>
+<tbody id="live-holdings-tbody"><tr><td colspan="5" style="color:#555">Click "Fetch Live Holdings" to load — requires a saved Binance API key above.</td></tr></tbody>
+</table>
+</div>
+<script>
+function loadLiveHoldings(){
+  const tb=document.getElementById('live-holdings-tbody');
+  tb.innerHTML='<tr><td colspan="5" style="color:#d29922">⏳ Fetching from Binance…</td></tr>';
+  fetch('/admin/live_binance_holdings').then(r=>r.json()).then(d=>{
+    if(d.error){
+      tb.innerHTML=`<tr><td colspan="5" style="color:#FF4500">❌ ${d.error}</td></tr>`;
+      return;
+    }
+    const hs=d.holdings||[];
+    if(!hs.length){
+      tb.innerHTML='<tr><td colspan="5" style="color:#555">No non-zero balances found on this account.</td></tr>';
+      return;
+    }
+    tb.innerHTML=hs.map(h=>`<tr>
+      <td style="color:#FFD700;font-weight:bold">${h.asset}</td>
+      <td>${h.free}</td>
+      <td>${h.locked}</td>
+      <td>${h.total}</td>
+      <td style="color:#3fb950">${h.usd_value!==null?'$'+h.usd_value:'—'}</td>
+    </tr>`).join('');
+  }).catch(e=>{
+    tb.innerHTML=`<tr><td colspan="5" style="color:#FF4500">Request failed: ${e}</td></tr>`;
+  });
+}
+</script>
+
+<!-- ══ HOT COINS ══ -->
+<div class="card"><h3>🔥 HOT COINS (3+ signals/hr)</h3>
+<table><thead><tr><th>Symbol</th><th>Count</th><th>Since</th></tr></thead><tbody>
+{% for h in hot_coins %}<tr><td>{{ h.symbol }}</td><td style="color:#FF6B35">{{ h.count }}</td><td>{{ h.since }}</td></tr>{% else %}<tr><td colspan="3" style="color:#444">No hot coins active</td></tr>{% endfor %}
+</tbody></table></div>
+
+<!-- ══ RECENT ALERTS ══ -->
+<div class="card"><h3>🔔 RECENT ALERTS</h3>
+<table><thead><tr><th>Time</th><th>Type</th><th>Symbol</th><th>Conf%</th><th>Traffic</th><th>Detail</th></tr></thead><tbody>
+{% for a in alerts[:20] %}<tr><td style="color:#444;font-size:10px">{{ a.time }}</td>
+<td style="color:{{ '#FF4500' if a.type=='WHALE' else '#da70d6' }}">{{ a.type }}</td>
+<td>{{ a.symbol }}</td><td style="color:#FFD700">{{ a.confidence }}%</td>
+<td class="{{ 'green' if a.traffic=='GREEN' else 'yellow' if a.traffic=='YELLOW' else 'red' }}">{{ a.traffic or '—' }}</td>
+<td style="font-size:10px;color:#6e7681">{{ a.detail }}</td></tr>{% endfor %}</tbody></table></div>
+
+<!-- ══ AUDIT LOG ══ -->
+<div class="card"><h3>📋 AUDIT LOG</h3>
+<div class="form-row" style="margin-bottom:10px">
+<form method="GET" action="/admin/audit_log" style="display:flex;gap:8px;flex-wrap:wrap">
+<input type="date" name="date_from" value="{{ today }}"/><input type="date" name="date_to" value="{{ today }}"/>
+<select name="fmt"><option value="html">HTML</option><option value="csv">CSV ↓</option></select>
+<button type="submit" class="btn btn-blue">Export Audit Log</button></form>
+<form method="POST" action="/admin/refresh_scan" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<button type="submit" class="btn btn-green" onclick="return confirm('Force an immediate scan? This refreshes all signal data.')">🔄 Force Refresh Scan</button></form>
+</div>
+<div class="log-box">{{ audit_preview }}</div></div>
+
+<!-- ══ CLIENT MANAGEMENT ══ -->
+<div class="card"><h3>👥 CLIENT MANAGEMENT</h3>
+<p style="color:#555;font-size:11px;margin-bottom:10px">Add/remove client access. Changes sync to Google Sheets USERS tab on next scan cycle.</p>
+<form method="POST" action="/admin/add_client"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><div class="form-row">
+<input type="text" name="name" placeholder="Username" style="width:110px" required/>
+<input type="text" name="uid" placeholder="UID/ID" style="width:80px" required/>
+<input type="password" name="password" placeholder="Password" style="width:110px" required/>
+<input type="text" name="expiry" placeholder="UNLIMITED or YYYY-MM-DD" style="width:160px"/>
+<input type="number" name="sig_limit" placeholder="Signals/day" value="100" style="width:100px"/>
+<button type="submit" class="btn btn-blue">+ Add Client</button></div></form>
+{% if clients %}
+<table style="margin-top:12px"><thead><tr><th>Name</th><th>UID</th><th>Status</th><th>Expiry</th><th>Sig/Day</th><th></th></tr></thead><tbody>
+{% for c in clients %}<tr>
+<td style="color:#3fb950">{{ c.name }}</td>
+<td style="color:#FFD700">{{ c.uid }}</td>
+<td><span style="color:{{ '#3fb950' if c.status=='ACTIVE' else '#FF4500' }}">{{ c.status }}</span></td>
+<td style="color:#555;font-size:10px">{{ c.expiry }}</td>
+<td style="color:#8b949e">{{ c.sig_limit }}</td>
+<td>
+<form method="POST" action="/admin/toggle_client" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="name" value="{{ c.name }}"/>
+<button type="submit" class="btn" style="background:#21262d;color:#58a6ff;border:1px solid #30363d;padding:2px 8px">{{ 'Disable' if c.status=='ACTIVE' else 'Enable' }}</button></form>
+<form method="POST" action="/admin/delete_client" style="display:inline;margin-left:4px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="name" value="{{ c.name }}"/>
+<button type="submit" class="btn btn-red" style="padding:2px 8px" onclick="return confirm('Remove {{ c.name }}?')">✕</button></form>
+</td></tr>{% endfor %}</tbody></table>
+{% else %}<p style="color:#444;font-size:11px;margin-top:8px">No clients registered.</p>{% endif %}
+</div>
+
+<!-- ══ ADMIN CONTROLS ══ -->
+<div class="card"><h3 style="color:#FF4500">⚠️ ADMIN CONTROLS</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<form method="POST" action="/admin/refresh_scan" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<button type="submit" class="btn btn-green" onclick="return confirm('Force a full data scan now?')">🔄 Refresh/Reconnect</button></form>
+<form method="GET" action="/admin/audit_log" style="display:inline">
+<input type="hidden" name="date_from" value="{{ today }}"/>
+<input type="hidden" name="date_to" value="{{ today }}"/>
+<input type="hidden" name="fmt" value="csv"/>
+<button type="submit" class="btn btn-blue">📥 Export Audit Log</button></form>
+<form method="POST" action="/admin/clear_history" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<button type="submit" class="btn btn-red" onclick="return confirm('Clear all alert history?')">🗑 Clear Alert History</button></form>
+<form method="POST" action="/admin/clear_backtest" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<button type="submit" class="btn btn-red" onclick="return confirm('Clear backtest results + stats?')">🗑 Clear Backtest</button></form>
+<form method="POST" action="/admin/clear_whale_copy" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<button type="submit" class="btn btn-red" onclick="return confirm('Clear all Whale Copy trades and signals?')">🐋 Clear Whale Copy</button></form>
+<form method="POST" action="/admin/kill_switch" style="display:inline;margin-left:12px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+<button type="submit" class="btn btn-red" style="background:#8b0000;border:2px solid #ff0000;padding:8px 18px;font-weight:bold;font-size:13px"
+  onclick="return confirm('🛑 EMERGENCY KILL-SWITCH\\n\\nThis will:\\n• Cancel ALL open paper/backtest trades\\n• Force PAPER MODE on\\n• Block new entries (circuit-breaker)\\n\\nAre you sure?')">
+  🛑 PANIC — KILL ALL TRADES</button></form>
+</div></div>
+
+</div></body></html>

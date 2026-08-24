@@ -1,0 +1,13 @@
+<!DOCTYPE html><html><head><title>V6 Admin</title>
+<style>body{background:#0a0a0f;color:#c9d1d9;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.box{background:#161b22;padding:40px;border:1px solid #30363d;border-radius:8px;min-width:320px;text-align:center}
+h2{color:#FFD700;margin-bottom:24px}input{width:100%;padding:10px;margin:8px 0;background:#0d1117;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;box-sizing:border-box}
+button{width:100%;padding:12px;background:#1f6feb;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-top:8px}
+.err{color:#FF4500;margin-top:12px}.warn{color:#FFA500;font-size:12px;margin-top:8px}</style></head>
+<body><div class="box"><h2>🔐 V6 ADMIN PORTAL</h2>
+{% if locked %}<p class="err">⛔ Too many failed attempts. Try later.</p>{% endif %}
+{% if timeout %}<p class="err">⏰ Session expired.</p>{% endif %}
+{% if error %}<p class="err">❌ Invalid password.</p>{% endif %}
+<form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="password" name="password" placeholder="Master Password" autofocus/>
+<button type="submit">LOGIN</button></form>
+<p class="warn">3 failed attempts = 30-minute lockout</p></div></body></html>
