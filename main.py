@@ -2636,7 +2636,12 @@ def v6_assets(fname):
 @app.route("/dashboard_data")
 def dashboard_data():
     try:
-        return jsonify(GLOBAL_DATA)
+        # oco_manager / ptp_manager are live internal objects used for real
+        # trading (OCO brackets, partial TP) — they were never meant to be
+        # sent to the frontend and aren't JSON-serializable. Exclude them
+        # from the API response without touching GLOBAL_DATA itself.
+        _safe_data = {k: v for k, v in GLOBAL_DATA.items() if k not in ("oco_manager", "ptp_manager")}
+        return jsonify(_safe_data)
     except Exception:
         import traceback
         tb = traceback.format_exc()
