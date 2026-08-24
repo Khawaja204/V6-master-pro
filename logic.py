@@ -426,6 +426,48 @@ def get_binance_health() -> dict:
     return h
 
 
+def _binance_get_via_proxy(path: str, params: dict = None, timeout: int = 10):
+    """Retry a Binance request through the configured proxy.
+
+    A proxy is deliberately only used after a direct request receives HTTP
+    451. This keeps the normal path fast and avoids routing unrelated traffic
+    through a potentially slower third-party proxy.
+    """
+    if _PROXY_SESSION is None:
+        return None
+
+    last_err = ""
+    for host in BINANCE_HOSTS:
+        try:
+            resp = _PROXY_SESSION.get(host + path, params=params, timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            last_err = f"{type(e).__name__}: {e}"
+            log.warning(f"[BINANCE-PROXY] {host} failed ({last_err}); trying next host…")
+            continue
+
+        if resp.status_code == 451:
+            last_err = f"HTTP 451 from {host} through proxy"
+            log.warning(f"[BINANCE-PROXY] {last_err}; trying next host…")
+            continue
+        if resp.status_code == 429:
+            last_err = f"HTTP 429 from {host} through proxy"
+            log.warning(f"[BINANCE-PROXY] {last_err}; trying next host…")
+            continue
+        if resp.status_code in _RETRYABLE_STATUS:
+            last_err = f"HTTP {resp.status_code} from {host} through proxy"
+            log.warning(f"[BINANCE-PROXY] {last_err}; trying next host…")
+            continue
+
+        _GEO_BLOCK["active"] = False
+        _mark_health(True, host=f"{host} (proxy)")
+        log.info(f"[BINANCE-PROXY] Request succeeded via {host}")
+        return resp
+
+    _mark_health(False, error=last_err or "Proxy request failed for all Binance hosts")
+    log.error(f"[BINANCE-PROXY] All Binance hosts failed. Last error: {last_err}")
+    return None
+
+
 def _binance_get(path: str, params: dict = None, timeout: int = 10):
     """GET with automatic host failover + 429 exponential backoff.
 
@@ -462,8 +504,15 @@ def _binance_get(path: str, params: dict = None, timeout: int = 10):
                 log.warning(f"[BINANCE] {host} unreachable ({last_err}); trying next host…")
                 break  # network error → skip remaining attempts on this host
             if resp.status_code == 451:
-                # Geo-restriction: all Binance hosts return the same 451 from
-                # a blocked IP. Log once, set cooldown, bail out immediately.
+                # Geo-restriction: use the configured proxy before entering
+                # cooldown. A successful proxy request clears the geo-block.
+                if _PROXY_SESSION is not None:
+                    proxied = _binance_get_via_proxy(path, params=params, timeout=timeout)
+                    if proxied is not None:
+                        return proxied
+
+                # All direct Binance hosts return the same 451 from a blocked
+                # IP. Without a working proxy, retrying them is pointless.
                 _GEO_BLOCK["active"]      = True
                 _GEO_BLOCK["detected_at"] = time.time()
                 _mark_health(False, error="HTTP 451 Restricted Location — IP geo-blocked by Binance")

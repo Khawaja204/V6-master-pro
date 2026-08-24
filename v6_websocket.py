@@ -32,6 +32,7 @@ BINANCE_WS_PROXY: str = os.getenv("BINANCE_WS_PROXY", os.getenv("BINANCE_PROXY",
 _ws_proxy_host: str   = ""
 _ws_proxy_port: int   = 0
 _ws_proxy_auth: tuple = ()
+_ws_proxy_type: str   = "http"
 
 if BINANCE_WS_PROXY:
     try:
@@ -39,6 +40,8 @@ if BINANCE_WS_PROXY:
         _ws_proxy_host = _p.hostname or ""
         _ws_proxy_port = _p.port or 8080
         _ws_proxy_auth = (_p.username, _p.password) if _p.username else ()
+        if (_p.scheme or "").lower().startswith("socks"):
+            _ws_proxy_type = "socks5"
         log.info(f"[WS] Proxy configured → {_ws_proxy_host}:{_ws_proxy_port}")
     except Exception as _pe:
         log.warning(f"[WS] Could not parse BINANCE_WS_PROXY (ignored): {_pe}")
@@ -220,6 +223,7 @@ def start_websocket_feed():
                 if _ws_proxy_host:
                     proxy_kwargs["http_proxy_host"] = _ws_proxy_host
                     proxy_kwargs["http_proxy_port"] = _ws_proxy_port
+                    proxy_kwargs["http_proxy_type"] = _ws_proxy_type
                     if _ws_proxy_auth:
                         proxy_kwargs["http_proxy_auth"] = _ws_proxy_auth
 

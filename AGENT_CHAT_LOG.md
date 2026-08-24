@@ -5,6 +5,20 @@
 
 ---
 
+## [2026-08-24] TASK — Complete Binance Proxy Routing + Fallbacks
+
+**Files changed:** `logic.py`, `v6_websocket.py`
+
+**Completed:**
+- Added `_binance_get_via_proxy()` to retry HTTP 451 requests through `BINANCE_PROXY`, with Binance host failover and health-state updates.
+- Direct Binance requests now attempt the configured proxy before entering the geo-block cooldown.
+- Added SOCKS5 proxy-type handling for `websocket-client` via `http_proxy_type`.
+- Preserved the existing CoinGecko fallback and REST polling fallback behavior.
+
+**Verification:** `py_compile` and AST syntax checks passed for both files. Mocked HTTP 451 → proxy success test passed. HTTP and SOCKS5 WebSocket proxy parsing tests passed.
+
+---
+
 ## [2026-08-05] TASK — Binance 451 Geo-Block Handling + Render Keep-Alive
 
 **Triggered by:** Two production issues — Binance blocking Render's server IP with HTTP 451 (geo-restriction) causing error spam, and Render free-tier spinning the app down after 15 min of inactivity.
