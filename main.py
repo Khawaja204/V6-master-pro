@@ -2635,7 +2635,13 @@ def v6_assets(fname):
 
 @app.route("/dashboard_data")
 def dashboard_data():
-    return jsonify(GLOBAL_DATA)
+    try:
+        return jsonify(GLOBAL_DATA)
+    except Exception:
+        import traceback
+        tb = traceback.format_exc()
+        log.error(f"[dashboard_data] serialization crash:\n{tb}")
+        return f"<pre>{tb}</pre>", 500
 
 
 @app.route("/get_data", methods=["GET", "POST"])
