@@ -430,6 +430,16 @@ body.simple-active .ms-sub { font-size:12px }
         <div><span style="color:var(--grey);font-size:9px">STOP LOSS</span><br><b id="cmd-sl" style="color:var(--red)">—</b></div>
         <div><span style="color:var(--grey);font-size:9px">TAKE PROFIT</span><br><b id="cmd-tp" style="color:var(--green)">—</b></div>
         <div><span style="color:var(--grey);font-size:9px">SIZE</span><br><b id="cmd-size">—</b></div>
+        <div><span style="color:var(--grey);font-size:9px">LIVE R:R</span><br><b id="cmd-rr" style="color:var(--gold)">—</b></div>
+        <div><span style="color:var(--grey);font-size:9px">QUANTITY</span><br><b id="cmd-quantity">—</b></div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:10px">
+        <span style="color:var(--grey);font-size:8px">SIZE BY</span>
+        <button class="rsi-btn" onclick="setPositionBudget(10,'fixed')">$10</button>
+        <button class="rsi-btn" onclick="setPositionBudget(50,'fixed')">$50</button>
+        <button class="rsi-btn" onclick="setPositionBudget(1,'percent')">1% CAPITAL</button>
+        <button class="rsi-btn" onclick="setPositionBudget(5,'percent')">5% CAPITAL</button>
+        <span id="cmd-sizing-note" style="color:var(--grey);font-size:8px">Choose a budget</span>
       </div>
       <button id="cmd-execute-btn" disabled class="exec-btn go pg exec-btn-primary" onclick="cmdExecuteTrade()" style="margin-top:12px;opacity:.4;cursor:not-allowed;background:#222;color:#666;border-color:#333">
         EXECUTE TRADE NOW
@@ -1364,6 +1374,43 @@ function selectRsiCoin(symbol){
   if(d.inst_signals&&d.inst_signals.length) updateCommandCenter(d);
 }
 
+function setPositionBudget(value, mode){
+  window._positionBudget={value:Number(value),mode:mode};
+  renderPositionSizing();
+}
+
+function renderPositionSizing(){
+  const plan=window._cmdPlan||{};
+  const entry=Number(plan.entry), stop=Number(plan.stop), target=Number(plan.target);
+  const budget=window._positionBudget;
+  const rrEl=document.getElementById('cmd-rr');
+  const qtyEl=document.getElementById('cmd-quantity');
+  const noteEl=document.getElementById('cmd-sizing-note');
+  if(!Number.isFinite(entry)||!Number.isFinite(stop)||!Number.isFinite(target)||entry<=0||stop<=0||target<=0){
+    if(rrEl) rrEl.textContent='—';
+    if(qtyEl) qtyEl.textContent='—';
+    if(noteEl) noteEl.textContent='Waiting for valid entry, stop, and target';
+    return;
+  }
+  const risk=Math.abs(entry-stop);
+  const reward=Math.abs(target-entry);
+  const rr=risk>0?reward/risk:0;
+  if(rrEl){
+    rrEl.textContent=rr.toFixed(2)+':1';
+    rrEl.style.color=rr>=2?'var(--green)':rr>=1?'var(--gold)':'var(--red)';
+  }
+  if(!budget){
+    if(qtyEl) qtyEl.textContent='—';
+    if(noteEl) noteEl.textContent='Choose a budget';
+    return;
+  }
+  const capital=budget.mode==='percent'
+    ? Number(window._accountCapital||1000)*budget.value/100 : budget.value;
+  const quantity=risk>0?capital/risk:0;
+  if(qtyEl) qtyEl.textContent=quantity>0?quantity.toPrecision(6):'—';
+  if(noteEl) noteEl.textContent=`${budget.mode==='percent'?budget.value+'% capital':'$'+budget.value} · risk $${capital.toFixed(2)}`;
+}
+
 function setRsiTimeframe(interval){
   rsiTimeframe=interval;
   fetchRsiScan();
@@ -1682,6 +1729,12 @@ function updateCommandCenter(d){
   }
 
   window._cmdCoin = best.symbol;
+  window._cmdPlan = {
+    entry:Number((best.tp_zones||{}).entry_low||best.price||0),
+    stop:Number((best.tp_zones||{}).stop_loss||0),
+    target:Number((best.tp_zones||{}).tp1||0)
+  };
+  window._accountCapital=Number(d.account_balance_usdt||d.fund_limit_usdt||1000);
   const v6=best.v6||{};
   const inst=best.inst||{};
   const tp=best.tp_zones||{};
@@ -1704,6 +1757,7 @@ function updateCommandCenter(d){
   if(slEl) slEl.textContent = fmt6(tp.stop_loss||0);
   if(tpEl) tpEl.textContent = fmt6(tp.tp1||0);
   if(sizeEl) sizeEl.textContent = (sizing.alloc_usdt ? '$'+sizing.alloc_usdt+' ('+(sizing.alloc_pct||0)+'%)' : '—');
+  renderPositionSizing();
 
   const canExecute = label==='BUY';
   if(execBtn){
