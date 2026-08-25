@@ -21,7 +21,7 @@ def _admin_required_proxy(fn):
 def _limiter_limit(rule):
     return _main().limiter.limit(rule)
 
-_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health'}
+_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health', 'market_overview_route'}
 bp = Blueprint("api", __name__)
 
 @bp.route("/dashboard_data")
@@ -78,6 +78,12 @@ def status():
         "active_exchange": GLOBAL_DATA["active_exchange"],
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
     })
+
+
+@bp.route("/market_overview")
+@_sync_main_state
+def market_overview_route():
+    return jsonify(GLOBAL_DATA.get("market_overview", {}))
 
 
 @bp.route("/sniper_data")

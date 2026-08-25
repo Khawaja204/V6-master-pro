@@ -24,7 +24,7 @@ from logic import (
     compute_vwap, fetch_klines,
     fetch_macd_for_symbol, compute_v6_final_score,
     calculate_wall_proximity, detect_spoofing, blink_to_push_check,
-    detect_whale_copy_signals, is_stablecoin_pair,
+    detect_whale_copy_signals, is_stablecoin_pair, DEFAULT_STABLECOIN_BASES,
     fetch_ticker_24h, score_coin, fetch_rsi_for_symbol,
     estimate_time_to_target, fetch_large_trades, fetch_eth_exchange_flows,
     detect_combo_signals,
@@ -261,6 +261,7 @@ GLOBAL_DATA = {
     "today_signals":  0,
     "top_coin_today": None,
     "volume_surge":   [],
+    "market_overview": {},
     "smart_divergence": [],
     "upgrade_log":    [],
     "paper_mode":      True,  # HARDCODED SAFETY: always starts in PAPER mode; real execution blocked until API keys verified
@@ -2787,7 +2788,11 @@ def _refresh_market_cap_data():
     instead of paying for historical data calls. price_chg_24h_pct /
     price_chg_7d_pct come straight from CoinGecko (market cap / price
     change, not volume — a separate advanced metric alongside the
-    volume-based daily/weekly %)."""
+    volume-based daily/weekly %). Also refreshes the Top Market Status
+    cards (total market cap, top-20 basket index, an approximate
+    Altcoin Season Index, and the Fear & Greed Index) in the same cycle
+    since they're all sourced from CoinGecko/alternative.me and share
+    the same 6h cadence."""
     import requests as _rq
     try:
         coins = []
@@ -2796,7 +2801,7 @@ def _refresh_market_cap_data():
                 "https://api.coingecko.com/api/v3/coins/markets",
                 params={"vs_currency": "usd", "order": "market_cap_desc",
                         "per_page": 250, "page": page, "sparkline": "false",
-                        "price_change_percentage": "24h,7d"},
+                        "price_change_percentage": "24h,7d,30d"},
                 timeout=15,
             )
             if r.status_code == 200:
@@ -2814,6 +2819,7 @@ def _refresh_market_cap_data():
                 "id": c.get("id", ""),
                 "price_chg_24h_pct": c.get("price_change_percentage_24h_in_currency"),
                 "price_chg_7d_pct": c.get("price_change_percentage_7d_in_currency"),
+                "price_chg_30d_pct": c.get("price_change_percentage_30d_in_currency"),
             }
 
         override_ids = set(MARKET_CAP_SYMBOL_OVERRIDES.values())
@@ -2862,6 +2868,62 @@ def _refresh_market_cap_data():
         log.warning(f"Market cap refresh failed: {e}")
 
 
+def _refresh_market_overview(coins: list):
+    """Top Market Status cards: Total Market Cap (24h change), a Top-20
+    basket index (avg 24h change of the top 20 non-stablecoins — labeled
+    plainly rather than as the proprietary CMC20 index, since that figure
+    itself isn't publicly available without a paid CoinMarketCap key), an
+    approximate Altcoin Season Index (% of the top 50 non-stablecoin,
+    non-BTC coins that outperformed BTC over 30D — the closest window the
+    free CoinGecko markets endpoint offers to the standard 90D definition,
+    clearly labeled as an approximation), and the Fear & Greed Index
+    (alternative.me, free, no key)."""
+    import requests as _rq
+    overview = GLOBAL_DATA.get("market_overview", {})
+    try:
+        g = _rq.get("https://api.coingecko.com/api/v3/global", timeout=15)
+        if g.status_code == 200:
+            gd = g.json().get("data", {})
+            overview["total_market_cap_usd"] = gd.get("total_market_cap", {}).get("usd", 0)
+            overview["market_cap_change_24h_pct"] = round(gd.get("market_cap_change_percentage_24h_usd", 0) or 0, 2)
+    except Exception as e:
+        log.warning(f"[MARKET-OVERVIEW] global fetch failed: {e}")
+
+    try:
+        stables = set(DEFAULT_STABLECOIN_BASES)
+        non_stable = [c for c in coins if (c.get("symbol") or "").upper() not in stables]
+        top20 = non_stable[:20]
+        chg24 = [c.get("price_change_percentage_24h_in_currency") for c in top20
+                 if c.get("price_change_percentage_24h_in_currency") is not None]
+        overview["top20_basket_avg_24h_pct"] = round(sum(chg24) / len(chg24), 2) if chg24 else 0.0
+
+        btc = next((c for c in coins if (c.get("symbol") or "").upper() == "BTC"), None)
+        btc_30d = btc.get("price_change_percentage_30d_in_currency") if btc else None
+        top50_alts = [c for c in non_stable[:51] if (c.get("symbol") or "").upper() != "BTC"][:50]
+        if btc_30d is not None and top50_alts:
+            valid = [c for c in top50_alts if c.get("price_change_percentage_30d_in_currency") is not None]
+            outperformed = [c for c in valid if c["price_change_percentage_30d_in_currency"] > btc_30d]
+            overview["altcoin_season_index"] = round(len(outperformed) / len(valid) * 100) if valid else None
+        else:
+            overview["altcoin_season_index"] = None
+        overview["altcoin_season_note"] = "Approx. — % of top 50 alts beating BTC over 30D (free-tier data; standard index uses 90D)"
+    except Exception as e:
+        log.warning(f"[MARKET-OVERVIEW] basket/altseason calc failed: {e}")
+
+    try:
+        fg = _rq.get("https://api.alternative.me/fng/", timeout=10)
+        if fg.status_code == 200:
+            fgd = (fg.json().get("data") or [{}])[0]
+            overview["fear_greed_value"] = int(fgd.get("value", 0))
+            overview["fear_greed_label"] = fgd.get("value_classification", "—")
+    except Exception as e:
+        log.warning(f"[MARKET-OVERVIEW] fear&greed fetch failed: {e}")
+
+    overview["updated_at"] = _pkt_ts()
+    GLOBAL_DATA["market_overview"] = overview
+    log.info(f"[MARKET-OVERVIEW] Refreshed: {overview}")
+
+
 def market_cap_refresh_loop():
     """Runs every 6 hours. Waits 60s on boot so it doesn't compete with the
     first market scan for outbound bandwidth."""
@@ -2869,6 +2931,32 @@ def market_cap_refresh_loop():
     while True:
         _refresh_market_cap_data()
         time.sleep(6 * 3600)
+
+
+def market_overview_refresh_loop():
+    """Top Market Status cards (Total Market Cap, Top-20 basket index,
+    approx. Altcoin Season Index, Fear & Greed) refresh every 15 minutes —
+    much faster than the 6h per-coin market-cap cycle above, since these
+    are cheap aggregate stats users expect to look current. Uses its own
+    lightweight top-50 CoinGecko fetch rather than waiting on the heavy
+    top-500 cycle. Waits 90s on boot to stagger away from the other
+    startup fetches."""
+    import requests as _rq
+    time.sleep(90)
+    while True:
+        try:
+            r = _rq.get(
+                "https://api.coingecko.com/api/v3/coins/markets",
+                params={"vs_currency": "usd", "order": "market_cap_desc",
+                        "per_page": 50, "page": 1, "sparkline": "false",
+                        "price_change_percentage": "24h,30d"},
+                timeout=15,
+            )
+            coins50 = r.json() if r.status_code == 200 else []
+            _refresh_market_overview(coins50)
+        except Exception as e:
+            log.warning(f"[MARKET-OVERVIEW] loop failed: {e}")
+        time.sleep(15 * 60)
 
 
 def _market_cap_pct(symbol: str) -> dict:
@@ -2955,6 +3043,7 @@ if __name__ == "__main__":
     threading.Thread(target=whale_copy_check_loop, daemon=True).start()
     threading.Thread(target=combo_check_loop,      daemon=True).start()
     threading.Thread(target=market_cap_refresh_loop, daemon=True).start()
+    threading.Thread(target=market_overview_refresh_loop, daemon=True).start()
     threading.Thread(target=holdings_check_loop,   daemon=True).start()
     threading.Thread(target=market_quiet_loop,    daemon=True).start()
     threading.Thread(target=telegram_bot_loop,    daemon=True).start()

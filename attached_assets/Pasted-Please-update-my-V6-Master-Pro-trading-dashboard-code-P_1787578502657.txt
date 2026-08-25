@@ -1,0 +1,37 @@
+Please update my V6 Master Pro trading dashboard code (Python / HTML / JS) to integrate these advanced features directly inside the COMMAND section and main trading terminal view, fully optimizing it for professional scalping:
+​5 Scalping Strategies with Instant Strategy-Based Filtering (Search & Category Boxes):
+​Dynamically display the active scalping strategy inside the COMMAND area based on the selected coin.
+​Strategy Filter Categories: Provide quick-select filter buttons/categories for all 5 scalping strategies:
+​1m Momentum Breakout
+​Order Flow Scalp
+​Range Grid Scalp
+​Volume Surge Scalp
+​Trend Pullback Scalp
+​Instant Strategy Filtering Feature: When the user clicks on any of these strategy categories, the system must instantly scan the market and display a list of all coins that currently match or qualify for that specific scalping strategy, similar to the RSI category filter.
+​Multi-Timeframe RSI Fold Window:
+​Provide a fold window (Dropdown / Popup Menu) on the dashboard featuring various timeframe RSI options (1m, 5m, 1h, 4h, 8h, 1d) so the desired timeframe can be easily selected.
+​RSI-Based Search & Category Box (Live Filtering):
+​Build a search and filter box with RSI category buttons (e.g., Oversold < 30, Low RSI 30-40, Bullish Momentum 50-60, Overbought > 70).
+​When the user selects an RSI category, the system must instantly filter and display only those coins whose live RSI matches that exact range.
+​One-Click Coin Selection & Heatmap/Screener:
+​Clicking on any coin from the strategy-filtered or RSI-filtered list with a "Single Click" must immediately load its live chart, multi-timeframe RSI, and quick plan parameters right onto the main COMMAND and Quick Plan interface.
+​Live Risk-to-Reward Ratio (R:R) & One-Click Position Sizing Calculator:
+​Automatically calculate and clearly display the live Risk-to-Reward Ratio (R:R) in the "Quick Plan" box where Entry, Stop Loss, and Take Profit are located, replacing any placeholder dashes ("-").
+​Position Size Calculator: Add quick capital percentage (%) or fixed dollar amount buttons (e.g., $10, $50) so the system automatically computes and displays the exact trade quantity/size based on the stop loss distance.
+​Dynamic RSI Data Fetching:
+​Whichever timeframe the user selects in the fold window, the backend must fetch live RSI data exclusively for that specific timeframe and update the dashboard in real-time.
+​Top Market Status Cards (CMC Style):
+​Add 4 live status cards at the top section of the dashboard (above the Command area), similar to CoinMarketCap, displaying:
+​Total Market Cap (with 24h change %)
+​CMC20 Index (or Top Altcoin basket index)
+​Altcoin Season Index (e.g., 41/100 meter style)
+​Fear & Greed Index (with numerical score and gauge/color)
+​Advanced Scalping Metrics, Candle Countdown & Visual Alerts:
+​Add quick indicators for Volume Spike / Recent Surge, Order Book Imbalance (Bid-Ask pressure), and Open Interest (OI) Change right inside the COMMAND section.
+​Candle Close Countdown Timer: Add a live countdown timer showing exact seconds remaining for the current candle (1m/5m) to close.
+​Visual Flash Alerts: Implement a subtle color flash or visual highlight on the command box whenever a coin triggers a high-probability setup or volume surge.
+​UI & Dark Mode Terminal Aesthetic:
+​Ensure all these new elements integrate seamlessly into the existing dark mode terminal interface without breaking any layout or design.
+​Preserve Original Structure & Files & Intelligent Completion:
+​Do not delete or remove any existing files, folders, or scripts. All original modules, routes, and historical data paths must remain completely safe and intact.
+​Note for Agent: Since I am updating the active COMMAND interface for high-speed Scalping, please review the layout and logic carefully. If any crucial scalping element is missing, feel free to intelligently add it. Test to ensure the server runs smoothly without crashing.

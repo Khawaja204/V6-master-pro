@@ -42,6 +42,14 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 .next-pill{background:#1a1a2e;border:1px solid var(--border);padding:2px 8px;border-radius:10px;font-size:10px}
 .conn-dot{color:var(--green)}
 
+/* TOP MARKET STATUS CARDS */
+#market-overview-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px 10px;background:#0a0a12;border-bottom:1px solid var(--border)}
+.mo-card{background:#0e0e18;border:1px solid var(--border);border-radius:2px;padding:7px 5px;text-align:center}
+.mo-label{font-size:8px;color:var(--grey);letter-spacing:.4px;text-transform:uppercase}
+.mo-value{font-size:14px;font-weight:bold;color:var(--white);margin-top:3px}
+.mo-sub{font-size:8px;color:var(--grey);margin-top:2px}
+@media(max-width:600px){#market-overview-row{grid-template-columns:1fr 1fr}}
+
 /* SIMPLE MODE */
 body.simple-active #tabs,
 body.simple-active #sniper-grid,
@@ -317,6 +325,30 @@ body.simple-active .ms-sub { font-size:12px }
   <div class="sb-right">
     <span class="next-pill">next <span id="next-cnt">30</span>s <span class="blink" style="color:var(--green)">●</span></span>
     <span><span class="conn-dot">●</span> connected: <span style="color:var(--orange)" id="sb-exch">BINANCE</span></span>
+  </div>
+</div>
+
+<!-- TOP MARKET STATUS CARDS -->
+<div id="market-overview-row">
+  <div class="mo-card">
+    <div class="mo-label">TOTAL MKT CAP</div>
+    <div class="mo-value" id="mo-mcap">—</div>
+    <div class="mo-sub" id="mo-mcap-chg">—</div>
+  </div>
+  <div class="mo-card">
+    <div class="mo-label">TOP 20 BASKET</div>
+    <div class="mo-value" id="mo-top20">—</div>
+    <div class="mo-sub">avg 24h chg</div>
+  </div>
+  <div class="mo-card">
+    <div class="mo-label">ALTCOIN SEASON</div>
+    <div class="mo-value" id="mo-altseason">—</div>
+    <div class="mo-sub">approx, 30D vs BTC</div>
+  </div>
+  <div class="mo-card">
+    <div class="mo-label">FEAR &amp; GREED</div>
+    <div class="mo-value" id="mo-fng">—</div>
+    <div class="mo-sub" id="mo-fng-label">—</div>
   </div>
 </div>
 
@@ -1029,6 +1061,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   }catch(e){}
   setTimeout(function(){initChart();fetchChart();},500);
   fetchAll();
+  fetchMarketOverview();
+  setInterval(fetchMarketOverview, 90000);
   updatePktClock();
   timer=setInterval(()=>{
     updatePktClock();
@@ -1783,6 +1817,48 @@ function updateCommandCenter(d){
   if(accChart && accChart.style.display==='block') renderCmdChart();
   if(accWhale && accWhale.style.display==='block') renderCmdWhale();
   if(accHistory && accHistory.style.display==='block') renderCmdHistory();
+}
+
+/* ── Top Market Status Cards (Total Mkt Cap / Top-20 Basket / Altcoin Season / Fear&Greed) ── */
+function fmtBigUsd(n){
+  if(!n) return '—';
+  if(n>=1e12) return '$'+(n/1e12).toFixed(2)+'T';
+  if(n>=1e9)  return '$'+(n/1e9).toFixed(2)+'B';
+  if(n>=1e6)  return '$'+(n/1e6).toFixed(2)+'M';
+  return '$'+n.toLocaleString();
+}
+
+function fetchMarketOverview(){
+  fetch('/market_overview').then(r=>r.json()).then(d=>{
+    const mcapEl=document.getElementById('mo-mcap');
+    const mcapChgEl=document.getElementById('mo-mcap-chg');
+    if(mcapEl) mcapEl.textContent = fmtBigUsd(d.total_market_cap_usd);
+    if(mcapChgEl){
+      const chg=d.market_cap_change_24h_pct;
+      mcapChgEl.textContent = (chg===undefined||chg===null) ? '—' : (chg>=0?'+':'')+chg+'% 24h';
+      mcapChgEl.style.color = (chg===undefined||chg===null) ? 'var(--grey)' : (chg>=0 ? 'var(--green)' : 'var(--red)');
+    }
+    const top20El=document.getElementById('mo-top20');
+    if(top20El){
+      const v=d.top20_basket_avg_24h_pct;
+      top20El.textContent = (v===undefined||v===null) ? '—' : (v>=0?'+':'')+v+'%';
+      top20El.style.color = (v===undefined||v===null) ? 'var(--white)' : (v>=0 ? 'var(--green)' : 'var(--red)');
+    }
+    const altEl=document.getElementById('mo-altseason');
+    if(altEl){
+      const v=d.altcoin_season_index;
+      altEl.textContent = (v===null||v===undefined) ? '—' : v+'/100';
+      altEl.style.color = (v===null||v===undefined) ? 'var(--white)' : (v>=75 ? 'var(--green)' : v<=25 ? 'var(--red)' : 'var(--gold)');
+    }
+    const fngEl=document.getElementById('mo-fng');
+    const fngLblEl=document.getElementById('mo-fng-label');
+    if(fngLblEl) fngLblEl.textContent = d.fear_greed_label || '—';
+    if(fngEl){
+      const v=d.fear_greed_value;
+      fngEl.textContent = (v===undefined||v===null) ? '—' : v;
+      fngEl.style.color = (v===undefined||v===null) ? 'var(--white)' : (v>=55 ? 'var(--green)' : v<=45 ? 'var(--red)' : 'var(--gold)');
+    }
+  }).catch(()=>{});
 }
 
 function fetchAll(){
