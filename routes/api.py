@@ -21,7 +21,7 @@ def _admin_required_proxy(fn):
 def _limiter_limit(rule):
     return _main().limiter.limit(rule)
 
-_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health', 'market_overview_route'}
+_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health', 'market_overview_route', 'oi_data_route'}
 bp = Blueprint("api", __name__)
 
 @bp.route("/dashboard_data")
@@ -84,6 +84,45 @@ def status():
 @_sync_main_state
 def market_overview_route():
     return jsonify(GLOBAL_DATA.get("market_overview", {}))
+
+
+@bp.route("/oi_data")
+@_sync_main_state
+def oi_data_route():
+    """Lightweight Open Interest fetch for whichever coin the Command
+    Center currently has selected — Binance Futures' public endpoint,
+    no API key needed, fetched on demand for just the one active symbol
+    (not every scanned coin) to stay cheap. Keeps a short in-memory
+    rolling history per symbol so a 5-minute % change can be reported
+    without needing a paid historical-OI data source."""
+    import requests as _rq
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol:
+        return jsonify({"error": "symbol required"}), 400
+    try:
+        r = _rq.get("https://fapi.binance.com/fapi/v1/openInterest",
+                     params={"symbol": symbol}, timeout=8)
+        if r.status_code != 200:
+            return jsonify({"symbol": symbol, "available": False})
+        oi_now = float(r.json().get("openInterest", 0))
+    except Exception as e:
+        return jsonify({"symbol": symbol, "available": False, "error": str(e)})
+
+    hist = GLOBAL_DATA.setdefault("oi_history", {})
+    now = time.time()
+    entries = hist.setdefault(symbol, [])
+    entries.append({"t": now, "oi": oi_now})
+    entries[:] = [e for e in entries if now - e["t"] <= 1800]  # keep last 30 min
+    hist[symbol] = entries[-60:]
+
+    baseline = next((e for e in entries if now - e["t"] >= 280), entries[0])
+    change_pct = round((oi_now - baseline["oi"]) / baseline["oi"] * 100, 2) if baseline["oi"] else 0.0
+
+    return jsonify({
+        "symbol": symbol, "available": True,
+        "open_interest": oi_now,
+        "change_pct_5m": change_pct,
+    })
 
 
 @bp.route("/sniper_data")

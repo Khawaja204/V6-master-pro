@@ -48,6 +48,10 @@ body{background:var(--bg);color:var(--white);font-family:var(--font);font-size:1
 .mo-label{font-size:8px;color:var(--grey);letter-spacing:.4px;text-transform:uppercase}
 .mo-value{font-size:14px;font-weight:bold;color:var(--white);margin-top:3px}
 .mo-sub{font-size:8px;color:var(--grey);margin-top:2px}
+
+/* COMMAND CENTER — high-probability setup flash alert */
+@keyframes cmdFlash{0%{box-shadow:0 0 0 rgba(0,255,136,0)}50%{box-shadow:0 0 22px rgba(0,255,136,0.85)}100%{box-shadow:0 0 0 rgba(0,255,136,0)}}
+.cmd-flash{animation:cmdFlash 1.1s ease-in-out 3}
 @media(max-width:600px){#market-overview-row{grid-template-columns:1fr 1fr}}
 
 /* SIMPLE MODE */
@@ -414,6 +418,33 @@ body.simple-active .ms-sub { font-size:12px }
     <div id="cmd-coin-name" style="font-size:11px;color:var(--grey);letter-spacing:.5px;margin-bottom:4px">Scanning for best setup...</div>
     <div id="cmd-verdict-label" style="font-size:32px;font-weight:bold;color:var(--grey);letter-spacing:1px">—</div>
     <div id="cmd-verdict-sub" style="font-size:12px;color:var(--grey);margin-top:4px">Score — / 100 &nbsp;|&nbsp; Confidence —%</div>
+  </div>
+
+  <!-- LIVE SCALPING METRICS -->
+  <div class="card" id="cmd-metrics-card" style="margin-bottom:8px">
+    <div class="ch" style="font-size:10px">📡 Live Scalping Metrics</div>
+    <div class="cb" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <div style="font-size:8px;color:var(--grey)">VOLUME SURGE</div>
+        <div id="cmd-vol-surge" style="font-size:12px;font-weight:bold;margin-top:2px">—</div>
+      </div>
+      <div>
+        <div style="font-size:8px;color:var(--grey)">ORDER BOOK IMBALANCE</div>
+        <div id="cmd-obi" style="font-size:12px;font-weight:bold;margin-top:2px">—</div>
+      </div>
+      <div>
+        <div style="font-size:8px;color:var(--grey)">OPEN INTEREST (5m)</div>
+        <div id="cmd-oi" style="font-size:12px;font-weight:bold;margin-top:2px">—</div>
+      </div>
+      <div>
+        <div style="font-size:8px;color:var(--grey)">CANDLE CLOSES IN</div>
+        <div style="font-size:12px;font-weight:bold;margin-top:2px">
+          <span id="cmd-candle-1m" style="color:var(--gold)">—</span><span style="color:var(--grey);font-size:8px"> 1m</span>
+          &nbsp;·&nbsp;
+          <span id="cmd-candle-5m" style="color:var(--gold)">—</span><span style="color:var(--grey);font-size:8px"> 5m</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="strategy-filter" id="strategy-filter">
@@ -1063,6 +1094,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   fetchAll();
   fetchMarketOverview();
   setInterval(fetchMarketOverview, 90000);
+  startCandleCountdown();
   updatePktClock();
   timer=setInterval(()=>{
     updatePktClock();
@@ -1582,6 +1614,79 @@ window._cmdCoin = null;
 window._cmdChart = null;
 window._cmdCandleSeries = null;
 
+/* ── Live Scalping Metrics: Volume Surge / OBI / Open Interest / Flash Alert ── */
+window._cmdOiFetchedFor = null;
+window._cmdLastFlashKey = null;
+
+function updateCmdMetrics(best, d, label, conf){
+  const surgeEl=document.getElementById('cmd-vol-surge');
+  const obiEl=document.getElementById('cmd-obi');
+  const oiEl=document.getElementById('cmd-oi');
+  const box=document.getElementById('cmd-verdict-box');
+  if(!surgeEl) return;
+
+  const inSurge = (d.volume_surge||[]).some(s=>s.symbol===best.symbol);
+  surgeEl.textContent = inSurge ? '🚀 ACTIVE' : 'No surge';
+  surgeEl.style.color = inSurge ? 'var(--green)' : 'var(--grey)';
+
+  const whaleMatch = (d.whale||[]).find(w=>w.symbol===best.symbol);
+  const obiVal = whaleMatch && whaleMatch.obi ? Number(whaleMatch.obi.obi||0) : null;
+  if(obiEl){
+    if(obiVal===null){ obiEl.textContent='—'; obiEl.style.color='var(--grey)'; }
+    else{
+      const bias = obiVal>0.15?'Bullish':obiVal<-0.15?'Bearish':'Neutral';
+      obiEl.textContent = `${obiVal.toFixed(2)} (${bias})`;
+      obiEl.style.color = obiVal>0.15?'var(--green)':obiVal<-0.15?'var(--red)':'var(--gold)';
+    }
+  }
+
+  // Open Interest — fetched once per coin change (not every 8s poll) to stay cheap
+  if(oiEl && window._cmdOiFetchedFor!==best.symbol){
+    window._cmdOiFetchedFor = best.symbol;
+    oiEl.textContent='Loading…'; oiEl.style.color='var(--grey)';
+    fetch(`/oi_data?symbol=${encodeURIComponent(best.symbol)}`).then(r=>r.json()).then(od=>{
+      if(window._cmdOiFetchedFor!==best.symbol) return; // coin changed while in flight
+      if(!od.available){ oiEl.textContent='N/A'; oiEl.style.color='var(--grey)'; return; }
+      const chg=od.change_pct_5m||0;
+      oiEl.textContent=(chg>=0?'+':'')+chg+'%';
+      oiEl.style.color = chg>0.5?'var(--green)':chg<-0.5?'var(--red)':'var(--gold)';
+    }).catch(()=>{ oiEl.textContent='N/A'; oiEl.style.color='var(--grey)'; });
+  }
+
+  // Flash alert: fires once per distinct (coin + BUY + surge/high-confidence) trigger
+  if(box){
+    const highProb = label==='BUY' && (inSurge || conf>=70);
+    const flashKey = highProb ? (best.symbol+'|'+label+'|'+inSurge) : null;
+    if(flashKey && flashKey!==window._cmdLastFlashKey){
+      window._cmdLastFlashKey = flashKey;
+      box.classList.remove('cmd-flash');
+      void box.offsetWidth; // restart animation
+      box.classList.add('cmd-flash');
+    } else if(!highProb){
+      window._cmdLastFlashKey = null;
+    }
+  }
+}
+
+function startCandleCountdown(){
+  function tick(){
+    const now=Date.now();
+    const oneEl=document.getElementById('cmd-candle-1m');
+    const fiveEl=document.getElementById('cmd-candle-5m');
+    if(oneEl){
+      const secs=60-Math.floor((now/1000)%60);
+      oneEl.textContent=String(secs).padStart(2,'0')+'s';
+    }
+    if(fiveEl){
+      const secs=300-Math.floor((now/1000)%300);
+      const m=Math.floor(secs/60), s=secs%60;
+      fiveEl.textContent=m+':'+String(s).padStart(2,'0');
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
 function pickBestCoinAuto(d){
   const sigs = d.inst_signals || [];
   if(!sigs.length) return null;
@@ -1779,6 +1884,7 @@ function updateCommandCenter(d){
   const score=Math.round(v6.score||0);
   const conf=Math.round(best.confidence||0);
   const sym=(best.symbol||'').replace('USDT','');
+  updateCmdMetrics(best, d, label, conf);
 
   nameEl.textContent = sym+' / USDT  (auto-selected — highest scoring setup)';
   const colors    = {BUY:'var(--green)', SELL:'var(--red)', WAIT:'var(--grey)'};
