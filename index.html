@@ -126,6 +126,17 @@ body.simple-active .ms-sub { font-size:12px }
 .s-inp{flex:1;background:#080810;border:1px solid var(--border);color:var(--white);padding:6px 8px;font-family:var(--font);font-size:11px;border-radius:2px}
 .s-btn{background:#0044aa;color:#fff;border:none;padding:6px 12px;cursor:pointer;font-family:var(--font);font-size:11px;border-radius:2px}
 #chart-box{background:#040408;height:180px;border:1px solid var(--border);border-radius:2px;margin-bottom:6px;overflow:hidden}
+.strategy-filter{background:#080810;border:1px solid var(--border);border-radius:2px;padding:6px 7px;margin-bottom:6px}
+.strategy-filter-hdr{display:flex;justify-content:space-between;align-items:center;color:var(--grey);font-size:8px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.strategy-filter-btns{display:flex;gap:3px;flex-wrap:wrap}
+.strategy-btn{background:#0a0a14;border:1px solid #333;color:#aaa;padding:4px 6px;font-family:var(--font);font-size:8px;cursor:pointer;border-radius:2px}
+.strategy-btn:hover,.strategy-btn.active{background:#003311;border-color:var(--green);color:var(--green)}
+#strategy-filter-list{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
+.strategy-match{background:#10101c;border:1px solid #292940;border-radius:2px;padding:4px 6px;color:var(--white);font-family:var(--font);font-size:8px;cursor:pointer;text-align:left}
+.strategy-match:hover{border-color:var(--green);background:#14251d}
+.strategy-match b{color:var(--green);margin-right:4px}
+.strategy-match em{display:block;color:var(--grey);font-size:7px;font-style:normal;margin-top:2px;max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strategy-empty{color:#666;font-size:8px;padding:3px 0}
 .dg{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px}
 .dg-l{color:var(--grey)}
 .dg-v{color:var(--white)}
@@ -347,6 +358,21 @@ body.simple-active .ms-sub { font-size:12px }
           <div class="search-row">
             <input class="s-inp" id="coin-inp" value="BTC / USDT" placeholder="🔍 Coin pair"/>
             <button class="s-btn" onclick="doSearch()">Search</button>
+          </div>
+          <div class="strategy-filter" id="strategy-filter">
+            <div class="strategy-filter-hdr">
+              <span>⚡ SCALP STRATEGY FILTER</span>
+              <span id="strategy-filter-meta">Select a category</span>
+            </div>
+            <div class="strategy-filter-btns" role="group" aria-label="Scalping strategy categories">
+              <button class="strategy-btn active" data-strategy="all" onclick="filterStrategies('all')">ALL</button>
+              <button class="strategy-btn" data-strategy="momentum" onclick="filterStrategies('momentum')">1m MOMENTUM BREAKOUT</button>
+              <button class="strategy-btn" data-strategy="order-flow" onclick="filterStrategies('order-flow')">ORDER FLOW SCALP</button>
+              <button class="strategy-btn" data-strategy="range-grid" onclick="filterStrategies('range-grid')">RANGE GRID SCALP</button>
+              <button class="strategy-btn" data-strategy="volume-surge" onclick="filterStrategies('volume-surge')">VOLUME SURGE SCALP</button>
+              <button class="strategy-btn" data-strategy="trend-pullback" onclick="filterStrategies('trend-pullback')">TREND PULLBACK SCALP</button>
+            </div>
+            <div id="strategy-filter-list" aria-live="polite"><span class="strategy-empty">Waiting for live scan data…</span></div>
           </div>
           <div style="display:flex;gap:4px;margin-bottom:5px">
 <button class="tf-btn" data-tf="1m" onclick="setTimeframe('1m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1m</button>
@@ -744,7 +770,7 @@ body.simple-active .ms-sub { font-size:12px }
 
 <script>
 // ── GLOBALS ──
-let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m';
+let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m', activeStrategyFilter='all';
 
 // ── TABS ──
 function toggleInfoPanel(){
@@ -1072,6 +1098,74 @@ function loadCoin(symbol){
   doSearch();
 }
 
+function strategyCandidate(coin, name){
+  const candidates=(coin.scalping_strategy&&coin.scalping_strategy.candidates)||[];
+  return candidates.find(c=>(c.strategy||'').toLowerCase()===name.toLowerCase())||null;
+}
+
+function strategyMatch(coin, key, d){
+  const best=coin.scalping_strategy||{};
+  const candidate=(name)=>strategyCandidate(coin,name);
+  const surgeSymbols=new Set((d.volume_surge||[]).map(s=>s.symbol));
+  if(key==='all') return best.best_score>0;
+  if(key==='momentum') return (candidate('1-Minute Momentum')||{}).score>0;
+  if(key==='order-flow') return (candidate('Order Book / Level 2')||{}).score>0;
+  if(key==='range-grid') return coin.trading_strategy==='SPOT_GRID' ||
+    (d.market_regime==='RANGING' && (candidate('Support/Resistance Bounce')||{}).score>0);
+  if(key==='volume-surge') return surgeSymbols.has(coin.symbol) ||
+    (candidate('1-Minute Momentum')||{}).score>0;
+  if(key==='trend-pullback') return (candidate('EMA 9/21 Crossover')||{}).score>0 ||
+    (d.market_regime==='TRENDING' && Number(coin.rsi)>=35 && Number(coin.rsi)<=60);
+  return false;
+}
+
+function strategyMatchReason(coin, key, d){
+  const s=coin.scalping_strategy||{};
+  const names={
+    momentum:'1-Minute Momentum',
+    'order-flow':'Order Book / Level 2',
+    'range-grid':'Support/Resistance Bounce',
+    'volume-surge':'1-Minute Momentum',
+    'trend-pullback':'EMA 9/21 Crossover'
+  };
+  const c=strategyCandidate(coin,names[key]);
+  if(c&&c.score>0) return `${c.score}/100 · ${c.reason}`;
+  if(key==='range-grid') return 'Ranging market / grid conditions';
+  if(key==='volume-surge') return 'Recent volume surge';
+  if(key==='trend-pullback') return 'Trending market · RSI pullback zone';
+  return s.best_reason||'Qualified live setup';
+}
+
+function filterStrategies(key){
+  activeStrategyFilter=key||'all';
+  document.querySelectorAll('.strategy-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.getAttribute('data-strategy')===activeStrategyFilter);
+  });
+  renderStrategyFilter(window._lastDD||{});
+}
+
+function renderStrategyFilter(d){
+  const list=document.getElementById('strategy-filter-list');
+  const meta=document.getElementById('strategy-filter-meta');
+  if(!list) return;
+  const source=d.inst_signals||[];
+  const seen=new Set();
+  const coins=source.filter(c=>{
+    if(!c.symbol||seen.has(c.symbol)||!strategyMatch(c,activeStrategyFilter,d)) return false;
+    seen.add(c.symbol); return true;
+  }).sort((a,b)=>(b.scalping_strategy?.best_score||0)-(a.scalping_strategy?.best_score||0));
+  const label=activeStrategyFilter==='all'?'active setups':
+    (document.querySelector(`.strategy-btn[data-strategy="${activeStrategyFilter}"]`)?.textContent||activeStrategyFilter);
+  if(meta) meta.textContent=`${coins.length} ${label.toLowerCase()}`;
+  list.innerHTML=coins.slice(0,12).map(c=>{
+    const sym=(c.symbol||'').replace('USDT','');
+    return `<button class="strategy-match" onclick="loadCoin('${c.symbol}')" title="Load ${c.symbol} in COMMAND">
+      <b>${sym}</b><span>${c.scalping_strategy?.best_strategy||c.trading_strategy||'SETUP'}</span>
+      <em>${strategyMatchReason(c,activeStrategyFilter,d)}</em>
+    </button>`;
+  }).join('')||'<span class="strategy-empty">No coins currently qualify for this strategy.</span>';
+}
+
 function updateBinancePlan(symbol,label,tp,price){
   const sym=(symbol||'').replace('USDT','');
   const box=document.getElementById('binance-trade-txt');
@@ -1099,6 +1193,7 @@ function fetchAll(){
     .then(r=>r.json())
     .then(d=>{
       window._lastDD = d;
+      renderStrategyFilter(d);
       updateSB(d);
       updateSniper(d);
       updateScanner(d);
