@@ -142,6 +142,16 @@ body.simple-active .ms-sub { font-size:12px }
 .strategy-match b{color:var(--green);margin-right:4px}
 .strategy-match em{display:block;color:var(--grey);font-size:7px;font-style:normal;margin-top:2px;max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .strategy-empty{color:#666;font-size:8px;padding:3px 0}
+.rsi-filter{background:#080810;border:1px solid var(--border);border-radius:2px;padding:6px 7px;margin-bottom:8px}
+.rsi-filter-hdr{display:flex;justify-content:space-between;align-items:center;color:var(--grey);font-size:8px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.rsi-filter-controls{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.rsi-select{background:#0a0a14;border:1px solid #333;color:var(--green);padding:4px 5px;font-family:var(--font);font-size:8px;border-radius:2px}
+.rsi-btn{background:#0a0a14;border:1px solid #333;color:#aaa;padding:4px 6px;font-family:var(--font);font-size:8px;cursor:pointer;border-radius:2px}
+.rsi-btn:hover,.rsi-btn.active{background:#332200;border-color:var(--gold);color:var(--gold)}
+#rsi-filter-list{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
+.rsi-match{background:#10101c;border:1px solid #292940;border-radius:2px;padding:4px 6px;color:var(--white);font-family:var(--font);font-size:8px;cursor:pointer}
+.rsi-match:hover{border-color:var(--gold);background:#211d0d}
+.rsi-match b{color:var(--gold);margin-right:4px}
 .dg{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px}
 .dg-l{color:var(--grey)}
 .dg-v{color:var(--white)}
@@ -388,6 +398,27 @@ body.simple-active .ms-sub { font-size:12px }
       <button class="strategy-btn" data-strategy="trend-pullback" onclick="filterStrategies('trend-pullback')">TREND PULLBACK SCALP</button>
     </div>
     <div id="strategy-filter-list" aria-live="polite"><span class="strategy-empty">Waiting for live scan data…</span></div>
+  </div>
+
+  <div class="rsi-filter" id="rsi-filter">
+    <div class="rsi-filter-hdr">
+      <span>◉ MULTI-TIMEFRAME RSI SCREENER</span>
+      <span id="rsi-filter-meta">Select timeframe or range</span>
+    </div>
+    <div class="rsi-filter-controls">
+      <label for="rsi-timeframe-select" style="color:var(--grey);font-size:8px">TF</label>
+      <select id="rsi-timeframe-select" class="rsi-select" onchange="setRsiTimeframe(this.value)">
+        <option value="1m">1m</option><option value="5m">5m</option>
+        <option value="1h" selected>1h</option><option value="4h">4h</option>
+        <option value="8h">8h</option><option value="1d">1d</option>
+      </select>
+      <button class="rsi-btn active" data-rsi-category="all" onclick="setRsiCategory('all')">ALL</button>
+      <button class="rsi-btn" data-rsi-category="oversold" onclick="setRsiCategory('oversold')">OVERSOLD &lt;30</button>
+      <button class="rsi-btn" data-rsi-category="low" onclick="setRsiCategory('low')">LOW 30–40</button>
+      <button class="rsi-btn" data-rsi-category="momentum" onclick="setRsiCategory('momentum')">MOMENTUM 50–60</button>
+      <button class="rsi-btn" data-rsi-category="overbought" onclick="setRsiCategory('overbought')">OVERBOUGHT &gt;70</button>
+    </div>
+    <div id="rsi-filter-list" aria-live="polite"><span class="strategy-empty">Choose a range to scan live RSI…</span></div>
   </div>
 
   <!-- QUICK PLAN -->
@@ -943,6 +974,7 @@ body.simple-active .ms-sub { font-size:12px }
 <script>
 // ── GLOBALS ──
 let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m', activeStrategyFilter='all';
+let rsiTimeframe='1h', rsiCategory='all', rsiRequestId=0;
 
 // ── TABS ──
 function toggleInfoPanel(){
@@ -1326,6 +1358,52 @@ function selectStrategyCoin(symbol){
   if(d.inst_signals&&d.inst_signals.length) updateCommandCenter(d);
 }
 
+function selectRsiCoin(symbol){
+  window._selectedCommandCoin=symbol;
+  const d=window._lastDD||{};
+  if(d.inst_signals&&d.inst_signals.length) updateCommandCenter(d);
+}
+
+function setRsiTimeframe(interval){
+  rsiTimeframe=interval;
+  fetchRsiScan();
+}
+
+function setRsiCategory(category){
+  rsiCategory=category||'all';
+  document.querySelectorAll('.rsi-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.getAttribute('data-rsi-category')===rsiCategory);
+  });
+  fetchRsiScan();
+}
+
+function fetchRsiScan(){
+  const list=document.getElementById('rsi-filter-list');
+  const meta=document.getElementById('rsi-filter-meta');
+  if(!list) return;
+  const requestId=++rsiRequestId;
+  list.innerHTML='<span class="strategy-empty">Scanning live RSI…</span>';
+  fetch(`/rsi_scan?interval=${encodeURIComponent(rsiTimeframe)}&category=${encodeURIComponent(rsiCategory)}`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(requestId!==rsiRequestId) return;
+      if(d.error) throw new Error(d.error);
+      const results=d.results||[];
+      if(meta) meta.textContent=`${d.total||0} matches · ${d.interval}`;
+      list.innerHTML=results.slice(0,20).map(item=>{
+        const sym=(item.symbol||'').replace('USDT','');
+        const color=item.rsi<30?'var(--green)':item.rsi>70?'var(--red)':'var(--gold)';
+        return `<button class="rsi-match" onclick="selectRsiCoin('${item.symbol}')" title="Load ${item.symbol} in COMMAND">
+          <b>${sym}</b><span style="color:${color}">RSI ${Number(item.rsi).toFixed(1)}</span>
+        </button>`;
+      }).join('')||'<span class="strategy-empty">No coins match this RSI range right now.</span>';
+    }).catch(err=>{
+      if(requestId!==rsiRequestId) return;
+      if(meta) meta.textContent='Scan unavailable';
+      list.innerHTML=`<span class="strategy-empty">${err.message||'RSI scan failed'}</span>`;
+    });
+}
+
 function strategyCandidate(coin, name){
   const candidates=(coin.scalping_strategy&&coin.scalping_strategy.candidates)||[];
   return candidates.find(c=>(c.strategy||'').toLowerCase()===name.toLowerCase())||null;
@@ -1667,6 +1745,10 @@ function fetchAll(){
       updateCA(d);
       updateMasterSignal();
       updateCommandCenter(d);
+      if(!window._rsiInitialized){
+        window._rsiInitialized=true;
+        fetchRsiScan();
+      }
       if(d.paper_mode) document.getElementById('paper').classList.add('show');
       else document.getElementById('paper').classList.remove('show');
     }).catch(e=>console.error('Fetch:',e));

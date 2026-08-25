@@ -21,7 +21,7 @@ def _admin_required_proxy(fn):
 def _limiter_limit(rule):
     return _main().limiter.limit(rule)
 
-_LOCAL_NAMES = {'chart_data', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health'}
+_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health'}
 bp = Blueprint("api", __name__)
 
 @bp.route("/dashboard_data")
@@ -279,6 +279,78 @@ def chart_data():
         "tp1": tp_z.get("tp1",0), "tp2": tp_z.get("tp2",0), "tp3": tp_z.get("tp3",0),
         "stop_loss": tp_z.get("stop_loss",0), "entry_low": tp_z.get("entry_low",0),
         "entry_high": tp_z.get("entry_high",0), "markers": markers, "whale_walls": whale_walls,
+    })
+
+
+@bp.route("/rsi_scan")
+@_sync_main_state
+def rsi_scan():
+    """Return live RSI values for the requested timeframe and category."""
+    from logic import fetch_klines as _fk
+
+    allowed = {"1m", "5m", "1h", "4h", "8h", "1d"}
+    interval = request.args.get("interval", "1h").lower()
+    category = request.args.get("category", "all").lower()
+    if interval not in allowed:
+        return jsonify({"error": "Unsupported RSI timeframe", "allowed": sorted(allowed)}), 400
+    if category not in {"all", "oversold", "low", "momentum", "overbought"}:
+        return jsonify({"error": "Unsupported RSI category"}), 400
+
+    symbols = []
+    for signal in GLOBAL_DATA.get("inst_signals", []):
+        symbol = signal.get("symbol")
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+    if not symbols:
+        for coin in GLOBAL_DATA.get("vmc", {}).get("ALL", []):
+            symbol = coin.get("symbol")
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+
+    def calculate_rsi(klines, period=14):
+        closes = [float(k[4]) for k in klines if len(k) > 4]
+        if len(closes) < period + 1:
+            return None
+        gains = []; losses = []
+        for idx in range(1, len(closes)):
+            delta = closes[idx] - closes[idx - 1]
+            gains.append(max(delta, 0.0))
+            losses.append(max(-delta, 0.0))
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+        for idx in range(period, len(gains)):
+            avg_gain = ((avg_gain * (period - 1)) + gains[idx]) / period
+            avg_loss = ((avg_loss * (period - 1)) + losses[idx]) / period
+        if avg_loss == 0:
+            return 100.0
+        return round(100 - (100 / (1 + (avg_gain / avg_loss))), 1)
+
+    def matches(value):
+        if value is None:
+            return False
+        if category == "oversold":
+            return value < 30
+        if category == "low":
+            return 30 <= value < 40
+        if category == "momentum":
+            return 50 <= value <= 60
+        if category == "overbought":
+            return value > 70
+        return True
+
+    results = []
+    for symbol in symbols[:60]:
+        try:
+            value = calculate_rsi(_fk(symbol, interval, 60))
+        except Exception as exc:
+            log.debug("[RSI scan] %s %s failed: %s", symbol, interval, exc)
+            continue
+        if matches(value):
+            results.append({"symbol": symbol, "rsi": value, "interval": interval})
+    results.sort(key=lambda item: item["rsi"])
+    return jsonify({
+        "interval": interval, "category": category,
+        "results": results, "total": len(results),
     })
 
 
