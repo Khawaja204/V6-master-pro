@@ -21,7 +21,7 @@ def _admin_required_proxy(fn):
 def _limiter_limit(rule):
     return _main().limiter.limit(rule)
 
-_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health', 'market_overview_route', 'oi_data_route'}
+_LOCAL_NAMES = {'chart_data', 'rsi_scan', 'get_data', 'status', 'whale_copy_data_route', 'live_score_route', 'large_trades_summary_route', 'api_wc_learning', 'dashboard_data', 'large_trades_data_route', 'sniper_data', 'focus_mode', 'health_check', 'focus_data', 'large_trades_list_route', 'combo_bot_data_route', 'v6_bot_data_route', 'whale_detail_route', 'api_onchain', 'eth_onchain_data_route', 'system_health', 'market_overview_route', 'oi_data_route', 'rsi_multi_tf_route', 'pivot_points_route'}
 bp = Blueprint("api", __name__)
 
 @bp.route("/dashboard_data")
@@ -122,6 +122,87 @@ def oi_data_route():
         "symbol": symbol, "available": True,
         "open_interest": oi_now,
         "change_pct_5m": change_pct,
+    })
+
+
+@bp.route("/rsi_multi_tf")
+@_sync_main_state
+def rsi_multi_tf_route():
+    """RSI for ALL 7 timeframes at once, for a single symbol — powers the
+    Command/Sniper chart's 'ALL / Multi-TF' mini strip. One symbol at a
+    time keeps this cheap (7 klines fetches total vs. scanning every coin
+    per timeframe like /rsi_scan does)."""
+    from logic import fetch_klines as _fk
+    symbol = request.args.get("symbol", "").upper()
+    if not symbol:
+        return jsonify({"error": "symbol required"}), 400
+
+    def _rsi(klines, period=14):
+        closes = [float(k[4]) for k in klines if len(k) > 4]
+        if len(closes) < period + 1:
+            return None
+        gains, losses = [], []
+        for i in range(1, len(closes)):
+            d = closes[i] - closes[i - 1]
+            gains.append(max(d, 0)); losses.append(max(-d, 0))
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+        for i in range(period, len(gains)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return round(100 - (100 / (1 + rs)), 1)
+
+    timeframes = ["1m", "5m", "15m", "1h", "4h", "8h", "1d"]
+    out = {}
+    for tf in timeframes:
+        try:
+            klines = _fk(symbol, tf, 30)
+            out[tf] = _rsi(klines)
+        except Exception as e:
+            log.debug(f"[rsi_multi_tf] {symbol} {tf} failed: {e}")
+            out[tf] = None
+    return jsonify({"symbol": symbol, "rsi": out})
+
+
+@bp.route("/pivot_points")
+@_sync_main_state
+def pivot_points_route():
+    """Classic floor-trader pivot points (P, R1-R3, S1-S3) computed from
+    the previous CLOSED daily or hourly candle's High/Low/Close — the
+    standard basis for intraday pivot levels, no paid data source needed."""
+    from logic import fetch_klines as _fk
+    symbol   = request.args.get("symbol", "").upper()
+    basis    = request.args.get("type", "daily").lower()
+    if not symbol:
+        return jsonify({"error": "symbol required"}), 400
+    if basis not in ("daily", "hourly"):
+        return jsonify({"error": "type must be daily or hourly"}), 400
+
+    interval = "1d" if basis == "daily" else "1h"
+    try:
+        klines = _fk(symbol, interval, 3)
+        if len(klines) < 2:
+            return jsonify({"symbol": symbol, "basis": basis, "available": False})
+        prev = klines[-2]  # last CLOSED period (most recent element is the still-forming current one)
+        h, l, c = float(prev[2]), float(prev[3]), float(prev[4])
+    except Exception as e:
+        return jsonify({"symbol": symbol, "basis": basis, "available": False, "error": str(e)})
+
+    p  = (h + l + c) / 3
+    r1 = 2 * p - l
+    s1 = 2 * p - h
+    r2 = p + (h - l)
+    s2 = p - (h - l)
+    r3 = h + 2 * (p - l)
+    s3 = l - 2 * (h - p)
+    return jsonify({
+        "symbol": symbol, "basis": basis, "available": True,
+        "pivot": round(p, 8),
+        "r1": round(r1, 8), "r2": round(r2, 8), "r3": round(r3, 8),
+        "s1": round(s1, 8), "s2": round(s2, 8), "s3": round(s3, 8),
     })
 
 
@@ -333,7 +414,7 @@ def rsi_scan():
     """Return live RSI values for the requested timeframe and category."""
     from logic import fetch_klines as _fk
 
-    allowed = {"1m", "5m", "1h", "4h", "8h", "1d"}
+    allowed = {"1m", "5m", "15m", "1h", "4h", "8h", "1d"}
     interval = request.args.get("interval", "1h").lower()
     category = request.args.get("category", "all").lower()
     if interval not in allowed:

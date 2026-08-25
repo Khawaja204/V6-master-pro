@@ -504,9 +504,9 @@ body.simple-active .ms-sub { font-size:12px }
         <button class="rsi-btn" onclick="setPositionBudget(5,'percent')">5% CAPITAL</button>
         <span id="cmd-sizing-note" style="color:var(--grey);font-size:8px">Choose a budget</span>
       </div>
-      <button id="cmd-execute-btn" disabled class="exec-btn go pg exec-btn-primary" onclick="cmdExecuteTrade()" style="margin-top:12px;opacity:.4;cursor:not-allowed;background:#222;color:#666;border-color:#333">
-        EXECUTE TRADE NOW
-      </button>
+      <div style="margin-top:12px;padding:8px;background:#0a0a14;border:1px solid #333;border-radius:2px;text-align:center;font-size:9px;color:var(--grey)">
+        📊 Analysis Only — this dashboard does not place trades automatically
+      </div>
     </div>
   </div>
 
@@ -569,14 +569,41 @@ body.simple-active .ms-sub { font-size:12px }
             <input class="s-inp" id="coin-inp" value="BTC / USDT" placeholder="🔍 Coin pair"/>
             <button class="s-btn" onclick="doSearch()">Search</button>
           </div>
-          <div style="display:flex;gap:4px;margin-bottom:5px">
+          <div style="display:flex;gap:4px;margin-bottom:5px;flex-wrap:wrap">
 <button class="tf-btn" data-tf="1m" onclick="setTimeframe('1m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1m</button>
 <button class="tf-btn" data-tf="5m" onclick="setTimeframe('5m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">5m</button>
 <button class="tf-btn active" data-tf="15m" onclick="setTimeframe('15m')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">15m</button>
 <button class="tf-btn" data-tf="1h" onclick="setTimeframe('1h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1h</button>
 <button class="tf-btn" data-tf="4h" onclick="setTimeframe('4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">4h</button>
+<button class="tf-btn" data-tf="8h" onclick="setTimeframe('8h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">8h</button>
+<button class="tf-btn" data-tf="1d" onclick="setTimeframe('1d')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1d</button>
+<button id="tf-all-btn" onclick="toggleMultiTfStrip()" style="background:#1a0a2e;border:1px solid #a855f7;color:#c084fc;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px;font-weight:bold">ALL / Multi-TF</button>
 </div>
-<div id="chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;margin-bottom:5px;overflow:hidden"></div>
+<div id="chart-box-wrap" style="position:relative;margin-bottom:5px">
+  <div id="chart-box" style="background:#040408;height:180px;border:1px solid #1e1e2e;border-radius:2px;overflow:hidden"></div>
+  <div id="candle-countdown" style="position:absolute;top:4px;right:6px;background:rgba(10,10,20,0.85);border:1px solid #333;border-radius:2px;padding:2px 6px;font-size:9px;color:var(--gold);z-index:5">⏱ —</div>
+</div>
+<div id="multi-tf-strip" style="display:none;background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:6px;margin-bottom:5px;font-size:9px">
+  <div style="color:var(--grey);margin-bottom:4px">RSI ACROSS ALL TIMEFRAMES</div>
+  <div id="multi-tf-strip-body" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center">
+    <div>1m<br><span data-tf-rsi="1m">—</span></div>
+    <div>5m<br><span data-tf-rsi="5m">—</span></div>
+    <div>15m<br><span data-tf-rsi="15m">—</span></div>
+    <div>1h<br><span data-tf-rsi="1h">—</span></div>
+    <div>4h<br><span data-tf-rsi="4h">—</span></div>
+    <div>8h<br><span data-tf-rsi="8h">—</span></div>
+    <div>1d<br><span data-tf-rsi="1d">—</span></div>
+  </div>
+</div>
+<div style="display:flex;gap:4px;margin-bottom:5px;align-items:center">
+  <span style="font-size:8px;color:var(--grey)">PIVOT BASIS:</span>
+  <button class="pivot-btn active" data-basis="daily" onclick="setPivotBasis('daily')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Daily</button>
+  <button class="pivot-btn" data-basis="hourly" onclick="setPivotBasis('hourly')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Hourly</button>
+</div>
+<div id="sr-confidence-bar" style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px;font-size:9px;display:flex;justify-content:space-between;align-items:center">
+  <span style="color:var(--grey)">S/R LEVEL CONFIDENCE</span>
+  <span id="sr-confidence-val" style="font-weight:bold;color:var(--grey)">—</span>
+</div>
 <div id="chart-status" style="font-size:9px;color:#666;margin-bottom:5px"></div>
 <div id="sl-warning" style="display:none;background:#330000;border:1px solid #ff2244;color:#ff2244;font-size:10px;font-weight:bold;padding:5px 8px;border-radius:2px;margin-bottom:5px;text-align:center"></div>
 <div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px">
@@ -649,10 +676,11 @@ body.simple-active .ms-sub { font-size:12px }
             </a>
           </div>
 
-          <!-- STEP 3: ACTION BUTTONS -->
-          <div class="eng-step-lbl">STEP 3 · ACTION BUTTONS</div>
-          <button class="exec-btn go pg exec-btn-primary">✅ EXECUTE TRADE NOW</button>
-          <button class="exec-btn panic exec-btn-secondary" onclick="openPanicModal()">⛔ PANIC – CANCEL ALL</button>
+          <!-- STEP 3: SETUP SUMMARY (analysis only — no auto-execution) -->
+          <div class="eng-step-lbl">STEP 3 · SETUP SUMMARY</div>
+          <div style="padding:8px;background:#0a0a14;border:1px solid #333;border-radius:2px;text-align:center;font-size:9px;color:var(--grey)">
+            📊 Analysis Only — this dashboard does not place trades automatically
+          </div>
         </div>
       </div>
     </div>
@@ -667,17 +695,6 @@ body.simple-active .ms-sub { font-size:12px }
         <div id="strat-best-reason" style="font-size:10px;color:var(--grey);margin-top:3px">—</div>
       </div>
       <div id="strat-candidates" style="font-size:9px"></div>
-    </div>
-  </div>
-
-  <!-- PANIC double-confirmation modal -->
-  <div id="panic-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
-    <div style="background:#0a0a14;border:1px solid #ff2244;border-radius:4px;padding:18px;max-width:320px;width:88%;text-align:center">
-      <div style="font-size:26px;margin-bottom:6px">⚠️</div>
-      <div style="font-weight:bold;color:#ff2244;font-size:13px;margin-bottom:6px">Cancel ALL open positions?</div>
-      <div style="font-size:11px;color:var(--grey);margin-bottom:14px">This will attempt to cancel every open trade. This cannot be undone. Are you sure?</div>
-      <button onclick="confirmPanicAction()" style="width:100%;padding:10px;background:#440000;color:var(--red);border:1px solid #ff2244;border-radius:2px;font-weight:bold;font-size:12px;margin-bottom:8px;cursor:pointer">Yes, Cancel All</button>
-      <button onclick="closePanicModal()" style="width:100%;padding:8px;background:#0a0a14;color:#aaa;border:1px solid #333;border-radius:2px;font-size:11px;cursor:pointer">Never mind</button>
     </div>
   </div>
 
@@ -1046,7 +1063,8 @@ body.simple-active .ms-sub { font-size:12px }
 
 <script>
 // ── GLOBALS ──
-let chart=null, candleSeries=null, countdown=8, timer=null, currentTF='15m', activeStrategyFilter='all';
+let chart=null, candleSeries=null, ema9Series=null, ema21Series=null, vwapSeries=null, countdown=8, timer=null, currentTF='15m', activeStrategyFilter='all', pivotBasis='daily';
+window._pivotLines=[];
 let rsiTimeframe='1h', rsiCategory='all', rsiRequestId=0;
 
 // ── TABS ──
@@ -1095,6 +1113,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   fetchMarketOverview();
   setInterval(fetchMarketOverview, 90000);
   startCandleCountdown();
+  startChartCandleCountdown();
   updatePktClock();
   timer=setInterval(()=>{
     updatePktClock();
@@ -1122,6 +1141,9 @@ function initChart(){
       borderUpColor:'#00cc44',borderDownColor:'#cc2200',
       wickUpColor:'#00cc44',wickDownColor:'#cc2200',
     });
+    ema9Series=chart.addLineSeries({color:'#00bfff',lineWidth:1,priceLineVisible:false,lastValueVisible:false,title:'EMA9'});
+    ema21Series=chart.addLineSeries({color:'#ff9900',lineWidth:1,priceLineVisible:false,lastValueVisible:false,title:'EMA21'});
+    vwapSeries=chart.addLineSeries({color:'#c084fc',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false,title:'VWAP'});
     window.addEventListener('resize',()=>{if(chart)chart.applyOptions({width:c.clientWidth});});
   }catch(e){console.warn('Chart init failed:',e);}
 }
@@ -1167,6 +1189,114 @@ function calcRSI(closes,period){
   if(avgL===0) return 100;
   const rs=avgG/avgL;
   return 100-(100/(1+rs));
+}
+
+function calcEMASeries(candles, period){
+  if(candles.length<period) return [];
+  let ema=candles.slice(0,period).reduce((s,c)=>s+c.close,0)/period;
+  const k=2/(period+1);
+  const out=[{time:candles[period-1].time, value:ema}];
+  for(let i=period;i<candles.length;i++){
+    ema=candles[i].close*k+ema*(1-k);
+    out.push({time:candles[i].time, value:ema});
+  }
+  return out;
+}
+
+/* ── Pivot Points (S1-S3 green / R1-R3 red) with proximity highlighting ── */
+function setPivotBasis(basis){
+  pivotBasis=basis;
+  document.querySelectorAll('.pivot-btn').forEach(b=>{
+    const on=b.dataset.basis===basis;
+    b.style.background=on?'#003311':'#0a0a14';
+    b.style.borderColor=on?'#00ff88':'#333';
+    b.style.color=on?'#00ff88':'#aaa';
+  });
+  fetchChart();
+}
+
+function updatePivotLevels(symbol, currentPrice){
+  fetch(`/pivot_points?symbol=${symbol}&type=${pivotBasis}`).then(r=>r.json()).then(pv=>{
+    if(window._pivotLines) window._pivotLines.forEach(l=>{try{candleSeries.removePriceLine(l);}catch(e){}});
+    window._pivotLines=[];
+    const confEl=document.getElementById('sr-confidence-val');
+    if(!pv.available){
+      if(confEl){ confEl.textContent='No data'; confEl.style.color='var(--grey)'; }
+      return;
+    }
+    const levels=[
+      {key:'s1',label:'S1',price:pv.s1,color:'#00ff88'},
+      {key:'s2',label:'S2',price:pv.s2,color:'#00cc66'},
+      {key:'s3',label:'S3',price:pv.s3,color:'#009944'},
+      {key:'r1',label:'R1',price:pv.r1,color:'#ff2244'},
+      {key:'r2',label:'R2',price:pv.r2,color:'#dd1133'},
+      {key:'r3',label:'R3',price:pv.r3,color:'#bb0022'},
+      {key:'pivot',label:'P',price:pv.pivot,color:'#ffd700'},
+    ];
+    let minDistPct=Infinity;
+    levels.forEach(lv=>{
+      if(!lv.price) return;
+      const distPct=currentPrice?Math.abs(currentPrice-lv.price)/currentPrice*100:100;
+      const near=distPct<=0.3;
+      if(distPct<minDistPct) minDistPct=distPct;
+      const ln=candleSeries.createPriceLine({
+        price:lv.price, color:lv.color,
+        lineWidth:near?3:1, lineStyle:near?0:2,
+        axisLabelVisible:true,
+        title:(near?'🔥 ':'')+lv.label+' '+fmt6(lv.price),
+      });
+      window._pivotLines.push(ln);
+    });
+    if(confEl){
+      const score=Math.max(0, Math.round(100-Math.min(minDistPct,5)*20));
+      confEl.textContent=score+'% ('+(minDistPct<0.3?'price near a key level':'no level nearby')+')';
+      confEl.style.color=score>=70?'var(--green)':score>=40?'var(--gold)':'var(--grey)';
+    }
+  }).catch(()=>{
+    const confEl=document.getElementById('sr-confidence-val');
+    if(confEl){ confEl.textContent='Fetch failed'; confEl.style.color='var(--grey)'; }
+  });
+}
+
+/* ── Multi-Timeframe RSI strip ── */
+function toggleMultiTfStrip(){
+  const strip=document.getElementById('multi-tf-strip');
+  const btn=document.getElementById('tf-all-btn');
+  if(!strip) return;
+  const show=strip.style.display==='none';
+  strip.style.display=show?'block':'none';
+  if(btn){ btn.style.background=show?'#a855f7':'#1a0a2e'; btn.style.color=show?'#fff':'#c084fc'; }
+  if(show) fetchMultiTfRsi();
+}
+
+function fetchMultiTfRsi(){
+  const symbol=(document.getElementById('coin-inp')?.value||'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const sym=symbol.includes('USDT')?symbol:symbol+'USDT';
+  fetch(`/rsi_multi_tf?symbol=${sym}`).then(r=>r.json()).then(d=>{
+    const rsi=d.rsi||{};
+    document.querySelectorAll('[data-tf-rsi]').forEach(el=>{
+      const tf=el.dataset.tfRsi;
+      const v=rsi[tf];
+      if(v===null||v===undefined){ el.textContent='—'; el.style.color='var(--grey)'; return; }
+      el.textContent=v;
+      el.style.color=v>=70?'var(--red)':v<=30?'var(--green)':'var(--gold)';
+    });
+  }).catch(()=>{});
+}
+
+/* ── Live candle-close countdown (chart corner, tracks currentTF) ── */
+const TF_SECONDS={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'8h':28800,'1d':86400};
+function startChartCandleCountdown(){
+  function tick(){
+    const el=document.getElementById('candle-countdown');
+    if(!el) return;
+    const dur=TF_SECONDS[currentTF]||900;
+    const secs=dur-Math.floor((Date.now()/1000)%dur);
+    const m=Math.floor(secs/60), s=secs%60;
+    el.textContent='⏱ '+(m>0?m+'m ':'')+s+'s';
+  }
+  tick();
+  setInterval(tick,1000);
 }
 
 function updateQuickTrends(symbol){
@@ -1229,6 +1359,12 @@ function fetchChart(sym){
       }));
       candleSeries.setData(candles);
       if(_st) _st.textContent=candles.length+' candles loaded ('+symbol+' '+currentTF+')';
+      try{
+        if(ema9Series) ema9Series.setData(calcEMASeries(candles,9));
+        if(ema21Series) ema21Series.setData(calcEMASeries(candles,21));
+        if(vwapSeries && d.vwap_line && d.vwap_line.length) vwapSeries.setData(d.vwap_line);
+      }catch(e){console.warn('Indicator overlay failed:',e);}
+      updatePivotLevels(symbol, candles[candles.length-1].close);
       const _closes=candles.map(c=>c.close);
       const _rsi=calcRSI(_closes);
       if(_rsi!==null){
@@ -1377,9 +1513,9 @@ function fetchChart(sym){
         const _askWall=(wd.walls||[]).find(w=>w.side==='ASK');
         [_bidWall,_askWall].filter(Boolean).forEach(w=>{
           const ln=candleSeries.createPriceLine({
-            price: w.price_level, color: w.side==='BID'?'#00aaff':'#ff8800',
+            price: w.price_level, color: w.side==='BID'?'#00ff88':'#ff2244',
             lineWidth:1, lineStyle:2, axisLabelVisible:true,
-            title:(w.side==='BID'?'BID ':'ASK ')+Math.round((w.size_usdt||0)/1000)+'K'
+            title:(w.side==='BID'?'BUY ':'SELL ')+Math.round((w.size_usdt||0)/1000)+'K'
           });
           window._whaleLines.push(ln);
         });
@@ -1775,7 +1911,7 @@ function renderCmdWhale(){
     <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #111"><span style="color:var(--grey)">OBI</span><b style="color:${obi>0?'var(--green)':obi<0?'var(--red)':'var(--grey)'}">${obi.toFixed(3)}</b></div>
     <div style="padding:6px 0 2px"><span style="color:var(--grey)">Nearby Walls</span></div>
     ${walls.slice(0,4).map(w=>`<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:9px">
-      <span style="color:${w.side==='BID'?'var(--green)':'var(--red)'}">${w.side} @ ${fmt6(w.price_level)}</span>
+      <span style="color:${w.side==='BID'?'var(--green)':'var(--red)'}">${w.side==='BID'?'BUY':'SELL'} @ ${fmt6(w.price_level)}</span>
       <span style="color:var(--grey)">$${(w.size_usdt||0).toLocaleString()} (${w.dist_pct}%)</span>
     </div>`).join('') || '<div style="color:var(--grey);font-size:9px">No walls within proximity</div>'}
   `;
@@ -1831,16 +1967,6 @@ function renderCmdOnchain(){
       </div>`;
     }).join('') : 'No large on-chain swaps detected yet';
   }).catch(()=>{ const body=document.getElementById('cmd-dex-body'); if(body) body.textContent='DEX swap fetch failed'; });
-}
-
-function cmdExecuteTrade(){
-  if(!window._cmdCoin) return;
-  // TODO: wire to a real trade-execution endpoint reachable from the main
-  // dashboard (the existing /admin/manual_trade route requires an admin
-  // login session, which this page doesn't have) — flag for a backend
-  // decision before enabling live execution here.
-  console.log('EXECUTE TRADE NOW requested for', window._cmdCoin);
-  alert('Execute wiring pending — see chat notes on /admin/manual_trade auth.');
 }
 
 function updateCommandCenter(d){
@@ -2140,19 +2266,6 @@ function toggleSMD(){
   if(body) body.style.display = collapsed ? '' : 'none';
   if(empty) empty.style.display = 'none';
   if(icon) icon.textContent = collapsed ? '▾' : '▸';
-}
-function openPanicModal(){
-  const el = document.getElementById('panic-modal-backdrop');
-  if(el) el.style.display = 'flex';
-}
-function closePanicModal(){
-  const el = document.getElementById('panic-modal-backdrop');
-  if(el) el.style.display = 'none';
-}
-function confirmPanicAction(){
-  closePanicModal();
-  // TODO: wire to a real cancel-all-positions backend endpoint when one exists.
-  console.log('PANIC confirmed — cancel all positions requested');
 }
 
 function toggleSimpleMode(){
