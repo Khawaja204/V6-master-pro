@@ -2222,10 +2222,12 @@ async def _liquidation_ws_loop():
     position was liquidated (exchange sells to close it); side='BUY' means a
     SHORT was liquidated (exchange buys to close it)."""
     url = "wss://fstream.binance.com/ws/!forceOrder@arr"
+    geo_blocked_warned = False
     while True:
         try:
             async with websockets.connect(url, ping_interval=20) as ws:
                 log.info("[LIQUIDATION WS] connected")
+                geo_blocked_warned = False  # a real connection succeeded — reset
                 async for msg in ws:
                     try:
                         o = json.loads(msg).get("o", {})
@@ -2244,8 +2246,28 @@ async def _liquidation_ws_loop():
                     except Exception as e:
                         log.debug(f"[LIQUIDATION WS] event parse error: {e}")
         except Exception as e:
-            log.warning(f"[LIQUIDATION WS] connection error: {e} — retrying in 10s")
-            await asyncio.sleep(10)
+            # Binance blocks connections from certain hosting regions (HTTP 451,
+            # "restricted location" per their Terms) — this is permanent for as
+            # long as the app stays hosted there, not a transient network blip.
+            # Retrying every 10s in that case just spams the logs forever with
+            # no chance of success, so back off for hours instead and log once.
+            is_geo_block = "451" in str(e) or "restricted location" in str(e)
+            if is_geo_block:
+                if not geo_blocked_warned:
+                    log.warning(
+                        "[LIQUIDATION WS] Binance is blocking this connection "
+                        "from the server's hosting region (HTTP 451 — restricted "
+                        "location per Binance's Terms). This is a hosting-region "
+                        "limit, not a bug — the liquidation-cluster feature will "
+                        "stay quiet until the app is hosted somewhere Binance "
+                        "allows Futures WebSocket access from. Retrying every 6h "
+                        "in case that changes; not logging this again until then."
+                    )
+                    geo_blocked_warned = True
+                await asyncio.sleep(6 * 3600)
+            else:
+                log.warning(f"[LIQUIDATION WS] connection error: {e} — retrying in 10s")
+                await asyncio.sleep(10)
 
 
 def start_liquidation_monitor() -> None:
