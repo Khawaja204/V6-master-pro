@@ -2134,10 +2134,34 @@ function createScalpChartWidget(containerId, opts){
         }).catch(()=>{});
       }
     },
+    refresh(){
+      // Called every time the accordion is reopened. If the chart was
+      // never created (first run failed) or lost its dimensions while
+      // hidden (display:none), this re-inits or force-resizes it.
+      try{
+        if(!chart){ initChartInstance(); }
+        setTimeout(()=>{
+          try{
+            const box=document.getElementById(idPrefix+'-box');
+            if(chart && box) chart.resize(box.clientWidth||300, box.clientHeight||220);
+            load();
+          }catch(e){
+            const st=document.getElementById(idPrefix+'-status');
+            if(st) st.textContent='Refresh error: '+e.message;
+          }
+        }, 100);
+      }catch(e){
+        const st=document.getElementById(idPrefix+'-status');
+        if(st) st.textContent='Refresh error: '+e.message;
+      }
+    },
   };
 
   window.__scalpWidgets = window.__scalpWidgets || {};
   window.__scalpWidgets[idPrefix] = api;
+
+  const initialStatus=document.getElementById(idPrefix+'-status');
+  if(initialStatus) initialStatus.textContent='Preparing chart…';
 
   setTimeout(()=>{
     try{
@@ -2156,7 +2180,16 @@ function createScalpChartWidget(containerId, opts){
 function renderCmdChart(){
   const container=document.getElementById('acc-chart');
   if(!container) return;
-  if(container.querySelector('#cmd-btc-widget')) return; // already built — widgets manage their own refresh
+  if(container.querySelector('#cmd-btc-widget')){
+    // already built — force a resize+reload every time the accordion is
+    // reopened, in case the chart lost its dimensions while its container
+    // was hidden (display:none) during the accordion's closed state
+    if(window.__scalpWidgets){
+      if(window.__scalpWidgets['cmdbtc']) window.__scalpWidgets['cmdbtc'].refresh();
+      if(window.__scalpWidgets['cmdman']) window.__scalpWidgets['cmdman'].refresh();
+    }
+    return;
+  }
   container.innerHTML = `
     <div class="card" style="margin-bottom:8px">
       <div class="ch" style="font-size:10px">₿ BTC Chart (fixed)</div>
