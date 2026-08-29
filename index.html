@@ -312,6 +312,7 @@ body.simple-active .ms-sub { font-size:12px }
   <div class="hbtns">
     <span id="pkt-clock" style="color:var(--grey);font-size:10px;margin-right:8px;white-space:nowrap">🕐 —</span>
     <button class="hbtn focus" onclick="location.href='/focus'">FOCUS NODE</button>
+    <button class="hbtn" style="background:#003311;border-color:#00ff88;color:#00ff88" onclick="openScalpingChart()">📈 SCALPING CHART</button>
     <button class="hbtn" id="simple-toggle-btn" onclick="toggleSimpleMode()">SIMPLE NODE</button>
     <button class="hbtn admin" onclick="location.href='/admin'">ADMIN/QUEST</button>
     <button class="hbtn client" onclick="location.href='/client'">profile ▾</button>
@@ -520,94 +521,12 @@ body.simple-active .ms-sub { font-size:12px }
     </div>
   </div>
 
-  <!-- LIVE CHARTS: BTC (fixed) + Manual coin selection, both full-featured like Sniper -->
   <div class="card" style="margin-top:8px">
-    <div class="ch" style="font-size:10px">📈 BTC / USDT — Live Chart</div>
     <div class="cb">
-      <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
-        <button class="w-tf-btn" data-widget="btc" data-tf="1m" onclick="setWidgetTimeframe('btc','1m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1m</button>
-        <button class="w-tf-btn" data-widget="btc" data-tf="5m" onclick="setWidgetTimeframe('btc','5m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">5m</button>
-        <button class="w-tf-btn active" data-widget="btc" data-tf="15m" onclick="setWidgetTimeframe('btc','15m')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">15m</button>
-        <button class="w-tf-btn" data-widget="btc" data-tf="1h" onclick="setWidgetTimeframe('btc','1h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1h</button>
-        <button class="w-tf-btn" data-widget="btc" data-tf="4h" onclick="setWidgetTimeframe('btc','4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">4h</button>
-        <button class="w-tf-btn" data-widget="btc" data-tf="8h" onclick="setWidgetTimeframe('btc','8h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">8h</button>
-        <button class="w-tf-btn" data-widget="btc" data-tf="1d" onclick="setWidgetTimeframe('btc','1d')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1d</button>
-        <button id="btc-tf-all-btn" onclick="toggleWidgetMultiTf('btc')" style="background:#1a0a2e;border:1px solid #a855f7;color:#c084fc;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px;font-weight:bold">ALL / Multi-TF</button>
-      </div>
-      <div style="position:relative;margin-bottom:6px">
-        <div id="btc-chart-box" style="background:#040408;height:200px;border:1px solid #1e1e2e;border-radius:2px;overflow:hidden"></div>
-        <div id="btc-candle-countdown" style="position:absolute;top:4px;right:6px;background:rgba(10,10,20,0.85);border:1px solid #333;border-radius:2px;padding:2px 6px;font-size:9px;color:var(--gold);z-index:5">⏱ —</div>
-      </div>
-      <div id="btc-multi-tf-strip" style="display:none;background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:6px;margin-bottom:6px;font-size:9px">
-        <div style="color:var(--grey);margin-bottom:4px">RSI ACROSS ALL TIMEFRAMES</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center">
-          <div>1m<br><span data-widget-rsi="btc-1m">—</span></div>
-          <div>5m<br><span data-widget-rsi="btc-5m">—</span></div>
-          <div>15m<br><span data-widget-rsi="btc-15m">—</span></div>
-          <div>1h<br><span data-widget-rsi="btc-1h">—</span></div>
-          <div>4h<br><span data-widget-rsi="btc-4h">—</span></div>
-          <div>8h<br><span data-widget-rsi="btc-8h">—</span></div>
-          <div>1d<br><span data-widget-rsi="btc-1d">—</span></div>
-        </div>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:6px;align-items:center">
-        <span style="font-size:8px;color:var(--grey)">PIVOT BASIS:</span>
-        <button class="w-pivot-btn active" data-widget="btc" data-basis="daily" onclick="setWidgetPivotBasis('btc','daily')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Daily</button>
-        <button class="w-pivot-btn" data-widget="btc" data-basis="hourly" onclick="setWidgetPivotBasis('btc','hourly')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Hourly</button>
-      </div>
-      <div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:6px;font-size:9px;display:flex;justify-content:space-between;align-items:center">
-        <span style="color:var(--grey)">S/R LEVEL CONFIDENCE</span>
-        <span id="btc-sr-confidence-val" style="font-weight:bold;color:var(--grey)">—</span>
-      </div>
-      <div id="btc-chart-status" style="font-size:9px;color:#666">—</div>
+      <button onclick="openScalpingChart()" style="width:100%;padding:12px;background:#003311;border:1px solid #00ff88;color:#00ff88;font-size:12px;font-weight:bold;border-radius:2px;cursor:pointer">📈 Open Scalping Chart</button>
     </div>
   </div>
 
-  <div class="card" style="margin-top:8px">
-    <div class="ch" style="font-size:10px">🔍 Manual Coin — Live Chart</div>
-    <div class="cb">
-      <div style="display:flex;gap:4px;margin-bottom:6px">
-        <input type="text" id="cmd2-coin-inp" placeholder="e.g. ETHUSDT" value="ETHUSDT" style="flex:1;background:#0a0a14;border:1px solid #333;color:#fff;padding:5px 8px;font-size:10px;border-radius:2px" onkeypress="if(event.key==='Enter') searchWidgetCoin('cmd2')">
-        <button onclick="searchWidgetCoin('cmd2')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:5px 12px;font-size:9px;border-radius:2px;cursor:pointer">Search</button>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
-        <button class="w-tf-btn" data-widget="cmd2" data-tf="1m" onclick="setWidgetTimeframe('cmd2','1m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1m</button>
-        <button class="w-tf-btn" data-widget="cmd2" data-tf="5m" onclick="setWidgetTimeframe('cmd2','5m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">5m</button>
-        <button class="w-tf-btn active" data-widget="cmd2" data-tf="15m" onclick="setWidgetTimeframe('cmd2','15m')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">15m</button>
-        <button class="w-tf-btn" data-widget="cmd2" data-tf="1h" onclick="setWidgetTimeframe('cmd2','1h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1h</button>
-        <button class="w-tf-btn" data-widget="cmd2" data-tf="4h" onclick="setWidgetTimeframe('cmd2','4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">4h</button>
-        <button class="w-tf-btn" data-widget="cmd2" data-tf="8h" onclick="setWidgetTimeframe('cmd2','8h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">8h</button>
-        <button class="w-tf-btn" data-widget="cmd2" data-tf="1d" onclick="setWidgetTimeframe('cmd2','1d')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1d</button>
-        <button id="cmd2-tf-all-btn" onclick="toggleWidgetMultiTf('cmd2')" style="background:#1a0a2e;border:1px solid #a855f7;color:#c084fc;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px;font-weight:bold">ALL / Multi-TF</button>
-      </div>
-      <div style="position:relative;margin-bottom:6px">
-        <div id="cmd2-chart-box" style="background:#040408;height:200px;border:1px solid #1e1e2e;border-radius:2px;overflow:hidden"></div>
-        <div id="cmd2-candle-countdown" style="position:absolute;top:4px;right:6px;background:rgba(10,10,20,0.85);border:1px solid #333;border-radius:2px;padding:2px 6px;font-size:9px;color:var(--gold);z-index:5">⏱ —</div>
-      </div>
-      <div id="cmd2-multi-tf-strip" style="display:none;background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:6px;margin-bottom:6px;font-size:9px">
-        <div style="color:var(--grey);margin-bottom:4px">RSI ACROSS ALL TIMEFRAMES</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center">
-          <div>1m<br><span data-widget-rsi="cmd2-1m">—</span></div>
-          <div>5m<br><span data-widget-rsi="cmd2-5m">—</span></div>
-          <div>15m<br><span data-widget-rsi="cmd2-15m">—</span></div>
-          <div>1h<br><span data-widget-rsi="cmd2-1h">—</span></div>
-          <div>4h<br><span data-widget-rsi="cmd2-4h">—</span></div>
-          <div>8h<br><span data-widget-rsi="cmd2-8h">—</span></div>
-          <div>1d<br><span data-widget-rsi="cmd2-1d">—</span></div>
-        </div>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:6px;align-items:center">
-        <span style="font-size:8px;color:var(--grey)">PIVOT BASIS:</span>
-        <button class="w-pivot-btn active" data-widget="cmd2" data-basis="daily" onclick="setWidgetPivotBasis('cmd2','daily')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Daily</button>
-        <button class="w-pivot-btn" data-widget="cmd2" data-basis="hourly" onclick="setWidgetPivotBasis('cmd2','hourly')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Hourly</button>
-      </div>
-      <div style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:6px;font-size:9px;display:flex;justify-content:space-between;align-items:center">
-        <span style="color:var(--grey)">S/R LEVEL CONFIDENCE</span>
-        <span id="cmd2-sr-confidence-val" style="font-weight:bold;color:var(--grey)">—</span>
-      </div>
-      <div id="cmd2-chart-status" style="font-size:9px;color:#666">—</div>
-    </div>
-  </div>
 
   <!-- ACCORDIONS -->
   <div class="card" style="margin-top:8px">
@@ -652,46 +571,9 @@ body.simple-active .ms-sub { font-size:12px }
             <input class="s-inp" id="coin-inp" value="BTC / USDT" placeholder="🔍 Coin pair"/>
             <button class="s-btn" onclick="doSearch()">Search</button>
           </div>
-          <div style="display:flex;gap:4px;margin-bottom:5px;flex-wrap:wrap">
-<button class="tf-btn" data-tf="1m" onclick="setTimeframe('1m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1m</button>
-<button class="tf-btn" data-tf="5m" onclick="setTimeframe('5m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">5m</button>
-<button class="tf-btn active" data-tf="15m" onclick="setTimeframe('15m')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">15m</button>
-<button class="tf-btn" data-tf="1h" onclick="setTimeframe('1h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1h</button>
-<button class="tf-btn" data-tf="4h" onclick="setTimeframe('4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">4h</button>
-<button class="tf-btn" data-tf="8h" onclick="setTimeframe('8h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">8h</button>
-<button class="tf-btn" data-tf="1d" onclick="setTimeframe('1d')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px">1d</button>
-<button id="tf-all-btn" onclick="toggleMultiTfStrip()" style="background:#1a0a2e;border:1px solid #a855f7;color:#c084fc;padding:3px 8px;font-size:9px;cursor:pointer;border-radius:2px;font-weight:bold">ALL / Multi-TF</button>
-</div>
-<div id="chart-box-wrap" style="position:relative;margin-bottom:5px">
-  <div id="chart-box" style="background:#040408;height:260px;border:1px solid #1e1e2e;border-radius:2px;overflow:hidden"></div>
-  <div id="candle-countdown" style="position:absolute;top:4px;right:6px;background:rgba(10,10,20,0.85);border:1px solid #333;border-radius:2px;padding:2px 6px;font-size:9px;color:var(--gold);z-index:5">⏱ —</div>
-</div>
-<div id="multi-tf-strip" style="display:none;background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:6px;margin-bottom:5px;font-size:9px">
-  <div style="color:var(--grey);margin-bottom:4px">RSI ACROSS ALL TIMEFRAMES</div>
-  <div id="multi-tf-strip-body" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center">
-    <div>1m<br><span data-tf-rsi="1m">—</span></div>
-    <div>5m<br><span data-tf-rsi="5m">—</span></div>
-    <div>15m<br><span data-tf-rsi="15m">—</span></div>
-    <div>1h<br><span data-tf-rsi="1h">—</span></div>
-    <div>4h<br><span data-tf-rsi="4h">—</span></div>
-    <div>8h<br><span data-tf-rsi="8h">—</span></div>
-    <div>1d<br><span data-tf-rsi="1d">—</span></div>
-  </div>
-</div>
-<div style="display:flex;gap:4px;margin-bottom:5px;align-items:center">
-  <span style="font-size:8px;color:var(--grey)">PIVOT BASIS:</span>
-  <button class="pivot-btn active" data-basis="daily" onclick="setPivotBasis('daily')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Daily</button>
-  <button class="pivot-btn" data-basis="hourly" onclick="setPivotBasis('hourly')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:2px 7px;font-size:9px;cursor:pointer;border-radius:2px">Hourly</button>
-</div>
-<div id="key-levels-panel" style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:6px 8px;margin-bottom:5px">
-  <div style="color:var(--grey);font-size:9px">Loading key levels...</div>
-</div>
+          <button onclick="openScalpingChart()" style="width:100%;padding:10px;background:#003311;border:1px solid #00ff88;color:#00ff88;font-size:11px;font-weight:bold;border-radius:2px;cursor:pointer;margin-bottom:5px">📈 Open Scalping Chart (candles, EMA, VWAP, Bollinger, RSI, Volume, pattern detection)</button>
 <div id="whale-wall-panel" style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:6px 8px;margin-bottom:5px">
   <div style="color:var(--grey);font-size:9px">Loading whale walls...</div>
-</div>
-<div id="sr-confidence-bar" style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 8px;margin-bottom:5px;font-size:9px;display:flex;justify-content:space-between;align-items:center">
-  <span style="color:var(--grey)">S/R LEVEL CONFIDENCE</span>
-  <span id="sr-confidence-val" style="font-weight:bold;color:var(--grey)">—</span>
 </div>
 <div id="chart-status" style="font-size:9px;color:#666;margin-bottom:5px"></div>
 <div id="sl-warning" style="display:none;background:#330000;border:1px solid #ff2244;color:#ff2244;font-size:10px;font-weight:bold;padding:5px 8px;border-radius:2px;margin-bottom:5px;text-align:center"></div>
@@ -1150,6 +1032,42 @@ body.simple-active .ms-sub { font-size:12px }
   <span>Version: v0.0.20</span>
 </div>
 
+<!-- ═══════════════════════════════
+     FULL-SCREEN SCALPING CHART (replaces all embedded charts)
+═══════════════════════════════ -->
+<div id="scalping-overlay" style="display:none;position:fixed;inset:0;background:#040408;z-index:10000;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0a0a12;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+      <span style="font-size:13px;font-weight:bold" id="scalp-title">Scalping Chart — BTC/USDT</span>
+      <input id="scalp-symbol-inp" type="text" placeholder="Coin e.g. ETH" style="width:80px;background:#0a0a14;border:1px solid #333;color:#fff;padding:3px 6px;font-size:10px;border-radius:2px">
+      <button onclick="scalpChangeSymbol()" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 8px;font-size:9px;border-radius:2px;cursor:pointer">Load</button>
+    </div>
+    <button onclick="closeScalpingChart()" style="background:#440000;border:1px solid #ff2244;color:#ff2244;padding:5px 12px;font-size:10px;font-weight:bold;border-radius:2px;cursor:pointer">Exit Scalping</button>
+  </div>
+  <div style="display:flex;gap:3px;padding:6px 10px;background:#0a0a12;border-bottom:1px solid var(--border);flex-wrap:wrap">
+    <button class="scalp-tf-btn" data-tf="1m" onclick="scalpSetTf('1m')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">1m (Default)</button>
+    <button class="scalp-tf-btn" data-tf="5m" onclick="scalpSetTf('5m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">5m</button>
+    <button class="scalp-tf-btn" data-tf="15m" onclick="scalpSetTf('15m')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">15m</button>
+    <button class="scalp-tf-btn" data-tf="1h" onclick="scalpSetTf('1h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">1h</button>
+    <button class="scalp-tf-btn" data-tf="4h" onclick="scalpSetTf('4h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">4h</button>
+    <button class="scalp-tf-btn" data-tf="8h" onclick="scalpSetTf('8h')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">8h</button>
+    <button class="scalp-tf-btn" data-tf="1d" onclick="scalpSetTf('1d')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:3px 9px;font-size:10px;cursor:pointer;border-radius:2px">1d</button>
+    <span id="scalp-candle-countdown" style="margin-left:auto;background:rgba(255,215,0,0.1);border:1px solid #333;border-radius:2px;padding:3px 8px;font-size:10px;color:var(--gold)">⏱ —</span>
+  </div>
+  <div style="flex:1;position:relative;min-height:0;display:flex;flex-direction:column">
+    <div id="scalp-pattern-box" style="position:absolute;top:8px;left:8px;z-index:20;background:rgba(10,10,20,0.92);border:1px solid #333;border-radius:4px;padding:8px 10px;font-size:10px;max-width:220px">
+      <div style="color:var(--grey);font-size:8px;text-transform:uppercase;margin-bottom:4px">Scalping Analysis (Live)</div>
+      <div style="color:var(--grey);font-size:9px">Current Candle</div>
+      <div id="scalp-pattern-name" style="font-weight:bold;font-size:13px;margin-bottom:6px;color:var(--grey)">Detecting...</div>
+      <div style="color:var(--grey);font-size:9px">Next Expected</div>
+      <div id="scalp-next-prediction" style="font-weight:bold;font-size:12px;color:var(--grey)">Next: —</div>
+      <div id="scalp-volume-alert" style="display:none;margin-top:6px;padding:4px 6px;border-radius:2px;font-size:9px;font-weight:bold"></div>
+    </div>
+    <div id="scalp-main-chart" style="flex:1;min-height:0"></div>
+    <div id="scalp-status" style="font-size:9px;color:#666;padding:2px 10px"></div>
+  </div>
+</div>
+
 <script>
 // ── GLOBALS ──
 let chart=null, candleSeries=null, ema9Series=null, ema21Series=null, vwapSeries=null, countdown=8, timer=null, currentTF='15m', activeStrategyFilter='all', pivotBasis='daily';
@@ -1169,7 +1087,7 @@ function switchTab(name, el) {
   el.classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
   try{ localStorage.setItem('v6_active_tab', name); }catch(e){}
-  if(name==='sniper' && !chart) setTimeout(function(){initChart();fetchChart();},500);
+  if(name==='sniper' && !chart) setTimeout(function(){fetchChart();},500);
 }
 
 function toggleMoreTabs(){
@@ -1197,7 +1115,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(btn) switchTab(savedTab, btn);
     }
   }catch(e){}
-  setTimeout(function(){initChart();fetchChart();},500);
+  setTimeout(function(){fetchChart();},500);
   fetchAll();
   fetchMarketOverview();
   setInterval(fetchMarketOverview, 90000);
@@ -1214,29 +1132,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ── CHART ──
-function initChart(){
-  const c=document.getElementById('chart-box');
-  if(!c||typeof LightweightCharts==='undefined') return;
-  try{
-    chart=LightweightCharts.createChart(c,{
-      autoSize:true,
-      layout:{background:{color:'#040408'},textColor:'#666'},
-      grid:{vertLines:{color:'#0f0f18'},horzLines:{color:'#0f0f18'}},
-      rightPriceScale:{borderColor:'#1e1e2e'},
-      timeScale:{borderColor:'#1e1e2e',timeVisible:true},
-    });
-    candleSeries=chart.addCandlestickSeries({
-      upColor:'#00cc44',downColor:'#cc2200',
-      borderUpColor:'#00cc44',borderDownColor:'#cc2200',
-      wickUpColor:'#00cc44',wickDownColor:'#cc2200',
-    });
-    ema9Series=chart.addLineSeries({color:'#00bfff',lineWidth:1,priceLineVisible:false,lastValueVisible:false,title:'EMA9'});
-    ema21Series=chart.addLineSeries({color:'#ff9900',lineWidth:1,priceLineVisible:false,lastValueVisible:false,title:'EMA21'});
-    vwapSeries=chart.addLineSeries({color:'#c084fc',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false,title:'VWAP'});
-    window.addEventListener('resize',()=>{if(chart)chart.applyOptions({width:c.clientWidth});});
-  }catch(e){console.warn('Chart init failed:',e);}
-}
-
 function ensureScalpBox(){
   let el=document.getElementById('scalp-signal');
   if(!el){
@@ -1292,97 +1187,304 @@ function calcEMASeries(candles, period){
   return out;
 }
 
-/* ── Pivot Points (S1-S3 green / R1-R3 red) with proximity highlighting ── */
-function setPivotBasis(basis){
-  pivotBasis=basis;
-  document.querySelectorAll('.pivot-btn').forEach(b=>{
-    const on=b.dataset.basis===basis;
+/* ══════════════════════════════════════════════════════════════
+   FULL-SCREEN SCALPING CHART — single chart engine, replaces the
+   old Sniper embedded chart and the Command-tab chart widgets.
+   Live updates via a direct browser->Binance WebSocket connection
+   (bypasses the server entirely, so it also sidesteps any
+   server-hosting-region restriction that can block server-side
+   Binance WebSocket connections).
+   ══════════════════════════════════════════════════════════════ */
+window._scalpState = {
+  symbol: 'BTCUSDT', tf: '1m',
+  chart: null, candleSeries: null,
+  bbUpperSeries: null, bbLowerSeries: null, vwapSeries: null, ema9Series: null, ema21Series: null,
+  rsiSeries: null, volumeSeries: null,
+  candles: [], ws: null,
+};
+const SCALP_TF_SECONDS={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'8h':28800,'1d':86400};
+
+function openScalpingChart(){
+  const overlay=document.getElementById('scalping-overlay');
+  if(!overlay) return;
+  overlay.style.display='flex';
+  const sniperInp=document.getElementById('coin-inp');
+  let sym='BTCUSDT';
+  if(sniperInp && sniperInp.value){
+    const s=sniperInp.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(s) sym=s.includes('USDT')?s:s+'USDT';
+  }
+  window._scalpState.symbol=sym;
+  const inp=document.getElementById('scalp-symbol-inp');
+  if(inp) inp.value=sym.replace('USDT','');
+  scalpLoad();
+  scalpStartCountdown();
+}
+
+function closeScalpingChart(){
+  const overlay=document.getElementById('scalping-overlay');
+  if(overlay) overlay.style.display='none';
+  if(window._scalpState.ws){ try{ window._scalpState.ws.close(); }catch(e){} window._scalpState.ws=null; }
+  if(window._scalpCountdownTimer){ clearInterval(window._scalpCountdownTimer); window._scalpCountdownTimer=null; }
+}
+
+function scalpChangeSymbol(){
+  const inp=document.getElementById('scalp-symbol-inp');
+  if(!inp) return;
+  const s=inp.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!s) return;
+  window._scalpState.symbol=s.includes('USDT')?s:s+'USDT';
+  scalpLoad();
+}
+
+function scalpSetTf(tf){
+  window._scalpState.tf=tf;
+  document.querySelectorAll('.scalp-tf-btn').forEach(b=>{
+    const on=b.dataset.tf===tf;
     b.style.background=on?'#003311':'#0a0a14';
     b.style.borderColor=on?'#00ff88':'#333';
     b.style.color=on?'#00ff88':'#aaa';
   });
-  fetchChart();
+  scalpLoad();
 }
 
-function updatePivotLevels(symbol, currentPrice){
-  fetch(`/pivot_points?symbol=${symbol}&type=${pivotBasis}`).then(r=>r.json()).then(pv=>{
-    const confEl=document.getElementById('sr-confidence-val');
-    const panel=document.getElementById('key-levels-panel');
-    if(!pv.available){
-      if(confEl){ confEl.textContent='No data'; confEl.style.color='var(--grey)'; }
-      if(panel) panel.innerHTML='<div style="color:var(--grey);font-size:9px">No pivot data available</div>';
-      return;
-    }
-    const levels=[
-      {label:'R3',price:pv.r3,color:'var(--red)'},
-      {label:'R2',price:pv.r2,color:'var(--red)'},
-      {label:'R1',price:pv.r1,color:'var(--red)'},
-      {label:'P', price:pv.pivot,color:'var(--gold)'},
-      {label:'S1',price:pv.s1,color:'var(--green)'},
-      {label:'S2',price:pv.s2,color:'var(--green)'},
-      {label:'S3',price:pv.s3,color:'var(--green)'},
-    ];
-    let minDistPct=Infinity;
-    const rows=levels.filter(lv=>lv.price).map(lv=>{
-      const distPct=currentPrice?Math.abs(currentPrice-lv.price)/currentPrice*100:100;
-      const near=distPct<=0.3;
-      if(distPct<minDistPct) minDistPct=distPct;
-      return `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:9px;${near?'background:rgba(255,215,0,0.12);border-radius:2px;padding-left:3px':''}">
-        <span style="color:${lv.color};font-weight:${near?'bold':'normal'}">${near?'🔥 ':''}${lv.label}</span>
-        <span style="color:${near?'var(--white)':'var(--grey)'};font-weight:${near?'bold':'normal'}">${fmt6(lv.price)}</span>
-      </div>`;
-    }).join('');
-    if(panel) panel.innerHTML=rows;
-    if(confEl){
-      const score=Math.max(0, Math.round(100-Math.min(minDistPct,5)*20));
-      confEl.textContent=score+'% ('+(minDistPct<0.3?'price near a key level':'no level nearby')+')';
-      confEl.style.color=score>=70?'var(--green)':score>=40?'var(--gold)':'var(--grey)';
-    }
-  }).catch(()=>{
-    const confEl=document.getElementById('sr-confidence-val');
-    if(confEl){ confEl.textContent='Fetch failed'; confEl.style.color='var(--grey)'; }
+function scalpInitChart(){
+  const box=document.getElementById('scalp-main-chart');
+  const st=document.getElementById('scalp-status');
+  if(!box) return;
+  if(typeof LightweightCharts==='undefined'){ if(st) st.textContent='Chart library not loaded'; return; }
+  try{
+    const w=box.clientWidth||window.innerWidth||360;
+    const h=box.clientHeight||(window.innerHeight-160)||400;
+    const c=LightweightCharts.createChart(box,{
+      width:w, height:h, autoSize:true,
+      layout:{background:{color:'#040408'},textColor:'#666'},
+      grid:{vertLines:{color:'#0f0f18'},horzLines:{color:'#0f0f18'}},
+      rightPriceScale:{borderColor:'#1e1e2e', scaleMargins:{top:0.05,bottom:0.45}},
+      timeScale:{borderColor:'#1e1e2e',timeVisible:true},
+    });
+    const candleSeries=c.addCandlestickSeries({
+      upColor:'#00cc44',downColor:'#cc2200',borderUpColor:'#00cc44',borderDownColor:'#cc2200',
+      wickUpColor:'#00cc44',wickDownColor:'#cc2200',
+    });
+    const bbUpperSeries=c.addLineSeries({color:'rgba(150,150,170,0.6)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+    const bbLowerSeries=c.addLineSeries({color:'rgba(150,150,170,0.6)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+    const vwapSeries=c.addLineSeries({color:'#c084fc',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
+    const ema9Series=c.addLineSeries({color:'#00bfff',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+    const ema21Series=c.addLineSeries({color:'#ff9900',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+
+    const rsiSeries=c.addLineSeries({color:'#c084fc', lineWidth:1, priceScaleId:'rsi', priceLineVisible:false, lastValueVisible:true});
+    c.priceScale('rsi').applyOptions({scaleMargins:{top:0.58,bottom:0.20}, borderColor:'#1e1e2e'});
+
+    const volumeSeries=c.addHistogramSeries({priceScaleId:'volume', priceLineVisible:false, lastValueVisible:false});
+    c.priceScale('volume').applyOptions({scaleMargins:{top:0.85,bottom:0.0}, borderColor:'#1e1e2e'});
+
+    const s=window._scalpState;
+    s.chart=c; s.candleSeries=candleSeries; s.bbUpperSeries=bbUpperSeries; s.bbLowerSeries=bbLowerSeries;
+    s.vwapSeries=vwapSeries; s.ema9Series=ema9Series; s.ema21Series=ema21Series;
+    s.rsiSeries=rsiSeries; s.volumeSeries=volumeSeries;
+
+    window.addEventListener('resize',()=>{ if(s.chart && box) s.chart.resize(box.clientWidth, box.clientHeight); });
+  }catch(e){
+    console.warn('Scalping chart init failed:', e);
+    if(st) st.textContent='Chart init error: '+e.message;
+  }
+}
+
+function scalpCalcBollinger(candles, period, mult){
+  period=period||20; mult=mult||2;
+  const upper=[], lower=[];
+  for(let i=period-1;i<candles.length;i++){
+    const win=candles.slice(i-period+1, i+1);
+    const mean=win.reduce((s,c)=>s+c.close,0)/period;
+    const variance=win.reduce((s,c)=>s+Math.pow(c.close-mean,2),0)/period;
+    const sd=Math.sqrt(variance);
+    upper.push({time:candles[i].time, value:mean+mult*sd});
+    lower.push({time:candles[i].time, value:mean-mult*sd});
+  }
+  return {upper, lower};
+}
+
+function scalpCalcVWAP(candles){
+  let cumPV=0, cumVol=0;
+  return candles.map(c=>{
+    const typical=(c.high+c.low+c.close)/3;
+    const vol=c.volume||0;
+    cumPV+=typical*vol; cumVol+=vol;
+    return {time:c.time, value:cumVol?cumPV/cumVol:typical};
   });
 }
 
-/* ── Multi-Timeframe RSI strip ── */
-function toggleMultiTfStrip(){
-  const strip=document.getElementById('multi-tf-strip');
-  const btn=document.getElementById('tf-all-btn');
-  if(!strip) return;
-  const show=strip.style.display==='none';
-  strip.style.display=show?'block':'none';
-  if(btn){ btn.style.background=show?'#a855f7':'#1a0a2e'; btn.style.color=show?'#fff':'#c084fc'; }
-  if(show) fetchMultiTfRsi();
+function scalpCalcRSISeries(candles, period){
+  period=period||14;
+  if(candles.length<period+1) return [];
+  const out=[];
+  let gains=0, losses=0;
+  for(let i=1;i<=period;i++){
+    const d=candles[i].close-candles[i-1].close;
+    if(d>0) gains+=d; else losses-=d;
+  }
+  let avgGain=gains/period, avgLoss=losses/period;
+  out.push({time:candles[period].time, value: avgLoss===0?100:100-(100/(1+avgGain/avgLoss))});
+  for(let i=period+1;i<candles.length;i++){
+    const d=candles[i].close-candles[i-1].close;
+    const g=Math.max(d,0), l=Math.max(-d,0);
+    avgGain=(avgGain*(period-1)+g)/period;
+    avgLoss=(avgLoss*(period-1)+l)/period;
+    out.push({time:candles[i].time, value: avgLoss===0?100:100-(100/(1+avgGain/avgLoss))});
+  }
+  return out;
 }
 
-function fetchMultiTfRsi(){
-  const symbol=(document.getElementById('coin-inp')?.value||'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const sym=symbol.includes('USDT')?symbol:symbol+'USDT';
-  fetch(`/rsi_multi_tf?symbol=${sym}`).then(r=>r.json()).then(d=>{
-    const rsi=d.rsi||{};
-    document.querySelectorAll('[data-tf-rsi]').forEach(el=>{
-      const tf=el.dataset.tfRsi;
-      const v=rsi[tf];
-      if(v===null||v===undefined){ el.textContent='—'; el.style.color='var(--grey)'; return; }
-      el.textContent=v;
-      el.style.color=v>=70?'var(--red)':v<=30?'var(--green)':'var(--gold)';
-    });
-  }).catch(()=>{});
+/* ── Candle pattern detection ── */
+function scalpDetectPattern(candles){
+  if(candles.length<3) return {name:'Insufficient data', dir:'neutral'};
+  const c0=candles[candles.length-3], c1=candles[candles.length-2], c2=candles[candles.length-1];
+  const body=c=>Math.abs(c.close-c.open);
+  const range=c=>(c.high-c.low)||1e-9;
+  const upperWick=c=>c.high-Math.max(c.open,c.close);
+  const lowerWick=c=>Math.min(c.open,c.close)-c.low;
+  const isBull=c=>c.close>c.open;
+  const isBear=c=>c.close<c.open;
+
+  if(body(c2)/range(c2) < 0.1) return {name:'Doji', dir:'neutral'};
+  if(isBear(c1) && isBull(c2) && c2.open<=c1.close && c2.close>=c1.open) return {name:'Bullish Engulfing', dir:'bullish'};
+  if(isBull(c1) && isBear(c2) && c2.open>=c1.close && c2.close<=c1.open) return {name:'Bearish Engulfing', dir:'bearish'};
+  if(lowerWick(c2) > body(c2)*2 && upperWick(c2) < body(c2)*0.5 && isBull(c2)) return {name:'Hammer', dir:'bullish'};
+  if(upperWick(c2) > body(c2)*2 && lowerWick(c2) < body(c2)*0.5 && isBear(c2)) return {name:'Shooting Star', dir:'bearish'};
+  if(isBear(c0) && body(c1)/range(c1) < 0.3 && isBull(c2) && c2.close > (c0.open+c0.close)/2) return {name:'Morning Star', dir:'bullish'};
+  if(isBull(c0) && body(c1)/range(c1) < 0.3 && isBear(c2) && c2.close < (c0.open+c0.close)/2) return {name:'Evening Star', dir:'bearish'};
+  return {name: isBull(c2)?'Bullish candle':'Bearish candle', dir: isBull(c2)?'bullish':'bearish'};
 }
 
-/* ── Live candle-close countdown (chart corner, tracks currentTF) ── */
-const TF_SECONDS={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'8h':28800,'1d':86400};
-function startChartCandleCountdown(){
+function scalpPredictNext(pattern, rsi, price, bbUpper, bbLower){
+  const bullishPatterns=['Bullish Engulfing','Hammer','Morning Star'];
+  const bearishPatterns=['Bearish Engulfing','Shooting Star','Evening Star'];
+  if(price<=bbLower && rsi<30 && bullishPatterns.includes(pattern)) return {text:'Bullish Bounce', color:'var(--green)'};
+  if(price>=bbUpper && rsi>70 && bearishPatterns.includes(pattern)) return {text:'Bearish Reversal', color:'var(--red)'};
+  return {text:'Neutral', color:'var(--grey)'};
+}
+
+function scalpLoad(){
+  const st=document.getElementById('scalp-status');
+  const titleEl=document.getElementById('scalp-title');
+  const sym=window._scalpState.symbol, tf=window._scalpState.tf;
+  if(titleEl) titleEl.textContent='Scalping Chart — '+sym.replace('USDT','/USDT');
+  if(st) st.textContent='Loading '+sym+' '+tf+'...';
+  if(!window._scalpState.chart) scalpInitChart();
+
+  fetch(`/chart_data?symbol=${sym}&interval=${tf}&limit=100`).then(r=>r.json()).then(d=>{
+    if(!d.candles || !d.candles.length){ if(st) st.textContent='No data for '+sym; return; }
+    const candles=d.candles.map(c=>({
+      time:c.time, open:parseFloat(c.open), high:parseFloat(c.high), low:parseFloat(c.low), close:parseFloat(c.close),
+      volume:parseFloat(c.volume||0),
+    }));
+    window._scalpState.candles=candles;
+    scalpRenderAll(candles);
+    if(st) st.textContent=candles.length+' candles ('+sym+' '+tf+') — live via WebSocket';
+    scalpConnectWebSocket(sym, tf);
+  }).catch(()=>{ if(st) st.textContent='Chart fetch failed'; });
+}
+
+function scalpRenderAll(candles){
+  const s=window._scalpState;
+  if(!s.candleSeries) return;
+  try{
+    s.candleSeries.setData(candles.map(c=>({time:c.time,open:c.open,high:c.high,low:c.low,close:c.close})));
+    const bb=scalpCalcBollinger(candles,20,2);
+    if(s.bbUpperSeries) s.bbUpperSeries.setData(bb.upper);
+    if(s.bbLowerSeries) s.bbLowerSeries.setData(bb.lower);
+    if(s.vwapSeries) s.vwapSeries.setData(scalpCalcVWAP(candles));
+    if(s.ema9Series) s.ema9Series.setData(calcEMASeries(candles,9));
+    if(s.ema21Series) s.ema21Series.setData(calcEMASeries(candles,21));
+    const rsiData=scalpCalcRSISeries(candles,14);
+    if(s.rsiSeries) s.rsiSeries.setData(rsiData);
+    if(s.volumeSeries) s.volumeSeries.setData(candles.map(c=>({time:c.time,value:c.volume,color:c.close>=c.open?'rgba(0,204,68,0.6)':'rgba(204,34,0,0.6)'})));
+
+    const pattern=scalpDetectPattern(candles);
+    const nameEl=document.getElementById('scalp-pattern-name');
+    if(nameEl){
+      nameEl.textContent=pattern.name;
+      nameEl.style.color=pattern.dir==='bullish'?'var(--green)':pattern.dir==='bearish'?'var(--red)':'var(--grey)';
+    }
+    const lastRsi=rsiData.length?rsiData[rsiData.length-1].value:50;
+    const lastPrice=candles[candles.length-1].close;
+    const lastBBUpper=bb.upper.length?bb.upper[bb.upper.length-1].value:lastPrice;
+    const lastBBLower=bb.lower.length?bb.lower[bb.lower.length-1].value:lastPrice;
+    const pred=scalpPredictNext(pattern.name, lastRsi, lastPrice, lastBBUpper, lastBBLower);
+    const predEl=document.getElementById('scalp-next-prediction');
+    if(predEl){ predEl.textContent='Next: '+pred.text; predEl.style.color=pred.color; }
+
+    scalpCheckVolumeSpike(candles);
+  }catch(e){
+    console.warn('scalpRenderAll failed:', e);
+    const st=document.getElementById('scalp-status');
+    if(st) st.textContent='Render error: '+e.message;
+  }
+}
+
+function scalpCheckVolumeSpike(candles){
+  const alertEl=document.getElementById('scalp-volume-alert');
+  if(!alertEl || candles.length<21){ if(alertEl) alertEl.style.display='none'; return; }
+  const recent=candles.slice(-21,-1);
+  const avgVol=recent.reduce((s,c)=>s+c.volume,0)/recent.length;
+  const last=candles[candles.length-1];
+  if(avgVol<=0){ alertEl.style.display='none'; return; }
+  const ratio=last.volume/avgVol;
+  if(ratio>=2){
+    const bullish=last.close>=last.open;
+    alertEl.style.display='block';
+    alertEl.textContent='⚡ Alert: Volume Spike ('+ratio.toFixed(1)+'x Avg)';
+    alertEl.style.background=bullish?'rgba(0,204,68,0.18)':'rgba(204,34,0,0.18)';
+    alertEl.style.color=bullish?'var(--green)':'var(--red)';
+  }else{
+    alertEl.style.display='none';
+  }
+}
+
+/* ── Live updates via direct browser -> Binance WebSocket ── */
+function scalpConnectWebSocket(symbol, tf){
+  const s=window._scalpState;
+  if(s.ws){ try{ s.ws.close(); }catch(e){} s.ws=null; }
+  const streamSymbol=symbol.toLowerCase();
+  const url=`wss://stream.binance.com:9443/ws/${streamSymbol}@kline_${tf}`;
+  try{
+    const ws=new WebSocket(url);
+    s.ws=ws;
+    ws.onmessage=(ev)=>{
+      if(window._scalpState.symbol!==symbol || window._scalpState.tf!==tf) return;
+      try{
+        const msg=JSON.parse(ev.data);
+        const k=msg.k;
+        if(!k) return;
+        const candle={time:Math.floor(k.t/1000), open:parseFloat(k.o), high:parseFloat(k.h), low:parseFloat(k.l), close:parseFloat(k.c), volume:parseFloat(k.v)};
+        const arr=window._scalpState.candles;
+        if(arr.length && arr[arr.length-1].time===candle.time) arr[arr.length-1]=candle;
+        else{ arr.push(candle); if(arr.length>300) arr.shift(); }
+        scalpRenderAll(arr);
+      }catch(e){}
+    };
+    ws.onerror=()=>{
+      const st=document.getElementById('scalp-status');
+      if(st) st.textContent='Live feed unavailable — showing last fetched data';
+    };
+  }catch(e){
+    console.warn('Scalping WS connect failed:', e);
+  }
+}
+
+function scalpStartCountdown(){
+  if(window._scalpCountdownTimer) clearInterval(window._scalpCountdownTimer);
   function tick(){
-    const el=document.getElementById('candle-countdown');
+    const el=document.getElementById('scalp-candle-countdown');
     if(!el) return;
-    const dur=TF_SECONDS[currentTF]||900;
+    const dur=SCALP_TF_SECONDS[window._scalpState.tf]||60;
     const secs=dur-Math.floor((Date.now()/1000)%dur);
     const m=Math.floor(secs/60), s=secs%60;
     el.textContent='⏱ '+(m>0?m+'m ':'')+s+'s';
   }
   tick();
-  setInterval(tick,1000);
+  window._scalpCountdownTimer=setInterval(tick,1000);
 }
 
 function updateQuickTrends(symbol){
@@ -1437,20 +1539,12 @@ function fetchChart(sym){
     fetch(`/chart_data?symbol=${symbol}&interval=${currentTF}&limit=50`).then(r=>r.json()),
     fetch(`/whale_detail?symbol=${symbol}`).then(r=>r.json()).catch(()=>({}))
   ]).then(([d,wd])=>{
-      if(!candleSeries){ if(_st) _st.textContent='Chart engine not ready'; return; }
       if(!d.candles || !d.candles.length){ if(_st) _st.textContent='No candle data for '+symbol+' ('+currentTF+')'; return; }
       const candles=d.candles.map(c=>({
         time:c.time,open:parseFloat(c.open),
         high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)
       }));
-      candleSeries.setData(candles);
-      if(_st) _st.textContent=candles.length+' candles loaded ('+symbol+' '+currentTF+')';
-      try{
-        if(ema9Series) ema9Series.setData(calcEMASeries(candles,9));
-        if(ema21Series) ema21Series.setData(calcEMASeries(candles,21));
-        if(vwapSeries && d.vwap_line && d.vwap_line.length) vwapSeries.setData(d.vwap_line);
-      }catch(e){console.warn('Indicator overlay failed:',e);}
-      updatePivotLevels(symbol, candles[candles.length-1].close);
+      if(_st) _st.textContent=candles.length+' candles ('+symbol+' '+currentTF+') — full chart in 📈 Scalping Chart';
       const _closes=candles.map(c=>c.close);
       const _rsi=calcRSI(_closes);
       if(_rsi!==null){
@@ -1627,17 +1721,6 @@ function fetchChart(sym){
       set('w2-cls', wd.buy_sell_ratio?wd.buy_sell_ratio.toFixed(2)+'x B/S':'—');
       set('w2-mov', (wd.obi_velocity!==undefined?wd.obi_velocity.toFixed(2):'—')+' vel');
     }).catch(err=>{ if(_st) _st.textContent='Fetch error: '+err; });
-}
-
-function setTimeframe(tf){
-  currentTF=tf;
-  document.querySelectorAll('.tf-btn').forEach(b=>{
-    const active=b.getAttribute('data-tf')===tf;
-    b.style.background=active?'#003311':'#0a0a14';
-    b.style.borderColor=active?'#00ff88':'#333';
-    b.style.color=active?'#00ff88':'#aaa';
-  });
-  fetchChart();
 }
 
 function loadCoin(symbol){
@@ -1936,273 +2019,12 @@ function toggleAccordion(id){
   body.style.display = opening ? 'block' : 'none';
   if(icon) icon.textContent = opening ? '▾' : '▸';
   if(opening){
-    if(id==='acc-chart') renderCmdChart();
-    else if(id==='acc-whale') renderCmdWhale();
+    if(id==='acc-whale') renderCmdWhale();
     else if(id==='acc-history') renderCmdHistory();
     else if(id==='acc-onchain') renderCmdOnchain();
   }
 }
 
-/* ── Reusable scalping chart widget (candles + EMA9/21 + VWAP + Pivot
-   S/R lines + candle countdown + Multi-TF RSI strip). Each instance
-   keeps its own chart/series objects in a closure — no global collision
-   between the two Command-tab widgets (BTC-fixed + manual coin). ── */
-function createScalpChartWidget(containerId, opts){
-  opts = opts || {};
-  const idPrefix = opts.idPrefix;
-  const fixedSymbol = opts.fixedSymbol || null;
-  const container = document.getElementById(containerId);
-  if(!container) return null;
-
-  let currentSymbol = fixedSymbol || 'BTCUSDT';
-  let tf = '15m';
-  let pivotBasis = 'daily';
-  let chart=null, candleSeries=null, ema9Series=null, ema21Series=null, vwapSeries=null;
-  let pivotLines=[];
-  const TF_LIST=['1m','5m','15m','1h','4h','8h','1d'];
-  const TF_SECONDS={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'8h':28800,'1d':86400};
-
-  const searchHtml = fixedSymbol ? '' : `
-    <div style="display:flex;gap:4px;margin-bottom:6px">
-      <input id="${idPrefix}-inp" type="text" placeholder="Coin e.g. ETH" value="BTC" style="flex:1;background:#0a0a14;border:1px solid #333;color:#fff;padding:4px 6px;font-size:10px;border-radius:2px">
-      <button onclick="window.__scalpWidgets['${idPrefix}'].search()" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:4px 10px;font-size:9px;border-radius:2px;cursor:pointer">Load</button>
-    </div>`;
-
-  container.innerHTML = `
-    ${searchHtml}
-    <div style="display:flex;gap:3px;margin-bottom:6px;flex-wrap:wrap">
-      ${TF_LIST.map(t=>`<button class="${idPrefix}-tf-btn" data-tf="${t}" onclick="window.__scalpWidgets['${idPrefix}'].setTf('${t}')" style="background:${t==='15m'?'#003311':'#0a0a14'};border:1px solid ${t==='15m'?'#00ff88':'#333'};color:${t==='15m'?'#00ff88':'#aaa'};padding:2px 6px;font-size:8px;cursor:pointer;border-radius:2px">${t}</button>`).join('')}
-      <button onclick="window.__scalpWidgets['${idPrefix}'].toggleMultiTf()" style="background:#1a0a2e;border:1px solid #a855f7;color:#c084fc;padding:2px 6px;font-size:8px;cursor:pointer;border-radius:2px;font-weight:bold">ALL</button>
-    </div>
-    <div style="position:relative;margin-bottom:6px">
-      <div id="${idPrefix}-box" style="background:#040408;height:220px;border:1px solid #1e1e2e;border-radius:2px;overflow:hidden"></div>
-      <div id="${idPrefix}-countdown" style="position:absolute;top:4px;right:6px;background:rgba(10,10,20,0.85);border:1px solid #333;border-radius:2px;padding:2px 6px;font-size:8px;color:var(--gold);z-index:5">⏱ —</div>
-    </div>
-    <div id="${idPrefix}-multitf" style="display:none;background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px;margin-bottom:6px">
-      <div style="font-size:8px;color:var(--grey);margin-bottom:3px">RSI ACROSS TIMEFRAMES</div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:8px">
-        ${TF_LIST.map(t=>`<div>${t}<br><span id="${idPrefix}-rsi-${t}">—</span></div>`).join('')}
-      </div>
-    </div>
-    <div style="display:flex;gap:3px;margin-bottom:5px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:8px;color:var(--grey)">PIVOT:</span>
-      <button id="${idPrefix}-pivot-daily" onclick="window.__scalpWidgets['${idPrefix}'].setPivotBasis('daily')" style="background:#003311;border:1px solid #00ff88;color:#00ff88;padding:1px 6px;font-size:8px;cursor:pointer;border-radius:2px">Daily</button>
-      <button id="${idPrefix}-pivot-hourly" onclick="window.__scalpWidgets['${idPrefix}'].setPivotBasis('hourly')" style="background:#0a0a14;border:1px solid #333;color:#aaa;padding:1px 6px;font-size:8px;cursor:pointer;border-radius:2px">Hourly</button>
-      <span id="${idPrefix}-conf" style="margin-left:auto;font-size:8px;color:var(--grey)">S/R Conf: —</span>
-    </div>
-    <div id="${idPrefix}-levels" style="background:#0a0a14;border:1px solid #1e1e2e;border-radius:2px;padding:5px 7px;margin-bottom:5px">
-      <div style="color:var(--grey);font-size:8px">Loading key levels...</div>
-    </div>
-    <div id="${idPrefix}-status" style="font-size:8px;color:#666"></div>
-  `;
-
-  function initChartInstance(){
-    const box=document.getElementById(idPrefix+'-box');
-    const st=document.getElementById(idPrefix+'-status');
-    if(!box){ if(st) st.textContent='Chart container not found'; return; }
-    if(typeof LightweightCharts==='undefined'){ if(st) st.textContent='Chart library not loaded'; return; }
-    try{
-      const w = box.clientWidth || box.offsetWidth || 300;
-      const h = box.clientHeight || box.offsetHeight || 220;
-      chart=LightweightCharts.createChart(box,{
-        width:w, height:h, autoSize:true,
-        layout:{background:{color:'#040408'},textColor:'#666'},
-        grid:{vertLines:{color:'#0f0f18'},horzLines:{color:'#0f0f18'}},
-        rightPriceScale:{borderColor:'#1e1e2e'},
-        timeScale:{borderColor:'#1e1e2e',timeVisible:true},
-      });
-      candleSeries=chart.addCandlestickSeries({upColor:'#00cc44',downColor:'#cc2200',borderUpColor:'#00cc44',borderDownColor:'#cc2200',wickUpColor:'#00cc44',wickDownColor:'#cc2200'});
-      ema9Series=chart.addLineSeries({color:'#00bfff',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-      ema21Series=chart.addLineSeries({color:'#ff9900',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-      vwapSeries=chart.addLineSeries({color:'#c084fc',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
-      // belt-and-suspenders: force a resize shortly after in case the
-      // container had 0 width at creation time (e.g. inside a just-opened
-      // accordion where layout hadn't settled yet)
-      setTimeout(()=>{
-        try{ if(chart) chart.resize(box.clientWidth||w, box.clientHeight||h); }catch(e){}
-      }, 300);
-    }catch(e){
-      console.warn('Scalp chart widget init failed:',e);
-      if(st) st.textContent='Chart init error: '+e.message;
-    }
-  }
-
-  function load(){
-    const st=document.getElementById(idPrefix+'-status');
-    if(st) st.textContent='Loading '+currentSymbol+' '+tf+'...';
-    fetch(`/chart_data?symbol=${currentSymbol}&interval=${tf}&limit=50`).then(r=>r.json()).then(d=>{
-      if(!candleSeries || !d.candles || !d.candles.length){ if(st) st.textContent='No data for '+currentSymbol; return; }
-      const candles=d.candles.map(c=>({time:c.time,open:parseFloat(c.open),high:parseFloat(c.high),low:parseFloat(c.low),close:parseFloat(c.close)}));
-      candleSeries.setData(candles);
-      if(st) st.textContent=candles.length+' candles ('+currentSymbol+' '+tf+')';
-      try{
-        if(ema9Series) ema9Series.setData(calcEMASeries(candles,9));
-        if(ema21Series) ema21Series.setData(calcEMASeries(candles,21));
-        if(vwapSeries && d.vwap_line && d.vwap_line.length) vwapSeries.setData(d.vwap_line);
-      }catch(e){}
-      updatePivots(candles[candles.length-1].close);
-    }).catch(()=>{ if(st) st.textContent='Chart fetch failed'; });
-  }
-
-  function updatePivots(currentPrice){
-    fetch(`/pivot_points?symbol=${currentSymbol}&type=${pivotBasis}`).then(r=>r.json()).then(pv=>{
-      const confEl=document.getElementById(idPrefix+'-conf');
-      const panel=document.getElementById(idPrefix+'-levels');
-      if(!pv.available){
-        if(confEl) confEl.textContent='S/R Conf: no data';
-        if(panel) panel.innerHTML='<div style="color:var(--grey);font-size:8px">No pivot data</div>';
-        return;
-      }
-      const levels=[
-        {label:'R3',price:pv.r3,color:'var(--red)'},{label:'R2',price:pv.r2,color:'var(--red)'},{label:'R1',price:pv.r1,color:'var(--red)'},
-        {label:'P', price:pv.pivot,color:'var(--gold)'},
-        {label:'S1',price:pv.s1,color:'var(--green)'},{label:'S2',price:pv.s2,color:'var(--green)'},{label:'S3',price:pv.s3,color:'var(--green)'},
-      ];
-      let minDist=Infinity;
-      const rows=levels.filter(lv=>lv.price).map(lv=>{
-        const distPct=currentPrice?Math.abs(currentPrice-lv.price)/currentPrice*100:100;
-        const near=distPct<=0.3;
-        if(distPct<minDist) minDist=distPct;
-        return `<div style="display:flex;justify-content:space-between;padding:1px 0;font-size:8px;${near?'background:rgba(255,215,0,0.12);border-radius:2px;padding-left:3px':''}">
-          <span style="color:${lv.color};font-weight:${near?'bold':'normal'}">${near?'🔥 ':''}${lv.label}</span>
-          <span style="color:${near?'var(--white)':'var(--grey)'}">${fmt6(lv.price)}</span>
-        </div>`;
-      }).join('');
-      if(panel) panel.innerHTML=rows;
-      if(confEl){
-        const score=Math.max(0,Math.round(100-Math.min(minDist,5)*20));
-        confEl.textContent='S/R Conf: '+score+'%';
-        confEl.style.color=score>=70?'var(--green)':score>=40?'var(--gold)':'var(--grey)';
-      }
-    }).catch(()=>{});
-  }
-
-  function startCountdown(){
-    setInterval(()=>{
-      const el=document.getElementById(idPrefix+'-countdown');
-      if(!el) return;
-      const dur=TF_SECONDS[tf]||900;
-      const secs=dur-Math.floor((Date.now()/1000)%dur);
-      const m=Math.floor(secs/60), s=secs%60;
-      el.textContent='⏱ '+(m>0?m+'m ':'')+s+'s';
-    },1000);
-  }
-
-  const api = {
-    setTf(newTf){
-      tf=newTf;
-      document.querySelectorAll('.'+idPrefix+'-tf-btn').forEach(b=>{
-        const on=b.dataset.tf===tf;
-        b.style.background=on?'#003311':'#0a0a14';
-        b.style.borderColor=on?'#00ff88':'#333';
-        b.style.color=on?'#00ff88':'#aaa';
-      });
-      load();
-    },
-    setPivotBasis(basis){
-      pivotBasis=basis;
-      const d=document.getElementById(idPrefix+'-pivot-daily'), h=document.getElementById(idPrefix+'-pivot-hourly');
-      const on={background:'#003311',borderColor:'#00ff88',color:'#00ff88'}, off={background:'#0a0a14',borderColor:'#333',color:'#aaa'};
-      if(d) Object.assign(d.style, basis==='daily'?on:off);
-      if(h) Object.assign(h.style, basis==='hourly'?on:off);
-      load();
-    },
-    search(){
-      const inp=document.getElementById(idPrefix+'-inp');
-      if(!inp) return;
-      const s=inp.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
-      if(!s) return;
-      currentSymbol=s.includes('USDT')?s:s+'USDT';
-      load();
-    },
-    toggleMultiTf(){
-      const strip=document.getElementById(idPrefix+'-multitf');
-      if(!strip) return;
-      const show=strip.style.display==='none';
-      strip.style.display=show?'block':'none';
-      if(show){
-        fetch(`/rsi_multi_tf?symbol=${currentSymbol}`).then(r=>r.json()).then(d=>{
-          const rsi=d.rsi||{};
-          TF_LIST.forEach(t=>{
-            const el=document.getElementById(idPrefix+'-rsi-'+t);
-            if(!el) return;
-            const v=rsi[t];
-            if(v===null||v===undefined){ el.textContent='—'; el.style.color='var(--grey)'; return; }
-            el.textContent=v;
-            el.style.color=v>=70?'var(--red)':v<=30?'var(--green)':'var(--gold)';
-          });
-        }).catch(()=>{});
-      }
-    },
-    refresh(){
-      // Called every time the accordion is reopened. If the chart was
-      // never created (first run failed) or lost its dimensions while
-      // hidden (display:none), this re-inits or force-resizes it.
-      try{
-        if(!chart){ initChartInstance(); }
-        setTimeout(()=>{
-          try{
-            const box=document.getElementById(idPrefix+'-box');
-            if(chart && box) chart.resize(box.clientWidth||300, box.clientHeight||220);
-            load();
-          }catch(e){
-            const st=document.getElementById(idPrefix+'-status');
-            if(st) st.textContent='Refresh error: '+e.message;
-          }
-        }, 100);
-      }catch(e){
-        const st=document.getElementById(idPrefix+'-status');
-        if(st) st.textContent='Refresh error: '+e.message;
-      }
-    },
-  };
-
-  window.__scalpWidgets = window.__scalpWidgets || {};
-  window.__scalpWidgets[idPrefix] = api;
-
-  const initialStatus=document.getElementById(idPrefix+'-status');
-  if(initialStatus) initialStatus.textContent='Preparing chart…';
-
-  setTimeout(()=>{
-    try{
-      initChartInstance();
-      load();
-      startCountdown();
-    }catch(e){
-      console.warn('Scalp widget deferred init failed:', e);
-      const st=document.getElementById(idPrefix+'-status');
-      if(st) st.textContent='Widget init error: '+e.message;
-    }
-  }, 300);
-  return api;
-}
-
-function renderCmdChart(){
-  const container=document.getElementById('acc-chart');
-  if(!container) return;
-  if(container.querySelector('#cmd-btc-widget')){
-    // already built — force a resize+reload every time the accordion is
-    // reopened, in case the chart lost its dimensions while its container
-    // was hidden (display:none) during the accordion's closed state
-    if(window.__scalpWidgets){
-      if(window.__scalpWidgets['cmdbtc']) window.__scalpWidgets['cmdbtc'].refresh();
-      if(window.__scalpWidgets['cmdman']) window.__scalpWidgets['cmdman'].refresh();
-    }
-    return;
-  }
-  container.innerHTML = `
-    <div class="card" style="margin-bottom:8px">
-      <div class="ch" style="font-size:10px">₿ BTC Chart (fixed)</div>
-      <div class="cb" id="cmd-btc-widget"></div>
-    </div>
-    <div class="card">
-      <div class="ch" style="font-size:10px">🔍 Manual Coin Chart</div>
-      <div class="cb" id="cmd-manual-widget"></div>
-    </div>
-  `;
-  createScalpChartWidget('cmd-btc-widget', {idPrefix:'cmdbtc', fixedSymbol:'BTCUSDT'});
-  createScalpChartWidget('cmd-manual-widget', {idPrefix:'cmdman'});
-}
 
 function renderCmdWhale(){
   const container=document.getElementById('acc-whale');
@@ -2353,10 +2175,8 @@ function updateCommandCenter(d){
   if(reasons.length<3 && best.folder) reasons.push(`${best.folder} folder signal`);
   if(whyEl) whyEl.innerHTML = reasons.slice(0,3).map(r=>`<li>${r}</li>`).join('') || '<li>No strong reasons yet</li>';
 
-  const accChart=document.getElementById('acc-chart');
   const accWhale=document.getElementById('acc-whale');
   const accHistory=document.getElementById('acc-history');
-  if(accChart && accChart.style.display==='block') renderCmdChart();
   if(accWhale && accWhale.style.display==='block') renderCmdWhale();
   if(accHistory && accHistory.style.display==='block') renderCmdHistory();
 }
