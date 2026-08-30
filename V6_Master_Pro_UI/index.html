@@ -147,7 +147,9 @@ body.simple-active .ms-sub { font-size:12px }
 .strategy-filter-hdr{display:flex;justify-content:space-between;align-items:center;color:var(--grey);font-size:8px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
 .strategy-filter-btns{display:flex;gap:3px;flex-wrap:wrap}
 .strategy-btn{background:#0a0a14;border:1px solid #333;color:#aaa;padding:4px 6px;font-family:var(--font);font-size:8px;cursor:pointer;border-radius:2px}
-.strategy-btn:hover,.strategy-btn.active{background:#003311;border-color:var(--green);color:var(--green)}
+.strategy-btn:hover,.strategy-btn.active{background:#003311;border-color:var(--green);color:var(--green);font-weight:bold;box-shadow:0 0 6px rgba(0,255,136,0.5)}
+.strategy-btn.confluence-btn{border-color:#a855f7;color:#c084fc}
+.strategy-btn.confluence-btn:hover,.strategy-btn.confluence-btn.active{background:#1a0a2e;border-color:#a855f7;color:#c084fc;box-shadow:0 0 6px rgba(168,85,247,0.5)}
 #strategy-filter-list{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
 .strategy-match{background:#10101c;border:1px solid #292940;border-radius:2px;padding:4px 6px;color:var(--white);font-family:var(--font);font-size:8px;cursor:pointer;text-align:left}
 .strategy-match:hover{border-color:var(--green);background:#14251d}
@@ -455,11 +457,12 @@ body.simple-active .ms-sub { font-size:12px }
     </div>
     <div class="strategy-filter-btns" role="group" aria-label="Scalping strategy categories">
       <button class="strategy-btn active" data-strategy="all" onclick="filterStrategies('all')">ALL</button>
-      <button class="strategy-btn" data-strategy="momentum" onclick="filterStrategies('momentum')">1m MOMENTUM BREAKOUT</button>
-      <button class="strategy-btn" data-strategy="order-flow" onclick="filterStrategies('order-flow')">ORDER FLOW SCALP</button>
-      <button class="strategy-btn" data-strategy="range-grid" onclick="filterStrategies('range-grid')">RANGE GRID SCALP</button>
-      <button class="strategy-btn" data-strategy="volume-surge" onclick="filterStrategies('volume-surge')">VOLUME SURGE SCALP</button>
-      <button class="strategy-btn" data-strategy="trend-pullback" onclick="filterStrategies('trend-pullback')">TREND PULLBACK SCALP</button>
+      <button class="strategy-btn" data-strategy="momentum" onclick="filterStrategies('momentum')">1. 1m Momentum Breakout</button>
+      <button class="strategy-btn" data-strategy="order-flow" onclick="filterStrategies('order-flow')">2. Order Flow Scalp</button>
+      <button class="strategy-btn" data-strategy="range-grid" onclick="filterStrategies('range-grid')">3. Range Grid Scalp</button>
+      <button class="strategy-btn" data-strategy="volume-surge" onclick="filterStrategies('volume-surge')">4. Volume Surge Scalp</button>
+      <button class="strategy-btn" data-strategy="trend-pullback" onclick="filterStrategies('trend-pullback')">5. Trend Pullback Scalp</button>
+      <button class="strategy-btn confluence-btn" data-strategy="confluence" onclick="filterStrategies('confluence')">6. Confluence (Multi-Match)</button>
     </div>
     <div id="strategy-filter-list" aria-live="polite"><span class="strategy-empty">Waiting for live scan data…</span></div>
   </div>
@@ -1201,6 +1204,7 @@ window._scalpState = {
   bbUpperSeries: null, bbLowerSeries: null, vwapSeries: null, ema9Series: null, ema21Series: null,
   rsiSeries: null, volumeSeries: null,
   candles: [], ws: null,
+  pivotData: null, pivotLines: [],
 };
 const SCALP_TF_SECONDS={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'8h':28800,'1d':86400};
 
@@ -1373,6 +1377,10 @@ function scalpLoad(){
   if(st) st.textContent='Loading '+sym+' '+tf+'...';
   if(!window._scalpState.chart) scalpInitChart();
 
+  fetch(`/pivot_points?symbol=${sym}&type=daily`).then(r=>r.json()).then(pv=>{
+    window._scalpState.pivotData = pv.available ? pv : null;
+  }).catch(()=>{ window._scalpState.pivotData = null; });
+
   fetch(`/chart_data?symbol=${sym}&interval=${tf}&limit=100`).then(r=>r.json()).then(d=>{
     if(!d.candles || !d.candles.length){ if(st) st.textContent='No data for '+sym; return; }
     const candles=d.candles.map(c=>({
@@ -1384,6 +1392,33 @@ function scalpLoad(){
     if(st) st.textContent=candles.length+' candles ('+sym+' '+tf+') — live via WebSocket';
     scalpConnectWebSocket(sym, tf);
   }).catch(()=>{ if(st) st.textContent='Chart fetch failed'; });
+}
+
+function scalpDrawPivots(currentPrice){
+  const s=window._scalpState;
+  if(!s.candleSeries) return;
+  (s.pivotLines||[]).forEach(l=>{try{s.candleSeries.removePriceLine(l);}catch(e){}});
+  s.pivotLines=[];
+  const pv=s.pivotData;
+  if(!pv) return;
+  const levels=[
+    {label:'R3',price:pv.r3,color:'#ff2244'},{label:'R2',price:pv.r2,color:'#ff2244'},{label:'R1',price:pv.r1,color:'#ff2244'},
+    {label:'P', price:pv.pivot,color:'#ffd700'},
+    {label:'S1',price:pv.s1,color:'#00ff88'},{label:'S2',price:pv.s2,color:'#00ff88'},{label:'S3',price:pv.s3,color:'#00ff88'},
+  ];
+  levels.forEach(lv=>{
+    if(!lv.price) return;
+    const distPct=currentPrice?Math.abs(currentPrice-lv.price)/currentPrice*100:100;
+    const near=distPct<=0.3;
+    const primary=['P','S1','R1'].includes(lv.label);
+    const ln=s.candleSeries.createPriceLine({
+      price:lv.price, color:lv.color,
+      lineWidth:near?3:1, lineStyle:near?0:2,
+      axisLabelVisible:near||primary,
+      title:(near?'🔥 ':'')+lv.label,
+    });
+    s.pivotLines.push(ln);
+  });
 }
 
 function scalpRenderAll(candles){
@@ -1400,6 +1435,7 @@ function scalpRenderAll(candles){
     const rsiData=scalpCalcRSISeries(candles,14);
     if(s.rsiSeries) s.rsiSeries.setData(rsiData);
     if(s.volumeSeries) s.volumeSeries.setData(candles.map(c=>({time:c.time,value:c.volume,color:c.close>=c.open?'rgba(0,204,68,0.6)':'rgba(204,34,0,0.6)'})));
+    scalpDrawPivots(candles[candles.length-1].close);
 
     const pattern=scalpDetectPattern(candles);
     const nameEl=document.getElementById('scalp-pattern-name');
@@ -1829,11 +1865,24 @@ function strategyCandidate(coin, name){
   return candidates.find(c=>(c.strategy||'').toLowerCase()===name.toLowerCase())||null;
 }
 
+const STRATEGY_KEYS_NUMBERED=[
+  {key:'momentum', num:1, label:'1m Momentum Breakout'},
+  {key:'order-flow', num:2, label:'Order Flow Scalp'},
+  {key:'range-grid', num:3, label:'Range Grid Scalp'},
+  {key:'volume-surge', num:4, label:'Volume Surge Scalp'},
+  {key:'trend-pullback', num:5, label:'Trend Pullback Scalp'},
+];
+
+function matchingStrategyNumbers(coin, d){
+  return STRATEGY_KEYS_NUMBERED.filter(s=>strategyMatch(coin, s.key, d)).map(s=>s.num);
+}
+
 function strategyMatch(coin, key, d){
   const best=coin.scalping_strategy||{};
   const candidate=(name)=>strategyCandidate(coin,name);
   const surgeSymbols=new Set((d.volume_surge||[]).map(s=>s.symbol));
   if(key==='all') return best.best_score>0;
+  if(key==='confluence') return matchingStrategyNumbers(coin,d).length>=2;
   if(key==='momentum') return (candidate('1-Minute Momentum')||{}).score>0;
   if(key==='order-flow') return (candidate('Order Book / Level 2')||{}).score>0;
   if(key==='range-grid') return coin.trading_strategy==='SPOT_GRID' ||
@@ -1883,6 +1932,17 @@ function renderStrategyFilter(d){
   const label=activeStrategyFilter==='all'?'active setups':
     (document.querySelector(`.strategy-btn[data-strategy="${activeStrategyFilter}"]`)?.textContent||activeStrategyFilter);
   if(meta) meta.textContent=`${coins.length} ${label.toLowerCase()}`;
+  if(activeStrategyFilter==='confluence'){
+    list.innerHTML=coins.slice(0,12).map(c=>{
+      const sym=(c.symbol||'').replace('USDT','');
+      const nums=matchingStrategyNumbers(c,d);
+      return `<button class="strategy-match" onclick="selectStrategyCoin('${c.symbol}')" title="Load ${c.symbol} in COMMAND">
+        <b>${sym}</b><span>Matching Strategies: ${nums.join(', ')}</span>
+        <em>${nums.length} strategies confirm this setup</em>
+      </button>`;
+    }).join('')||'<span class="strategy-empty">No coins currently match 2+ strategies.</span>';
+    return;
+  }
   list.innerHTML=coins.slice(0,12).map(c=>{
     const sym=(c.symbol||'').replace('USDT','');
       return `<button class="strategy-match" onclick="selectStrategyCoin('${c.symbol}')" title="Load ${c.symbol} in COMMAND">
