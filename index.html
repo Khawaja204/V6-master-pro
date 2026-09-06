@@ -1266,6 +1266,7 @@ function scalpInitChart(){
       grid:{vertLines:{color:'#0f0f18'},horzLines:{color:'#0f0f18'}},
       rightPriceScale:{borderColor:'#1e1e2e', scaleMargins:{top:0.05,bottom:0.45}},
       timeScale:{borderColor:'#1e1e2e',timeVisible:true},
+      handleScale:{axisDoubleClickReset:false},
     });
     const candleSeries=c.addCandlestickSeries({
       upColor:'#00cc44',downColor:'#cc2200',borderUpColor:'#00cc44',borderDownColor:'#cc2200',
@@ -1361,11 +1362,20 @@ function scalpDetectPattern(candles){
   return {name: isBull(c2)?'Bullish candle':'Bearish candle', dir: isBull(c2)?'bullish':'bearish'};
 }
 
-function scalpPredictNext(pattern, rsi, price, bbUpper, bbLower){
-  const bullishPatterns=['Bullish Engulfing','Hammer','Morning Star'];
-  const bearishPatterns=['Bearish Engulfing','Shooting Star','Evening Star'];
-  if(price<=bbLower && rsi<30 && bullishPatterns.includes(pattern)) return {text:'Bullish Bounce', color:'var(--green)'};
-  if(price>=bbUpper && rsi>70 && bearishPatterns.includes(pattern)) return {text:'Bearish Reversal', color:'var(--red)'};
+function scalpPredictNext(patternDir, rsi, price, bbUpper, bbLower, bbMid){
+  // Near-band proximity instead of requiring price to have already
+  // pierced the band (rare) — within 15% of the band-to-mid distance
+  // counts as "near". Uses the pattern's bullish/bearish DIRECTION
+  // rather than a narrow whitelist of exact pattern names, so any
+  // bullish/bearish candle read at a stretched level counts — the
+  // strict version almost never fired in practice.
+  const band=Math.abs((bbMid!==undefined?bbMid:(bbUpper+bbLower)/2)-bbLower)||1;
+  const nearLower = price <= bbLower + band*0.15;
+  const nearUpper = price >= bbUpper - band*0.15;
+  if(nearLower && rsi<40 && patternDir==='bullish') return {text:'Bullish Bounce', color:'var(--green)'};
+  if(nearUpper && rsi>60 && patternDir==='bearish') return {text:'Bearish Reversal', color:'var(--red)'};
+  if(patternDir==='bullish' && rsi<45) return {text:'Mild Bullish Bias', color:'var(--green)'};
+  if(patternDir==='bearish' && rsi>55) return {text:'Mild Bearish Bias', color:'var(--red)'};
   return {text:'Neutral', color:'var(--grey)'};
 }
 
@@ -1447,7 +1457,7 @@ function scalpRenderAll(candles){
     const lastPrice=candles[candles.length-1].close;
     const lastBBUpper=bb.upper.length?bb.upper[bb.upper.length-1].value:lastPrice;
     const lastBBLower=bb.lower.length?bb.lower[bb.lower.length-1].value:lastPrice;
-    const pred=scalpPredictNext(pattern.name, lastRsi, lastPrice, lastBBUpper, lastBBLower);
+    const pred=scalpPredictNext(pattern.dir, lastRsi, lastPrice, lastBBUpper, lastBBLower);
     const predEl=document.getElementById('scalp-next-prediction');
     if(predEl){ predEl.textContent='Next: '+pred.text; predEl.style.color=pred.color; }
 
