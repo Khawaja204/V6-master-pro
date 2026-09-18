@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V6 Master Pro - Scalping Chart</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0f;
+            color: #c9d1d9;
+            font-family: 'Courier New', monospace;
+            padding: 16px;
+            overflow-x: hidden;
+        }
+        .container { max-width: 1800px; margin: 0 auto; }
+        .header {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border-left: 4px solid #3fb950;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .header h1 { color: #3fb950; font-size: 24px; margin-bottom: 4px; }
+        .header p { color: #8b949e; font-size: 12px; }
+        .grid-main {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .chart-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .chart-card h3 { color: #3fb950; margin-bottom: 12px; font-size: 14px; }
+        .chart-canvas { position: relative; height: 400px; }
+        
+        /* ══ SIDE PANEL: CHECKLIST & VALIDATION ══ */
+        .side-panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            max-height: fit-content;
+            position: sticky;
+            top: 16px;
+        }
+        .side-panel h3 { color: #3fb950; font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+        .checklist-group { margin-bottom: 14px; }
+        .checklist-group label { font-size: 11px; color: #8b949e; text-transform: uppercase; display: block; margin-bottom: 6px; font-weight: bold; }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            padding: 6px;
+            background: #0d1117;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .checkbox-item:hover { background: #1a1f26; }
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 14px;
+            height: 14px;
+            accent-color: #3fb950;
+        }
+        .checkbox-item span { font-size: 11px; }
+        
+        /* ══ VALIDATION STATUS ══ */
+        .validation-box {
+            background: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+            text-align: center;
+        }
+        .validation-box.valid {
+            border-color: #3fb950;
+            background: rgba(63, 185, 80, 0.1);
+        }
+        .validation-box.valid .status-text { color: #3fb950; font-weight: bold; }
+        .validation-box.invalid {
+            border-color: #FF4500;
+            background: rgba(255, 69, 0, 0.1);
+        }
+        .validation-box.invalid .status-text { color: #FF4500; font-weight: bold; }
+        .status-text { font-size: 13px; margin-bottom: 6px; }
+        .tp-text { font-size: 10px; color: #8b949e; }
+        
+        /* ══ TWO-COLUMN SECTIONS BELOW ══ */
+        .grid-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .panel h3 { color: #3fb950; font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+        
+        /* ══ FORM INPUTS ══ */
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            color: #8b949e;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3fb950;
+            box-shadow: 0 0 4px rgba(63, 185, 80, 0.2);
+        }
+        
+        /* ══ GRID WITHIN PANELS ══ */
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        /* ══ LIQUIDITY & OI TABLE ══ */
+        .liq-table {
+            width: 100%;
+            font-size: 11px;
+            border-collapse: collapse;
+        }
+        .liq-table tr { border-bottom: 1px solid #30363d; }
+        .liq-table td { padding: 8px; color: #c9d1d9; }
+        .liq-table td:first-child { color: #8b949e; font-weight: bold; }
+        .liq-table .value { color: #3fb950; text-align: right; }
+        
+        /* ══ BUTTON STYLES ══ */
+        .btn {
+            display: inline-block;
+            padding: 8px 14px;
+            background: #238636;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: background 0.2s;
+            font-family: 'Courier New', monospace;
+        }
+        .btn:hover { background: #2ea043; }
+        .btn-secondary { background: #1f6feb; }
+        .btn-secondary:hover { background: #388bfd; }
+        .btn-reset { background: #da3633; }
+        .btn-reset:hover { background: #f85149; }
+        
+        /* ══ ALERT BOX ══ */
+        .alert {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 11px;
+        }
+        .alert.info { background: rgba(88, 166, 255, 0.1); border-left: 3px solid #58a6ff; color: #58a6ff; }
+        .alert.warning { background: rgba(210, 153, 34, 0.1); border-left: 3px solid #d29922; color: #d29922; }
+        .alert.success { background: rgba(63, 185, 80, 0.1); border-left: 3px solid #3fb950; color: #3fb950; }
+        
+        /* ══ RESPONSIVE ══ */
+        @media (max-width: 1200px) {
+            .grid-main { grid-template-columns: 1fr; }
+            .side-panel { position: static; }
+            .grid-panels { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- HEADER -->
+    <div class="header">
+        <h1>📊 V6 MASTER PRO - SCALPING CHART</h1>
+        <p>Real-time trading validation with checklist, S/R levels, and liquidity analysis</p>
+    </div>
+
+    <!-- MAIN GRID: Chart + Side Panel -->
+    <div class="grid-main">
+        <!-- CHART SECTION -->
+        <div class="chart-card">
+            <h3>📈 PRICE CHART & MOMENTUM</h3>
+            <div class="chart-canvas">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- SIDE PANEL: CHECKLIST & VALIDATION -->
+        <div class="side-panel">
+            <h3>✓ TRADING RULES CHECKLIST</h3>
+            
+            <div class="checklist-group">
+                <label>📊 TREND ANALYSIS</label>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check1d_trend" onchange="validateTrade()">
+                    <span>1D Trend Confirmed</span>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check1h_trend" onchange="validateTrade()">
+                    <span>1H Trend Aligned</span>
+                </div>
+            </div>
+
+            <div class="checklist-group">
+                <label>📍 RSI & MOMENTUM</label>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="checkRSI55" onchange="validateTrade()">
+                    <span>RSI 55+ Crossover</span>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check30m_mom" onchange="validateTrade()">
+                    <span>30m Momentum ✓</span>
+                </div>
+            </div>
+
+            <div class="checklist-group">
+                <label>🕯️ CANDLE PATTERN</label>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="checkCandle" onchange="validateTrade()">
+                    <span>Color Sequence Valid</span>
+                </div>
+            </div>
+
+            <div class="checklist-group">
+                <label>🎯 ENTRY CONDITIONS</label>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="checkSR" onchange="validateTrade()">
+                    <span>Above Support/Resist</span>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="checkLiquidity" onchange="validateTrade()">
+                    <span>Liquidity Zone Clear</span>
+                </div>
+            </div>
+
+            <!-- VALIDATION STATUS -->
+            <div class="validation-box" id="validationBox">
+                <div class="status-text">⏳ PENDING</div>
+                <div class="tp-text">Check rules above</div>
+            </div>
+
+            <button class="btn btn-reset" style="width: 100%; margin-top: 12px;" onclick="resetAllChecks()">↻ RESET ALL</button>
+        </div>
+    </div>
+
+    <!-- TWO-COLUMN PANELS: S/R + OC GAP, LIQUIDITY & OI -->
+    <div class="grid-panels">
+        <!-- SUPPORT, RESISTANCE & SNR PANEL -->
+        <div class="panel">
+            <h3>🎯 SUPPORT, RESISTANCE & GAPS</h3>
+            
+            <div class="form-group">
+                <label>Support Level (Buy Zone)</label>
+                <input type="number" id="supportLevel" placeholder="e.g., 42500" step="0.01" onchange="validateTrade()">
+            </div>
+
+            <div class="form-group">
+                <label>Resistance Level (Sell Zone)</label>
+                <input type="number" id="resistanceLevel" placeholder="e.g., 43000" step="0.01" onchange="validateTrade()">
+            </div>
+
+            <div class="form-group">
+                <label>SNR (Strong Support/Resistance)</label>
+                <input type="number" id="snrLevel" placeholder="e.g., 42800" step="0.01" onchange="validateTrade()">
+            </div>
+
+            <div class="form-group">
+                <label>Open-Close Gap Verification</label>
+                <div class="grid-2x2">
+                    <input type="number" id="openPrice" placeholder="Open" step="0.01" onchange="validateTrade()">
+                    <input type="number" id="closePrice" placeholder="Close" step="0.01" onchange="validateTrade()">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 8px;">
+                <select id="gapStatus" onchange="validateTrade()">
+                    <option value="">-- Gap Status --</option>
+                    <option value="bullish">Bullish Gap</option>
+                    <option value="bearish">Bearish Gap</option>
+                    <option value="minimal">Minimal Gap</option>
+                </select>
+            </div>
+
+            <div class="alert alert-info" id="gapInfo" style="margin-top: 12px; display: none;">
+                <strong>Gap Analysis:</strong> <span id="gapText"></span>
+            </div>
+        </div>
+
+        <!-- LIQUIDITY & OI PANEL -->
+        <div class="panel">
+            <h3>💧 LIQUIDITY & OPEN INTEREST (12H)</h3>
+            
+            <div class="form-group">
+                <label>Coinglass Liquidity Zone (12H)</label>
+                <input type="text" id="liquidityZone" placeholder="e.g., 42500-42800 (BUY zone)" onchange="validateTrade()">
+            </div>
+
+            <div class="form-group">
+                <label>Current Liquidity (USD)</label>
+                <input type="number" id="liquidityAmount" placeholder="e.g., 2500000" step="1000" onchange="validateTrade()">
+            </div>
+
+            <table class="liq-table">
+                <tr>
+                    <td>12H Buy Liquidation</td>
+                    <td class="value" id="buyLiq">$0</td>
+                </tr>
+                <tr>
+                    <td>12H Sell Liquidation</td>
+                    <td class="value" id="sellLiq">$0</td>
+                </tr>
+                <tr>
+                    <td>OI Status</td>
+                    <td class="value" id="oiStatus">—</td>
+                </tr>
+            </table>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label>Open Interest Trend</label>
+                <select id="oiTrend" onchange="validateTrade()">
+                    <option value="">-- Select OI Status --</option>
+                    <option value="increasing">📈 Increasing (Bullish)</option>
+                    <option value="decreasing">📉 Decreasing (Bearish)</option>
+                    <option value="stable">➡️ Stable</option>
+                </select>
+            </div>
+
+            <div class="alert alert-warning" id="liqWarning" style="margin-top: 12px; display: none;">
+                ⚠️ <strong>Low Liquidity Alert:</strong> Consider position sizing
+            </div>
+        </div>
+    </div>
+
+    <!-- SUMMARY & QUICK ACTION -->
+    <div class="panel" style="background: #1f2937; border-color: #3fb950; border-width: 2px;">
+        <h3>📋 TRADE SUMMARY & ACTION</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+                <p style="font-size: 11px; color: #8b949e; margin-bottom: 6px;">CHECKLIST COMPLETION</p>
+                <p style="font-size: 18px; color: #3fb950; font-weight: bold;" id="checklistScore">0 / 7</p>
+            </div>
+            <div>
+                <p style="font-size: 11px; color: #8b949e; margin-bottom: 6px;">CONFIDENCE LEVEL</p>
+                <p style="font-size: 18px; color: #FFD700; font-weight: bold;" id="confidenceScore">0%</p>
+            </div>
+        </div>
+        <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="btn" onclick="executeTrade()">✓ ENTER LONG</button>
+            <button class="btn btn-secondary" onclick="openAnalysis()">📊 DETAILED ANALYSIS</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let chartInstance = null;
+
+// ══ INITIALIZE CHART ══
+function initChart() {
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    const mockData = [42200, 42300, 42350, 42400, 42380, 42450, 42500, 42480, 42520, 42550, 42600, 42650];
+    
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length: mockData.length}, (_, i) => `${i*15}m`),
+            datasets: [
+                {
+                    label: 'Price',
+                    data: mockData,
+                    borderColor: '#3fb950',
+                    backgroundColor: 'rgba(63, 185, 80, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#3fb950',
+                    tension: 0.3,
+                    fill: true,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    min: 42000,
+                    max: 42800,
+                    ticks: { color: '#8b949e', font: { size: 10 } },
+                    grid: { color: '#30363d' }
+                },
+                x: {
+                    ticks: { color: '#8b949e', font: { size: 10 } },
+                    grid: { color: '#30363d' }
+                }
+            }
+        }
+    });
+}
+
+// ══ LIVE VALIDATION LOGIC ══
+function validateTrade() {
+    const checks = {
+        '1d_trend': document.getElementById('check1d_trend').checked,
+        '1h_trend': document.getElementById('check1h_trend').checked,
+        'rsi55': document.getElementById('checkRSI55').checked,
+        '30m_mom': document.getElementById('check30m_mom').checked,
+        'candle': document.getElementById('checkCandle').checked,
+        'sr': document.getElementById('checkSR').checked,
+        'liq': document.getElementById('checkLiquidity').checked,
+    };
+
+    const support = parseFloat(document.getElementById('supportLevel').value) || 0;
+    const resistance = parseFloat(document.getElementById('resistanceLevel').value) || 0;
+    const liquidity = parseFloat(document.getElementById('liquidityAmount').value) || 0;
+    const oiTrend = document.getElementById('oiTrend').value;
+
+    const checkedCount = Object.values(checks).filter(v => v).length;
+    const totalChecks = Object.keys(checks).length;
+
+    // Calculate confidence
+    let confidence = (checkedCount / totalChecks) * 100;
+    if (support > 0 && resistance > 0 && support < resistance) confidence += 10;
+    if (liquidity > 1000000) confidence += 5;
+    if (oiTrend === 'increasing') confidence += 5;
+    confidence = Math.min(100, Math.round(confidence));
+
+    // Determine validity
+    const isValid = checkedCount >= 6 && support > 0 && resistance > 0 && liquidity > 500000;
+
+    // Update UI
+    document.getElementById('checklistScore').textContent = `${checkedCount} / ${totalChecks}`;
+    document.getElementById('confidenceScore').textContent = `${confidence}%`;
+
+    const valBox = document.getElementById('validationBox');
+    if (isValid) {
+        valBox.classList.remove('invalid');
+        valBox.classList.add('valid');
+        valBox.innerHTML = `
+            <div class="status-text">✓ VALID — BUY</div>
+            <div class="tp-text">TP Target: +1% | Stop: -0.5% | Risk/Reward: 1:2</div>
+        `;
+    } else {
+        valBox.classList.remove('valid');
+        valBox.classList.add('invalid');
+        valBox.innerHTML = `
+            <div class="status-text">✗ SKIP THIS TRADE</div>
+            <div class="tp-text">Complete ${checkedCount}/${totalChecks} rules • Verify S/R levels</div>
+        `;
+    }
+
+    // Update gap info
+    const openP = parseFloat(document.getElementById('openPrice').value) || 0;
+    const closeP = parseFloat(document.getElementById('closePrice').value) || 0;
+    if (openP > 0 && closeP > 0) {
+        const gap = closeP - openP;
+        const gapPercent = ((gap / openP) * 100).toFixed(2);
+        document.getElementById('gapInfo').style.display = 'block';
+        document.getElementById('gapText').textContent = `Gap: ${gap > 0 ? '+' : ''}${gap.toFixed(2)} (${gapPercent}%)`;
+    }
+
+    // Liquidity warning
+    if (liquidity < 500000) {
+        document.getElementById('liqWarning').style.display = 'block';
+    } else {
+        document.getElementById('liqWarning').style.display = 'none';
+    }
+}
+
+// ══ RESET ALL CHECKS ══
+function resetAllChecks() {
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('input[type="number"], input[type="text"]').forEach(inp => inp.value = '');
+    document.getElementById('oiTrend').value = '';
+    document.getElementById('gapStatus').value = '';
+    document.getElementById('validationBox').classList.remove('valid', 'invalid');
+    document.getElementById('validationBox').innerHTML = `
+        <div class="status-text">⏳ PENDING</div>
+        <div class="tp-text">Check rules above</div>
+    `;
+    document.getElementById('checklistScore').textContent = '0 / 7';
+    document.getElementById('confidenceScore').textContent = '0%';
+    document.getElementById('gapInfo').style.display = 'none';
+    document.getElementById('liqWarning').style.display = 'none';
+}
+
+// ══ EXECUTE TRADE ══
+function executeTrade() {
+    const confidence = parseInt(document.getElementById('confidenceScore').textContent);
+    if (confidence < 60) {
+        alert('❌ Confidence level too low. Complete more checklist items.');
+        return;
+    }
+    alert('✓ TRADE EXECUTED\n\nEntry: Market Price\nTP1: +1%\nStop: -0.5%\n\n(Demo mode — integrate with broker API)');
+}
+
+// ══ DETAILED ANALYSIS ══
+function openAnalysis() {
+    const summary = `
+=== TRADE ANALYSIS REPORT ===
+
+Checklist: ${document.getElementById('checklistScore').textContent}
+Confidence: ${document.getElementById('confidenceScore').textContent}
+
+Support: $${document.getElementById('supportLevel').value || '—'}
+Resistance: $${document.getElementById('resistanceLevel').value || '—'}
+SNR: $${document.getElementById('snrLevel').value || '—'}
+
+Liquidity: $${document.getElementById('liquidityAmount').value || '—'}
+OI Trend: ${document.getElementById('oiTrend').value || '—'}
+
+Gap Status: ${document.getElementById('gapStatus').value || '—'}
+
+Decision: ${document.getElementById('validationBox').textContent}
+    `;
+    alert(summary);
+}
+
+// ══ INITIALIZE ON LOAD ══
+window.onload = () => {
+    initChart();
+    validateTrade();
+};
+</script>
+
+</body>
+</html>
