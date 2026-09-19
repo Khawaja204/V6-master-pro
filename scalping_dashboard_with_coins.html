@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V6 Master Pro - Scalping Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #0a0a0f;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto Mono', monospace;
+            overflow-x: hidden;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* HEADER */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .header {
+            background: #0d1117;
+            border-bottom: 1px solid #30363d;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .header-left {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 16px;
+            font-weight: bold;
+            color: #3fb950;
+        }
+        
+        .profile-badge {
+            background: #161b22;
+            border: 1px solid #30363d;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #8b949e;
+        }
+        
+        .profile-badge span {
+            color: #3fb950;
+            font-weight: bold;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #3fb950;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            margin-right: 6px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .header-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .header-stat {
+            background: #161b22;
+            border: 1px solid #30363d;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .header-stat-label {
+            color: #8b949e;
+        }
+        
+        .header-stat-value {
+            color: #3fb950;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .container {
+            max-width: 1920px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* MODAL/POPUP */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(3px);
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 12px;
+        }
+        
+        .modal-title {
+            color: #3fb950;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+        }
+        
+        .modal-close:hover {
+            color: #c9d1d9;
+        }
+        
+        .coins-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        
+        .coin-btn {
+            background: #161b22;
+            border: 2px solid #30363d;
+            color: #c9d1d9;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .coin-btn:hover {
+            border-color: #3fb950;
+            background: #0d1117;
+            color: #3fb950;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* MAIN GRID */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .grid-main {
+            display: grid;
+            grid-template-columns: 1.6fr 0.9fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* CHART SECTION */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .chart-container {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .chart-header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chart-title {
+            color: #3fb950;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .chart-coin-info {
+            font-size: 12px;
+            color: #8b949e;
+        }
+        
+        /* STRATEGY TABS */
+        .tabs-container {
+            display: flex;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 0 16px;
+            gap: 0;
+            overflow-x: auto;
+        }
+        
+        .tab-btn {
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .tab-btn:hover {
+            color: #c9d1d9;
+        }
+        
+        .tab-btn.active {
+            color: #3fb950;
+            border-bottom-color: #3fb950;
+        }
+        
+        .chart-body {
+            padding: 16px;
+            position: relative;
+            height: 420px;
+        }
+        
+        .chart-canvas {
+            position: relative;
+            height: 100%;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* SIDE PANEL */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .panel-card {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .card-header {
+            color: #3fb950;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 6px;
+        }
+        
+        .card-value {
+            font-size: 16px;
+            color: #3fb950;
+            font-weight: bold;
+        }
+        
+        .card-detail {
+            font-size: 10px;
+            color: #8b949e;
+            margin-top: 4px;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* SIGNAL VALIDATION */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .validation-box {
+            background: #161b22;
+            border: 2px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            margin-top: 8px;
+        }
+        
+        .validation-box.valid {
+            border-color: #3fb950;
+            background: rgba(63, 185, 80, 0.08);
+        }
+        
+        .validation-box.valid .val-text {
+            color: #3fb950;
+        }
+        
+        .validation-box.invalid {
+            border-color: #FF4500;
+            background: rgba(255, 69, 0, 0.08);
+        }
+        
+        .validation-box.invalid .val-text {
+            color: #FF4500;
+        }
+        
+        .val-text {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .val-detail {
+            font-size: 10px;
+            color: #8b949e;
+            margin-top: 4px;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* WHALE COPY BOT SECTION */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .whale-section {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .whale-header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .whale-title {
+            color: #FF6B35;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
+        .whale-tabs {
+            display: flex;
+            gap: 0;
+            padding: 0 16px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            overflow-x: auto;
+        }
+        
+        .whale-tab {
+            padding: 10px 14px;
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .whale-tab:hover {
+            color: #c9d1d9;
+        }
+        
+        .whale-tab.active {
+            color: #FF6B35;
+            border-bottom-color: #FF6B35;
+        }
+        
+        .whale-body {
+            padding: 16px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* TRADE TABLE */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .trade-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        .trade-table th {
+            background: #161b22;
+            color: #8b949e;
+            padding: 8px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 1px solid #30363d;
+            position: sticky;
+            top: 0;
+        }
+        
+        .trade-table td {
+            padding: 8px;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .trade-table tr:hover {
+            background: #161b22;
+        }
+        
+        .coin-name {
+            color: #3fb950;
+            font-weight: bold;
+        }
+        
+        .pnl-positive {
+            color: #3fb950;
+        }
+        
+        .pnl-negative {
+            color: #FF4500;
+        }
+        
+        .status-open {
+            color: #FFD700;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* BUTTON */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        .btn {
+            padding: 8px 12px;
+            background: #238636;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2ea043;
+        }
+        
+        .btn-full {
+            width: 100%;
+        }
+        
+        /* ═════════════════════════════════════════════════════════════════ */
+        /* RESPONSIVE */
+        /* ═════════════════════════════════════════════════════════════════ */
+        
+        @media (max-width: 1400px) {
+            .grid-main {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .empty-state {
+            color: #8b949e;
+            font-size: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═════════════════════════════════════════════════════════════════ -->
+<!-- COIN SELECTION MODAL -->
+<!-- ═════════════════════════════════════════════════════════════════ -->
+
+<div id="coinModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">Select Coin</div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="coins-grid" id="coinsGrid"></div>
+    </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ═════════════════════════════════════════════════════════════════ -->
+
+<div class="header">
+    <div class="header-left">
+        <div class="logo">📊 V6 MASTER PRO</div>
+        <div class="profile-badge">
+            <span class="status-indicator"></span>
+            Profile: <span>Khawaja</span> | Mode: <span>Admin</span>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="header-stat">
+            <div class="header-stat-label">TOTAL MARKET CAP</div>
+            <div class="header-stat-value">$2.14T</div>
+        </div>
+        <div class="header-stat">
+            <div class="header-stat-label">FEAR & GREED</div>
+            <div class="header-stat-value">68</div>
+        </div>
+        <div class="header-stat">
+            <div class="header-stat-label">STATUS</div>
+            <div class="header-stat-value" style="color: #3fb950;">LIVE</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════ -->
+<!-- MAIN CONTAINER -->
+<!-- ═════════════════════════════════════════════════════════════════ -->
+
+<div class="container">
+    <div class="grid-main">
+        <!-- CHART CONTAINER -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">📈 SCALPING CHART</div>
+                    <div class="chart-coin-info" id="chartCoinInfo">BTC/USDT • 1H</div>
+                </div>
+            </div>
+            
+            <!-- STRATEGY TABS -->
+            <div class="tabs-container">
+                <button class="tab-btn active" onclick="switchStrategy('v1')">V1 STRATEGY</button>
+                <button class="tab-btn" onclick="switchStrategy('scalp-v1')">SCALP V1 (6-Point)</button>
+                <button class="tab-btn" onclick="switchStrategy('price-action')">PRICE ACTION</button>
+                <button class="tab-btn" onclick="switchStrategy('ict')">ICT BASED</button>
+            </div>
+            
+            <!-- CHART -->
+            <div class="chart-body">
+                <div class="chart-canvas">
+                    <canvas id="strategyChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- VALIDATION BOX -->
+            <div style="padding: 0 16px 16px;">
+                <div class="validation-box" id="validationBox">
+                    <div class="val-text">⏳ ANALYZING SIGNALS</div>
+                    <div class="val-detail">Checking chart patterns and indicators...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- SIDE PANEL -->
+        <div class="side-panel">
+            <!-- CURRENT SIGNAL -->
+            <div class="panel-card">
+                <div class="card-header">📍 CURRENT SIGNAL</div>
+                <div class="card-value" id="currentSignal">—</div>
+                <div class="card-detail" id="signalDetail">Waiting for setup...</div>
+            </div>
+            
+            <!-- RSI INDICATOR -->
+            <div class="panel-card">
+                <div class="card-header">📊 RSI (14)</div>
+                <div class="card-value" id="rsiValue">—</div>
+                <div class="card-detail" id="rsiStatus">RSI Line: 55</div>
+            </div>
+            
+            <!-- DIVERGENCE STATUS -->
+            <div class="panel-card">
+                <div class="card-header">🔍 SMC DIVERGENCES</div>
+                <div style="font-size: 11px; color: #c9d1d9; line-height: 1.6;">
+                    <div style="margin-bottom: 6px;">
+                        <span style="color: #3fb950;">Hidden Bullish:</span> RSI 30-40, Market UP
+                    </div>
+                    <div>
+                        <span style="color: #FF4500;">Hidden Bearish:</span> RSI 50+, Market DOWN
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SUPPORT & RESISTANCE -->
+            <div class="panel-card">
+                <div class="card-header">🎯 S/R LEVELS</div>
+                <div style="font-size: 11px; color: #c9d1d9;">
+                    <div style="margin-bottom: 4px;">S3: <span id="s3Level" style="color: #FF4500;">—</span></div>
+                    <div style="margin-bottom: 4px;">S2: <span id="s2Level" style="color: #FF4500;">—</span></div>
+                    <div style="margin-bottom: 4px;">S1: <span id="s1Level" style="color: #FF4500;">—</span></div>
+                    <div>R1: <span id="r1Level" style="color: #FFD700;">—</span></div>
+                </div>
+            </div>
+            
+            <!-- ACTION BUTTON -->
+            <button class="btn btn-full" onclick="executeTrade()">✓ ENTER LONG</button>
+        </div>
+    </div>
+    
+    <!-- ═════════════════════════════════════════════════════════════════ -->
+    <!-- WHALE COPY BOT SECTION -->
+    <!-- ═════════════════════════════════════════════════════════════════ -->
+    
+    <div class="whale-section">
+        <div class="whale-header">
+            <div class="whale-title">🐋 WHALE COPY BOT - 3 STRATEGIES</div>
+            <div style="font-size: 11px; color: #8b949e;">Auto-copy trades based on active strategy</div>
+        </div>
+        
+        <div class="whale-tabs">
+            <button class="whale-tab active" onclick="switchBot('bot-v1')">V1 BOT</button>
+            <button class="whale-tab" onclick="switchBot('bot-scalp')">SCALP V1 BOT</button>
+            <button class="whale-tab" onclick="switchBot('bot-price')">PRICE ACTION BOT</button>
+        </div>
+        
+        <div class="whale-body">
+            <table class="trade-table">
+                <thead>
+                    <tr>
+                        <th>Coin</th>
+                        <th>Entry $</th>
+                        <th>Entry Time</th>
+                        <th>Live Price</th>
+                        <th>PnL %</th>
+                        <th>Status</th>
+                        <th>TP1/SL</th>
+                    </tr>
+                </thead>
+                <tbody id="botTradesTable">
+                    <tr><td colspan="7" class="empty-state">No active trades</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════ -->
+<!-- SCRIPTS -->
+<!-- ═════════════════════════════════════════════════════════════════ -->
+
+<script>
+    let chartInstance = null;
+    let currentStrategy = 'v1';
+    let currentBot = 'bot-v1';
+    let selectedCoin = 'BTCUSDT';
+    
+    const strategies = {
+        v1: {
+            name: 'V1 Strategy (Smoothed Heikin Ashi)',
+            coins: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT', 'LINKUSDT', 'DOGEUSDT', 'LTCUSDT']
+        },
+        'scalp-v1': {
+            name: 'Scalp V1 (6-Point RSI Crossover)',
+            coins: ['SOLUSDT', 'AVAXUSDT', 'NEARUSDT', 'ARBITRUM', 'OPUSDT', 'SHIBUSDT', 'BASEUSDT', 'INJUSDT']
+        },
+        'price-action': {
+            name: 'Price Action (RSI Zones + S/R)',
+            coins: ['DOGEUSDT', 'PEPEUSDT', 'LTCUSDT', 'BCHUSDT', 'POLUSDT', 'TRXUSDT', 'APTUSDT', 'FTMUSDT']
+        },
+        'ict': {
+            name: 'ICT Based (Consolidation)',
+            coins: ['PIXELUSDT', 'BONKUSDT', 'FLOKIUSDT', 'MANAUSDT', 'SANDUSDT', 'ENJUSDT', 'FILUSDT', 'GALAUSDT']
+        }
+    };
+    
+    const botData = {
+        'bot-v1': [
+            { coin: 'BTC', entry: 42500, time: '14:30', live: 42650, pnl: '+0.35%', status: 'OPEN', tp: '43200/42100' },
+            { coin: 'ETH', entry: 2280, time: '13:15', live: 2295, pnl: '+0.66%', status: 'OPEN', tp: '2380/2180' }
+        ],
+        'bot-scalp': [
+            { coin: 'SOL', entry: 175.50, time: '12:45', live: 176.25, pnl: '+0.43%', status: 'OPEN', tp: '177.0/174.5' }
+        ],
+        'bot-price': [
+            { coin: 'DOGE', entry: 0.3850, time: '11:20', live: 0.3885, pnl: '+0.91%', status: 'OPEN', tp: '0.395/0.375' }
+        ]
+    };
+    
+    // ═════════════════════════════════════════════════════════════════
+    // MODAL FUNCTIONS
+    // ═════════════════════════════════════════════════════════════════
+    
+    function openCoinsModal(strategy) {
+        const strategyInfo = strategies[strategy];
+        document.getElementById('modalTitle').textContent = `${strategyInfo.name}`;
+        
+        const coinsGrid = document.getElementById('coinsGrid');
+        coinsGrid.innerHTML = strategyInfo.coins.map(coin => `
+            <button class="coin-btn" onclick="selectCoin('${coin}', '${strategy}')">${coin}</button>
+        `).join('');
+        
+        document.getElementById('coinModal').classList.add('show');
+    }
+    
+    function closeModal() {
+        document.getElementById('coinModal').classList.remove('show');
+    }
+    
+    function selectCoin(coin, strategy) {
+        selectedCoin = coin;
+        document.getElementById('chartCoinInfo').textContent = `${coin} • 1H • ${strategies[strategy].name}`;
+        closeModal();
+        validateSignal(strategy);
+        initChart();
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // CHART INITIALIZATION
+    // ═════════════════════════════════════════════════════════════════
+    
+    function initChart() {
+        const mockData = [42200, 42300, 42350, 42400, 42380, 42450, 42500, 42480, 42520, 42550, 42600, 42650];
+        const ctx = document.getElementById('strategyChart').getContext('2d');
+        
+        if (chartInstance) chartInstance.destroy();
+        
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 12}, (_, i) => `${i*5}m`),
+                datasets: [
+                    {
+                        label: 'Price',
+                        data: mockData,
+                        borderColor: '#3fb950',
+                        backgroundColor: 'rgba(63, 185, 80, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#3fb950',
+                        tension: 0.3,
+                        fill: true,
+                    },
+                    {
+                        label: 'RSI 55 Line',
+                        data: Array(12).fill(42500),
+                        borderColor: '#FFD700',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                    {
+                        label: 'Support S1',
+                        data: Array(12).fill(42000),
+                        borderColor: '#FF4500',
+                        borderWidth: 1,
+                        borderDash: [3, 3],
+                        pointRadius: 0,
+                        fill: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#8b949e', font: { size: 10 }, boxWidth: 12 }
+                    }
+                },
+                scales: {
+                    y: {
+                        ticks: { color: '#8b949e', font: { size: 10 } },
+                        grid: { color: '#30363d' }
+                    },
+                    x: {
+                        ticks: { color: '#8b949e', font: { size: 10 } },
+                        grid: { color: '#30363d' }
+                    }
+                }
+            }
+        });
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // STRATEGY SWITCH
+    // ═════════════════════════════════════════════════════════════════
+    
+    function switchStrategy(strategy) {
+        currentStrategy = strategy;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // Open modal to select coin
+        openCoinsModal(strategy);
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // VALIDATE SIGNAL
+    // ═════════════════════════════════════════════════════════════════
+    
+    function validateSignal(strategy) {
+        const info = strategies[strategy];
+        const box = document.getElementById('validationBox');
+        
+        // Simulate signal validation
+        const isValid = Math.random() > 0.3;
+        
+        // Random RSI
+        const rsi = Math.floor(Math.random() * 100);
+        document.getElementById('rsiValue').textContent = rsi;
+        
+        if (rsi > 70) {
+            document.getElementById('rsiStatus').textContent = '⚠️ Overbought (Sell Zone)';
+        } else if (rsi < 30) {
+            document.getElementById('rsiStatus').textContent = '✓ Oversold (Buy Zone)';
+        } else if (rsi >= 30 && rsi <= 40) {
+            document.getElementById('rsiStatus').textContent = '✓ Hidden Bullish Zone (BUY)';
+        } else {
+            document.getElementById('rsiStatus').textContent = 'Neutral Zone';
+        }
+        
+        // S/R Levels
+        document.getElementById('s1Level').textContent = '42500';
+        document.getElementById('s2Level').textContent = '42000';
+        document.getElementById('s3Level').textContent = '41500';
+        document.getElementById('r1Level').textContent = '43000';
+        
+        if (isValid) {
+            box.classList.remove('invalid');
+            box.classList.add('valid');
+            box.innerHTML = `
+                <div class="val-text">✓ SIGNAL VALID — BUY</div>
+                <div class="val-detail">Entry: Market | TP1: +1% | SL: -0.5% | R:R 1:2</div>
+            `;
+            document.getElementById('currentSignal').innerHTML = '✓ BUY';
+            document.getElementById('signalDetail').innerHTML = 'All conditions aligned';
+        } else {
+            box.classList.remove('valid');
+            box.classList.add('invalid');
+            box.innerHTML = `
+                <div class="val-text">✗ SKIP — WAIT</div>
+                <div class="val-detail">Conditions incomplete. Check next setup.</div>
+            `;
+            document.getElementById('currentSignal').innerHTML = '⏸ WAIT';
+            document.getElementById('signalDetail').innerHTML = 'Waiting for confirmation';
+        }
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // WHALE BOT SWITCH
+    // ═════════════════════════════════════════════════════════════════
+    
+    function switchBot(bot) {
+        currentBot = bot;
+        document.querySelectorAll('.whale-tab').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        renderBotTrades(bot);
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // RENDER BOT TRADES
+    // ═════════════════════════════════════════════════════════════════
+    
+    function renderBotTrades(bot) {
+        const trades = botData[bot] || [];
+        const tbody = document.getElementById('botTradesTable');
+        
+        if (!trades || trades.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No active trades</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = trades.map(trade => {
+            const pnlClass = parseFloat(trade.pnl) > 0 ? 'pnl-positive' : 'pnl-negative';
+            return `
+                <tr>
+                    <td class="coin-name">${trade.coin}</td>
+                    <td>$${trade.entry}</td>
+                    <td style="color: #8b949e; font-size: 10px;">${trade.time}</td>
+                    <td>$${trade.live}</td>
+                    <td class="${pnlClass}"><strong>${trade.pnl}</strong></td>
+                    <td class="status-open">${trade.status}</td>
+                    <td style="color: #8b949e; font-size: 10px;">${trade.tp}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // EXECUTE TRADE
+    // ═════════════════════════════════════════════════════════════════
+    
+    function executeTrade() {
+        const info = strategies[currentStrategy];
+        alert(`
+🚀 TRADE EXECUTION
+Coin: ${selectedCoin}
+Strategy: ${info.name}
+Entry: Market Price
+TP1: +1%
+SL: -0.5%
+Risk/Reward: 1:2
+
+(Demo Mode — Connect Binance API for Live Trading)
+        `);
+    }
+    
+    // ═════════════════════════════════════════════════════════════════
+    // INITIALIZE ON LOAD
+    // ═════════════════════════════════════════════════════════════════
+    
+    window.onload = () => {
+        initChart();
+        validateSignal('v1');
+        renderBotTrades('bot-v1');
+    };
+    
+    // Close modal when clicking outside
+    window.onclick = (event) => {
+        const modal = document.getElementById('coinModal');
+        if (event.target == modal) {
+            closeModal();
+        }
+    };
+</script>
+
+</body>
+</html>
