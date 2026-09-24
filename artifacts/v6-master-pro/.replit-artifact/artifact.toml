@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "V6 Master Pro Trading Terminal"
+description = "A dark-mode crypto trading terminal for coin hunting, strategy inspection, VSA signals, Urdu execution logs, watchlists, and mapped live chart analysis."
+version = "1.0.0"
+id = "artifacts/v6-master-pro"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24527
+
+[services.development]
+run = "pnpm --filter @workspace/v6-master-pro run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/v6-master-pro", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/v6-master-pro/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24527"
+BASE_PATH = "/"

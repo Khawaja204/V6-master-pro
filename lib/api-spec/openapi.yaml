@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: market
+    description: Market intelligence and screening
+  - name: strategies
+    description: Strategy and bot metadata
+  - name: watchlist
+    description: Favorite coin tracking
+  - name: logs
+    description: Urdu execution logs
 paths:
   /healthz:
     get:
@@ -24,6 +32,82 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /market/snapshot:
+    get:
+      operationId: getMarketSnapshot
+      tags: [market]
+      summary: Get the current market intelligence snapshot
+      responses:
+        "200":
+          description: Current market snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSnapshot"
+  /strategies:
+    get:
+      operationId: listStrategies
+      tags: [strategies]
+      summary: List supported strategies and copy bots
+      responses:
+        "200":
+          description: Strategy catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Strategy"
+  /watchlist:
+    get:
+      operationId: getWatchlist
+      tags: [watchlist]
+      summary: Get favorite coin ids
+      responses:
+        "200":
+          description: Favorite coin ids
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Watchlist"
+  /watchlist/{coinId}:
+    put:
+      operationId: toggleWatchlist
+      tags: [watchlist]
+      summary: Set a coin favorite state
+      parameters:
+        - name: coinId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistInput"
+      responses:
+        "200":
+          description: Updated favorite state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Watchlist"
+  /execution-logs:
+    get:
+      operationId: listExecutionLogs
+      tags: [logs]
+      summary: Get Urdu strategy execution logs
+      responses:
+        "200":
+          description: Recent execution logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExecutionLog"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +117,89 @@ components:
           type: string
       required:
         - status
+    Coin:
+      type: object
+      required: [id, symbol, name, price, change24h, volume24h, followers, circulatingSupply, maxSupply, marketCap, vsa]
+      properties:
+        id: { type: string }
+        symbol: { type: string }
+        name: { type: string }
+        price: { type: number }
+        change24h: { type: number }
+        volume24h: { type: number }
+        followers: { type: integer }
+        circulatingSupply: { type: number }
+        maxSupply: { type: number }
+        marketCap: { type: number }
+        vsa: { type: string, enum: [ok_up, ok_down, manipulation_buy, manipulation_sell] }
+    VsaCheck:
+      type: object
+      required: [id, coinId, label, detail, status, volumeChange, priceChange]
+      properties:
+        id: { type: string }
+        coinId: { type: string }
+        label: { type: string }
+        detail: { type: string }
+        status: { type: string, enum: [ok, manipulation] }
+        volumeChange: { type: number }
+        priceChange: { type: number }
+    MarketSnapshot:
+      type: object
+      required: [updatedAt, coins, vsaChecks, marketBreadth, sessionPnl]
+      properties:
+        updatedAt: { type: string }
+        coins:
+          type: array
+          items: { $ref: "#/components/schemas/Coin" }
+        vsaChecks:
+          type: array
+          items: { $ref: "#/components/schemas/VsaCheck" }
+        marketBreadth: { type: number }
+        sessionPnl: { type: number }
+    Strategy:
+      type: object
+      required: [id, name, shortName, category, timeframe, bias, rules, winRate, trades]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        shortName: { type: string }
+        category: { type: string }
+        timeframe: { type: string }
+        bias: { type: string }
+        rules:
+          type: array
+          items: { type: string }
+        winRate: { type: number }
+        trades: { type: integer }
+    CopyBot:
+      type: object
+      required: [id, name, description, risk, status, strategyId]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        risk: { type: string }
+        status: { type: string }
+        strategyId: { type: string }
+    Watchlist:
+      type: object
+      required: [coinIds]
+      properties:
+        coinIds:
+          type: array
+          items: { type: string }
+    WatchlistInput:
+      type: object
+      required: [favorite]
+      properties:
+        favorite: { type: boolean }
+    ExecutionLog:
+      type: object
+      required: [id, timestamp, type, message, coinId]
+      properties:
+        id: { type: string }
+        timestamp: { type: string }
+        type: { type: string }
+        message: { type: string }
+        coinId: { type: string }
 

@@ -6,6 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
+export interface CopyBot {
+  id: string;
+  name: string;
+  description: string;
+  risk: string;
   status: string;
+  strategyId: string;
 }
