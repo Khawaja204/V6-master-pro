@@ -1,0 +1,1 @@
+- [GitHub connector write pacing](github-connector-write-pacing.md) — throttle bulk GitHub Git-Database writes to stay below the connector's request limit.
