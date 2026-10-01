@@ -1,0 +1,38 @@
+Hey Replit Agent, please execute the following updates for the 'V6 MASTER PRO' trading dashboard in this precise order:
+
+1. PRIORITY - Custom Shell Aliases & Shortcuts (.bashrc / .bash_aliases):
+   Configure and load custom shell shortcuts permanently so they appear at the top when opening the shell, supporting:
+   - `sp`: Generates project structure summary into `project.txt`.
+   - `req`: Freezes/updates python requirements into `requirements.txt`.
+   - `deploy`: Runs/deploys the app locally on Replit.
+   - `push`: Commits and pushes changes to GitHub main branch (triggering Render).
+   - `original`: Factory reset / hard rollback (`git reset --hard HEAD` and clean) to revert breaking changes.
+
+2. PRIORITY - Dedicated Blueprint Text Files:
+   Create separate text blueprint files in the root directory for each individual strategy and module containing their exact rules, formulas, and Urdu/English descriptions:
+   - `v1_strategy_blueprint.txt` (Smoothed Heikin Ashi + RSI 55 + 30m/1D filters + Wick & 1% TP rules)
+   - `price_action_blueprint.txt` (Scalp/Intraday 1-3% TP, 4H OC, 1H S/R, Coinglass heatmap liquidity checks)
+   - `ict_strategy_blueprint.txt` (Method 2, consolidation/uptrend final minutes analysis)
+   - `institutional_ob_fvg_blueprint.txt` (Body/Wick/Trend base candles, 1W/1D multi-drop validation)
+   - `rsi_divergence_smc_blueprint.txt` (Hidden Bullish 30-40 RSI, Hidden Bearish >50 RSI)
+   - `vsa_blueprint.txt` (Volume Spread Analysis rules & manipulation checks)
+   - `coin_explorer_blueprint.txt` (Top 500, followers, circulating/total supply formulas & checks)
+
+3. Complete 5 Tabs Architecture & Navigation: 
+   Implement a clean, fully interactive 5-tab structure on the dashboard layout:
+   - Tab 1: Coin Explorer / Hunting Tab (Filter top 500 coins, min 200k followers, total supply up to 50B, circulating supply >= 70% with locked max supply, and correct formulas).
+   - Tab 2: VSA Tab (Volume Spread Analysis with automated checks for Volume/Price Increase, Decrease, and Manipulation Buy/Sell rules).
+   - Tab 3: Notepad / Log File Tab (Displaying all strategy rules, descriptions, and real-time live execution logs entirely in Urdu).
+   - Tab 4: 5 Strategies Tab (Dedicated modal/view for coin selection and detailed inspection of all 5 strategies).
+   - Tab 5: Watchlist Tab (Star-marked favorite coins tracking).
+   - Plus: Dedicated Whale Copy Bot Tab with 3 copy bots (V1 + RSI 55, Price Action, SMC & Divergence).
+
+4. Live Rates & Real-Time Market Reference Fix: 
+   - Fix the backend data fetching mechanism so that real-time live market prices, 24h volume, and market data for all coins are fetched accurately from live public exchange APIs (like Binance) instead of hardcoded/incorrect values.
+
+5. Interactive Coin Click & Live Chart Mapping: 
+   - Make any coin click across tabs instantly open its live chart with specific strategy indicators, levels, and overlays mapped on TradingView lightweight charts.
+
+6. Strategy & Bot Engines Backend Logic & Deployment: 
+   - Implement exact backend logic for V1, Price Action, ICT, Order Blocks/FVG, and RSI Divergence/SMC.
+   - Transform UI into a sleek professional dark-mode trading terminal layout, ensuring smooth GitHub sync and successful live deployment on both Replit and Render.

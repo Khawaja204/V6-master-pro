@@ -40,6 +40,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import {
+  useGetMarketCandles,
   useGetMarketSnapshot,
   useGetWatchlist,
   useHealthCheck,
@@ -47,7 +48,7 @@ import {
   useListStrategies,
   useToggleWatchlist,
 } from '@workspace/api-client-react';
-import type { Coin, ExecutionLog, Strategy, VsaCheck } from '@workspace/api-client-react';
+import type { Coin, ExecutionLog, MarketCandle, Strategy, VsaCheck } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -68,10 +69,47 @@ const formatUsd = (value: number) => {
 const formatPrice = (value: number) =>
   value < 1 ? `$${value.toFixed(4)}` : `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
+const formatSupply = (value: number) => {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+};
+
 const timeAgo = (timestamp: string) => {
-  const mins = Math.max(1, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000));
+  const parsed = new Date(timestamp).getTime();
+  if (Number.isNaN(parsed)) return timestamp;
+  const mins = Math.max(1, Math.round((Date.now() - parsed) / 60000));
   return mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
 };
+
+function calculateRsi(candles: MarketCandle[], period = 14) {
+  if (candles.length <= period) return [];
+  let averageGain = 0;
+  let averageLoss = 0;
+  for (let index = 1; index <= period; index += 1) {
+    const change = candles[index].close - candles[index - 1].close;
+    averageGain += Math.max(change, 0);
+    averageLoss += Math.max(-change, 0);
+  }
+  averageGain /= period;
+  averageLoss /= period;
+
+  const points = [{
+    time: candles[period].time as Time,
+    value: averageLoss === 0 ? 100 : 100 - (100 / (1 + averageGain / averageLoss)),
+  }];
+  for (let index = period + 1; index < candles.length; index += 1) {
+    const change = candles[index].close - candles[index - 1].close;
+    averageGain = ((averageGain * (period - 1)) + Math.max(change, 0)) / period;
+    averageLoss = ((averageLoss * (period - 1)) + Math.max(-change, 0)) / period;
+    points.push({
+      time: candles[index].time as Time,
+      value: averageLoss === 0 ? 100 : 100 - (100 / (1 + averageGain / averageLoss)),
+    });
+  }
+  return points;
+}
 
 function Logo() {
   return (
@@ -91,10 +129,11 @@ function Logo() {
 function Sidebar({ activeView, setActiveView }: { activeView: string; setActiveView: (view: string) => void }) {
   const items = [
     { id: 'overview', label: 'Workspace', icon: LayoutDashboard },
-    { id: 'hunter', label: 'Coin hunter', icon: Target },
-    { id: 'signals', label: 'Signal desk', icon: Crosshair },
-    { id: 'strategies', label: 'Strategies', icon: LineChart },
-    { id: 'bots', label: 'Copy bots', icon: Bot },
+    { id: 'hunter', label: 'Coin explorer', icon: Target },
+    { id: 'signals', label: 'VSA desk', icon: Crosshair },
+    { id: 'logs', label: 'Notepad / logs', icon: Activity },
+    { id: 'strategies', label: '5 strategies', icon: LineChart },
+    { id: 'watchlist', label: 'Watchlist', icon: Star },
   ];
   return (
     <aside className="hidden min-h-dvh w-[236px] shrink-0 border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-4 py-5 lg:block">
@@ -115,15 +154,11 @@ function Sidebar({ activeView, setActiveView }: { activeView: string; setActiveV
           </button>
         ))}
       </nav>
-      <div className="mt-8 border-t border-white/[.07] pt-6 px-3 eyebrow">System</div>
+       <div className="mt-8 border-t border-white/[.07] pt-6 px-3 eyebrow">Execution modules</div>
       <div className="mt-3 space-y-1">
-        <button type="button" onClick={() => setActiveView('watchlist')} data-testid="button-nav-watchlist" className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-500 transition-colors hover:bg-white/[.035] hover:text-slate-200">
-          <Star size={16} strokeWidth={1.8} />
-          <span className="text-[12px] font-semibold">Watchlist</span>
-        </button>
-        <button type="button" onClick={() => setActiveView('logs')} data-testid="button-nav-logs" className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-500 transition-colors hover:bg-white/[.035] hover:text-slate-200">
-          <Activity size={16} strokeWidth={1.8} />
-          <span className="text-[12px] font-semibold">Execution log</span>
+         <button type="button" onClick={() => setActiveView('bots')} data-testid="button-nav-bots" className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${activeView === 'bots' ? 'bg-[rgba(47,207,176,.1)] text-[hsl(var(--primary))]' : 'text-slate-500 hover:bg-white/[.035] hover:text-slate-200'}`}>
+           <Bot size={16} strokeWidth={1.8} />
+           <span className="text-[12px] font-semibold">Whale copy bots</span>
         </button>
       </div>
       <div className="mt-auto pt-24">
@@ -193,7 +228,7 @@ function OverviewStats({ marketBreadth, sessionPnl, coinCount }: { marketBreadth
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <StatCard label="Market breadth" value={`${marketBreadth.toFixed(1)}%`} sub="▲ 4.8% vs previous session" tone="positive" icon={BarChart3} />
-      <StatCard label="Session P&L" value={`${sessionPnl >= 0 ? '+' : '-'}$${Math.abs(sessionPnl).toFixed(2)}`} sub="▲ 12.6% from open" tone="positive" icon={TrendingUp} />
+       <StatCard label="Market pulse" value={`${sessionPnl >= 0 ? '+' : ''}${sessionPnl.toFixed(2)}%`} sub="Live average move across top assets" tone="positive" icon={TrendingUp} />
       <StatCard label="Assets tracked" value={String(coinCount).padStart(2, '0')} sub="Across 12 active venues" tone="neutral" icon={Grid2X2} />
       <StatCard label="Signal confidence" value="82.4%" sub="High conviction · 6 setups" tone="amber" icon={Zap} />
     </div>
@@ -207,7 +242,7 @@ function MarketOverview({ coins, watchlist, toggle, onSelectCoin, huntingMode = 
     .filter((coin) => `${coin.symbol} ${coin.name}`.toLowerCase().includes(search.toLowerCase()))
     .filter((coin) => !huntingMode || (coin.followers >= 200_000 && coin.maxSupply <= 50_000_000_000 && coin.maxSupply > 0 && coin.circulatingSupply / coin.maxSupply >= 0.7))
     .sort((a, b) => sort === 'change' ? b.change24h - a.change24h : b.volume24h - a.volume24h)
-    .slice(0, 8), [coins, huntingMode, search, sort]);
+     .slice(0, huntingMode ? 500 : 8), [coins, huntingMode, search, sort]);
   return (
     <section className="panel min-w-0 animate-rise delay-1">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4">
@@ -217,7 +252,7 @@ function MarketOverview({ coins, watchlist, toggle, onSelectCoin, huntingMode = 
           <button type="button" onClick={() => setSort(sort === 'change' ? 'volume' : 'change')} data-testid="button-market-sort" className="flex h-8 items-center gap-1.5 rounded-md border border-white/[.08] px-2 text-[10px] font-semibold text-slate-500 hover:text-slate-200"><ListFilter size={13} /> {sort === 'change' ? 'Change' : 'Volume'} <ChevronDown size={12} /></button>
         </div>
       </div>
-      <div className="mobile-scroll">
+       <div className="mobile-scroll max-h-[570px] overflow-y-auto">
           <div className="min-w-[820px]">
            <div className={`grid ${huntingMode ? 'grid-cols-[1.3fr_.8fr_.7fr_.85fr_.75fr_.85fr_1fr_40px]' : 'grid-cols-[1.35fr_.85fr_.75fr_.85fr_1fr_40px]'} gap-3 px-4 py-3 eyebrow`}><span>Asset</span><span>Last price</span><span>24h</span><span>Volume</span>{huntingMode && <><span>Circulating</span><span>Supply cap</span></>}<span>VSA state</span><span /></div>
           {filtered.length ? filtered.map((coin) => (
@@ -226,7 +261,7 @@ function MarketOverview({ coins, watchlist, toggle, onSelectCoin, huntingMode = 
               <span className="mono text-[11px] text-slate-300">{formatPrice(coin.price)}</span>
               <span className={`mono text-[11px] font-medium ${coin.change24h >= 0 ? 'positive' : 'negative'}`}>{coin.change24h >= 0 ? '+' : ''}{coin.change24h.toFixed(2)}%</span>
               <span className="mono text-[10px] text-slate-500">{formatUsd(coin.volume24h)}</span>
-               {huntingMode && <><span className="mono text-[10px] teal-text">{((coin.circulatingSupply / coin.maxSupply) * 100).toFixed(1)}%</span><span className="mono text-[10px] text-slate-500">{coin.maxSupply >= 1000 ? `${(coin.maxSupply / 1000).toFixed(1)}B` : `${coin.maxSupply.toFixed(1)}M`}</span></>}
+                {huntingMode && <><span className="mono text-[10px] teal-text">{coin.maxSupply > 0 ? `${((coin.circulatingSupply / coin.maxSupply) * 100).toFixed(1)}%` : 'n/a'}</span><span className="mono text-[10px] text-slate-500">{coin.maxSupply > 0 ? formatSupply(coin.maxSupply) : 'Unknown'}</span></>}
               <span className={`flex items-center gap-1.5 text-[10px] font-semibold ${coin.vsa.includes('manipulation') ? 'red-text' : 'positive'}`}><span className={`status-dot ${coin.vsa.includes('manipulation') ? 'red' : ''}`} />{coin.vsa === 'ok_up' ? 'Accumulation' : coin.vsa === 'ok_down' ? 'Distribution' : coin.vsa.replace('_', ' ')}</span>
                <span className="flex justify-end text-slate-600"><MoreHorizontal size={15} /></span>
              </div>
@@ -237,13 +272,13 @@ function MarketOverview({ coins, watchlist, toggle, onSelectCoin, huntingMode = 
   );
 }
 
-function VsaDesk({ checks, coins, onSelectCoin }: { checks: VsaCheck[]; coins: Coin[]; onSelectCoin: (coin: Coin) => void }) {
+function VsaDesk({ checks, coins, onSelectCoin, limit = 4 }: { checks: VsaCheck[]; coins: Coin[]; onSelectCoin: (coin: Coin) => void; limit?: number }) {
   const getCoin = (id: string) => coins.find((coin) => coin.id === id);
   return (
     <section className="panel animate-rise delay-2">
       <div className="flex items-center justify-between border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">VSA signal desk</div><div className="mt-1 text-[12px] text-slate-400">Volume spread analysis anomalies</div></div><button type="button" data-testid="button-vsa-filter" className="rounded-md border border-white/[.08] p-1.5 text-slate-500 hover:text-slate-200"><ListFilter size={14} /></button></div>
       <div className="space-y-2 p-3">
-        {checks.slice(0, 4).map((check) => {
+         {checks.slice(0, limit).map((check) => {
           const coin = getCoin(check.coinId);
            return <button type="button" key={check.id} onClick={() => coin && onSelectCoin(coin)} className="panel-muted flex w-full gap-3 p-3 text-left" data-testid={`card-vsa-${check.id}`}>
             <span className={`mt-1.5 status-dot ${check.status === 'manipulation' ? 'red' : check.priceChange >= 0 ? '' : 'amber'}`} />
@@ -281,11 +316,18 @@ function StrategyDesk({ strategies, onStrategyChange }: { strategies: Strategy[]
 }
 
 function ChartMapping({ coin, strategy }: { coin?: Coin; strategy?: Strategy }) {
-  const [period, setPeriod] = useState('1H');
+  const [period, setPeriod] = useState<'15M' | '1H' | '4H' | '1D'>('1H');
   const chartContainer = useRef<HTMLDivElement | null>(null);
-  const periods = ['15M', '1H', '4H', '1D'];
+  const rsiContainer = useRef<HTMLDivElement | null>(null);
+  const periods: Array<'15M' | '1H' | '4H' | '1D'> = ['15M', '1H', '4H', '1D'];
+  const interval = ({ '15M': '15m', '1H': '1h', '4H': '4h', '1D': '1d' } as const)[period];
+  const candlesQuery = useGetMarketCandles(
+    { coinId: coin?.id ?? '', interval, limit: 100 },
+    { query: { queryKey: ['/api/market/candles', coin?.id ?? '', interval, 100], enabled: Boolean(coin), staleTime: 30_000, refetchInterval: 60_000 } },
+  );
+  const candles = candlesQuery.data?.candles ?? [];
   useEffect(() => {
-    if (!chartContainer.current || !coin) return;
+    if (!chartContainer.current || !rsiContainer.current || !coin || candles.length < 2) return;
     const container = chartContainer.current;
     const chart = createChart(container, {
       autoSize: true,
@@ -295,21 +337,15 @@ function ChartMapping({ coin, strategy }: { coin?: Coin; strategy?: Strategy }) 
       timeScale: { borderColor: 'rgba(148, 163, 184, 0.12)', timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' }, horzLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' } },
     });
-    const baseTime = Math.floor(Date.now() / 1000) - 23 * 3600;
-    const candles = Array.from({ length: 24 }, (_, index) => {
-      const wave = Math.sin(index / 1.8) * coin.price * 0.006;
-      const trend = (coin.change24h / 100) * coin.price * (index / 24);
-      const open = coin.price - coin.price * 0.018 + wave + trend;
-      const close = open + Math.cos(index / 2.2) * coin.price * 0.004 + coin.price * 0.0015;
-      const high = Math.max(open, close) + coin.price * 0.005;
-      const low = Math.min(open, close) - coin.price * 0.004;
-      return { time: (baseTime + index * 3600) as Time, open, high, low, close };
-    });
+    const chartCandles = candles.map((candle) => ({ ...candle, time: candle.time as Time }));
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
-    series.setData(candles);
-    const entry = coin.price * 0.992;
-    const stop = coin.price * 0.976;
-    const takeProfit = coin.price * (1 + (strategy?.id === 'price-action' ? 0.025 : 0.01));
+    series.setData(chartCandles);
+    const firstTime = chartCandles[0].time;
+    const lastCandle = chartCandles[chartCandles.length - 1];
+    const lastTime = lastCandle.time;
+    const entry = lastCandle.close * 0.992;
+    const stop = lastCandle.close * 0.976;
+    const takeProfit = lastCandle.close * (1 + (strategy?.id === 'price-action' ? 0.025 : 0.01));
     const levels = [
       { value: entry, color: '#f6be51', title: 'ENTRY' },
       { value: stop, color: '#f27a78', title: 'INVALIDATION' },
@@ -317,15 +353,41 @@ function ChartMapping({ coin, strategy }: { coin?: Coin; strategy?: Strategy }) 
     ];
     levels.forEach((level) => {
       const line = chart.addSeries(LineSeries, { color: level.color, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: true, lastValueVisible: true, title: level.title });
-      line.setData([{ time: baseTime as Time, value: level.value }, { time: (baseTime + 23 * 3600) as Time, value: level.value }]);
+      line.setData([{ time: firstTime, value: level.value }, { time: lastTime, value: level.value }]);
     });
     chart.timeScale().fitContent();
-    return () => chart.remove();
-  }, [coin, period, strategy]);
+    const rsiChart = createChart(rsiContainer.current, {
+      autoSize: true,
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#64748b' },
+      grid: { vertLines: { color: 'rgba(148, 163, 184, 0.04)' }, horzLines: { color: 'rgba(148, 163, 184, 0.04)' } },
+      rightPriceScale: { borderColor: 'rgba(148, 163, 184, 0.12)', scaleMargins: { top: 0.08, bottom: 0.08 } },
+      timeScale: { borderColor: 'rgba(148, 163, 184, 0.12)', timeVisible: false, secondsVisible: false },
+    });
+    const rsiSeries = rsiChart.addSeries(LineSeries, { color: '#c18cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'RSI' });
+    const rsiValues = calculateRsi(candles);
+    rsiSeries.setData(rsiValues);
+    [30, 50, 70].forEach((value) => {
+      const threshold = rsiChart.addSeries(LineSeries, {
+        color: value === 50 ? 'rgba(246, 190, 81, .65)' : 'rgba(148, 163, 184, .35)',
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        title: String(value),
+      });
+      threshold.setData([{ time: firstTime, value }, { time: lastTime, value }]);
+    });
+    rsiChart.timeScale().fitContent();
+    return () => {
+      chart.remove();
+      rsiChart.remove();
+    };
+  }, [candles, coin, period, strategy]);
   return (
     <section className="panel animate-rise delay-3 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">TradingView lightweight chart · mapped levels</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{coin?.symbol ?? 'BTC'} / USDT</span><span className="mono text-[10px] text-slate-500">{coin ? formatPrice(coin.price) : '$0.00'}</span><span className={coin?.change24h && coin.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{coin ? `${coin.change24h > 0 ? '+' : ''}${coin.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item}</button>)}</div></div>
-      <div className="relative h-[270px] p-3"><div ref={chartContainer} className="h-full w-full" /></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance live candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{coin?.symbol ?? 'BTC'} / USDT</span><span className="mono text-[10px] text-slate-500">{coin ? formatPrice(coin.price) : '$0.00'}</span><span className={coin?.change24h && coin.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{coin ? `${coin.change24h > 0 ? '+' : ''}${coin.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item}</button>)}</div></div>
+      <div className="relative h-[270px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!coin || candlesQuery.isLoading || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!coin ? 'Select an asset to load live exchange candles.' : candlesQuery.isError ? `Live Binance candles unavailable for ${coin.symbol}/USDT.` : 'Loading live Binance candles…'}</div>}</div>
+      <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[82px] w-full" /></div>
       <div className="flex flex-wrap gap-3 border-t border-white/[.07] px-4 py-3 mono text-[9px] text-slate-500"><span className="teal-text">TARGET {strategy?.id === 'price-action' ? '2.5%' : '1.0%'}</span><span className="amber-text">ENTRY -0.8%</span><span className="red-text">INVALIDATION -2.4%</span><span className="ml-auto text-slate-600">{strategy?.shortName ?? 'V1'} overlay active</span></div>
     </section>
   );
@@ -338,7 +400,9 @@ function Watchlist({ coins, ids, toggle, onSelectCoin }: { coins: Coin[]; ids: s
 
 function CopyBots({ strategies }: { strategies: Strategy[] }) {
   const [running, setRunning] = useState<Record<string, boolean>>({});
-  return <section className="panel animate-rise delay-3"><div className="flex items-center justify-between border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Copy bots</div><div className="mt-1 text-[12px] text-slate-400">Automations under your control</div></div><button type="button" data-testid="button-bot-add" className="rounded-md border border-white/[.08] p-1.5 text-slate-500 hover:text-[hsl(var(--primary))]"><Plus size={14} /></button></div><div className="divide-y divide-white/[.045]">{strategies.slice(0, 3).map((strategy, index) => { const active = running[strategy.id] ?? index === 0; return <div key={strategy.id} className="flex items-center gap-3 px-4 py-3.5" data-testid={`row-bot-${strategy.id}`}><div className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-[rgba(47,207,176,.1)] teal-text' : 'bg-white/[.045] text-slate-600'}`}><Bot size={15} /></div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold text-slate-200">{strategy.shortName} Bot</div><div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-slate-600"><span className={`status-dot ${active ? '' : 'amber'}`} />{active ? 'Monitoring' : 'Paused'} · {strategy.timeframe}</div></div><button type="button" onClick={() => setRunning((prev) => ({ ...prev, [strategy.id]: !active }))} data-testid={`button-toggle-bot-${strategy.id}`} className={`flex h-7 w-7 items-center justify-center rounded-md border ${active ? 'border-[rgba(47,207,176,.25)] teal-text' : 'border-white/[.08] text-slate-500'}`}>{active ? <Pause size={12} /> : <Play size={12} />}</button></div>; })}</div></section>;
+  const botStrategyIds = ['v1', 'price-action', 'rsi-smc'];
+  const botStrategies = botStrategyIds.map((id) => strategies.find((strategy) => strategy.id === id)).filter(Boolean) as Strategy[];
+  return <section className="panel animate-rise delay-3"><div className="flex items-center justify-between border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Whale copy bots</div><div className="mt-1 text-[12px] text-slate-400">Three strategy automations under your control</div></div><button type="button" data-testid="button-bot-add" className="rounded-md border border-white/[.08] p-1.5 text-slate-500 hover:text-[hsl(var(--primary))]"><Plus size={14} /></button></div><div className="divide-y divide-white/[.045]">{botStrategies.map((strategy, index) => { const active = running[strategy.id] ?? index === 0; const botLabel = strategy.id === 'v1' ? 'V1 + RSI 55' : strategy.id === 'price-action' ? 'Price Action + OB/FVG' : 'SMC + Divergence'; return <div key={strategy.id} className="flex items-center gap-3 px-4 py-3.5" data-testid={`row-bot-${strategy.id}`}><div className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-[rgba(47,207,176,.1)] teal-text' : 'bg-white/[.045] text-slate-600'}`}><Bot size={15} /></div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold text-slate-200">{botLabel} Bot</div><div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-slate-600"><span className={`status-dot ${active ? '' : 'amber'}`} />{active ? 'Monitoring' : 'Paused'} · {strategy.timeframe}</div></div><button type="button" onClick={() => setRunning((prev) => ({ ...prev, [strategy.id]: !active }))} data-testid={`button-toggle-bot-${strategy.id}`} className={`flex h-7 w-7 items-center justify-center rounded-md border ${active ? 'border-[rgba(47,207,176,.25)] teal-text' : 'border-white/[.08] text-slate-500'}`}>{active ? <Pause size={12} /> : <Play size={12} />}</button></div>; })}</div></section>;
 }
 
 function ExecutionLog({ logs, coins }: { logs: ExecutionLog[]; coins: Coin[] }) {
@@ -347,16 +411,16 @@ function ExecutionLog({ logs, coins }: { logs: ExecutionLog[]; coins: Coin[] }) 
 }
 
 function UrduNotepad() {
-  const rules = [
-    ['مرحلہ ۱', 'مارکیٹ کا رجحان اور 1D structure دیکھیں۔'],
-    ['مرحلہ ۲', '30m پر RSI 55 filter اور smoothed Heikin Ashi confirmation لیں۔'],
-    ['مرحلہ ۳', 'Volume اور Price کی سمت کو VSA desk سے verify کریں۔'],
-    ['مرحلہ ۴', 'Entry، invalidation اور 1% TP پہلے سے chart پر map کریں۔'],
-    ['مرحلہ ۵', 'Liquidity sweep یا order block کے بغیر trade execute نہ کریں۔'],
+  const strategyNotes = [
+    { name: 'V1 Smoothed Heikin Ashi + RSI 55', description: '30m entry کو 1D trend کے ساتھ align کریں۔', rules: ['Smoothed Heikin Ashi candle trend direction میں close ہو۔', 'RSI 55 سے اوپر اور rising ہو، پھر VSA confirmation لیں۔', 'Wick protected swing کو توڑے تو setup invalidate کریں؛ target 1% ہے۔'] },
+    { name: 'Price Action / Scalp', description: '4H open-close اور 1H structure سے 1–3% scalp پلان کریں۔', rules: ['Valid 1H support/resistance کے بغیر Order Block یا FVG نہ بنائیں۔', '12h اور 24h heatmap میں مخالف liquidity ہو تو trade چھوڑ دیں۔', 'Uptrend میں RSI تقریباً 30، downtrend reversal میں RSI 15–25 اور structure shift ضروری ہے۔'] },
+    { name: 'ICT Method 2', description: 'Session consolidation، sweep اور fair value return دیکھیں۔', rules: ['Dealing range اور active session کے آخری minutes پہلے mark کریں۔', 'Displacement اور clean liquidity sweep کے بعد fair value area پر entry لیں۔', 'Sweep extreme کے باہر close ہو تو setup ختم ہے۔'] },
+    { name: 'Institutional OB + FVG', description: '1W/1D order-flow اور multi-drop validation استعمال کریں۔', rules: ['Body، wick اور trend-base candle classify کریں۔', '1W اور 1D structure، multi-drop reaction اور unfilled FVG سے block validate کریں۔', 'Fresh mitigation یا far-side break پر level invalidate کریں۔'] },
+    { name: 'RSI Divergence + SMC Scalp 4', description: 'RSI divergence کو market structure shift کے ساتھ trade کریں۔', rules: ['Hidden bullish divergence RSI 30–40 میں Buy condition ہے۔', 'Hidden bearish divergence RSI 50 سے اوپر Sell condition ہے۔', 'Fresh swing break کے خلاف ہو تو tight scalp فوراً invalidate کریں۔'] },
   ];
   return <section className="panel animate-rise delay-3">
     <div className="border-b border-white/[.07] px-4 py-4"><div className="eyebrow">Urdu strategy notepad</div><div className="mt-1 text-[12px] text-slate-400">حکمتِ عملی کے مرحلہ وار اصول</div></div>
-    <div className="space-y-2 p-3" dir="rtl">{rules.map(([step, rule]) => <div key={step} className="flex items-start gap-3 rounded-lg border border-white/[.05] bg-white/[.02] p-3 text-right"><span className="mono text-[9px] teal-text">{step}</span><span className="text-[11px] leading-relaxed text-slate-300">{rule}</span></div>)}</div>
+    <div className="max-h-[490px] space-y-3 overflow-auto p-3" dir="rtl">{strategyNotes.map((strategy, index) => <div key={strategy.name} className="rounded-lg border border-white/[.05] bg-white/[.02] p-3 text-right"><div className="flex items-center gap-2"><span className="mono text-[9px] teal-text">۰{index + 1}</span><span className="text-[11px] font-bold text-slate-200">{strategy.name}</span></div><p className="mt-1 text-[10px] leading-relaxed text-slate-500">{strategy.description}</p><div className="mt-2 space-y-1.5">{strategy.rules.map((rule) => <div key={rule} className="flex items-start gap-2 text-[10px] leading-relaxed text-slate-300"><span className="teal-text">•</span><span>{rule}</span></div>)}</div></div>)}</div>
   </section>;
 }
 
@@ -372,7 +436,7 @@ function Terminal() {
   const [activeView, setActiveView] = useState('overview');
   const [selectedCoinId, setSelectedCoinId] = useState<string | null>(null);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
-  const market = useGetMarketSnapshot();
+  const market = useGetMarketSnapshot({ query: { queryKey: ['/api/market/snapshot'], refetchInterval: 30_000, staleTime: 15_000 } });
   const strategiesQuery = useListStrategies();
   const watchlistQuery = useGetWatchlist();
   const logsQuery = useListExecutionLogs();
@@ -402,18 +466,18 @@ function Terminal() {
     <Sidebar activeView={activeView} setActiveView={setActiveView} />
     <main className="min-w-0 flex-1">
       <Topbar activeView={activeView} onRefresh={refresh} refreshing={market.isFetching} health={healthQuery.data} />
-      <div className="mx-auto max-w-[1540px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><div className="flex items-center gap-2"><span className="status-dot" /><span className="mono text-[10px] font-medium tracking-[.12em] teal-text">MARKETS OPEN · 24/7</span></div><h1 className="display-font mt-2 text-[25px] font-bold tracking-tight text-slate-100 sm:text-[29px]">Good morning, Arman<span className="text-[hsl(var(--primary))]">.</span></h1><p className="mt-1 text-[12px] text-slate-500">Your edge, in one view. Last sync {snapshot ? timeAgo(snapshot.updatedAt) : 'pending'}.</p></div><button type="button" data-testid="button-focus-mode" onClick={() => setActiveView('hunter')} className="flex items-center gap-2 rounded-lg border border-[rgba(47,207,176,.24)] bg-[rgba(47,207,176,.07)] px-3 py-2 text-[11px] font-semibold teal-text hover:bg-[rgba(47,207,176,.12)]"><Crosshair size={14} /> Open focus mode <ChevronRight size={13} /></button></div>
+       <div className="mx-auto max-w-[1540px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+         <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><div className="flex items-center gap-2"><span className="status-dot" /><span className="mono text-[10px] font-medium tracking-[.12em] teal-text">MARKETS OPEN · 24/7</span></div><h1 className="display-font mt-2 text-[25px] font-bold tracking-tight text-slate-100 sm:text-[29px]">Good morning, trader<span className="text-[hsl(var(--primary))]">.</span></h1><p className="mt-1 text-[12px] text-slate-500">Your edge, in one view. Last sync {snapshot ? timeAgo(snapshot.updatedAt) : 'pending'}.</p></div><button type="button" data-testid="button-focus-mode" onClick={() => setActiveView('hunter')} className="flex items-center gap-2 rounded-lg border border-[rgba(47,207,176,.24)] bg-[rgba(47,207,176,.07)] px-3 py-2 text-[11px] font-semibold teal-text hover:bg-[rgba(47,207,176,.12)]"><Crosshair size={14} /> Open focus mode <ChevronRight size={13} /></button></div>
          {isLoading ? <SkeletonWorkspace /> : market.error ? <div className="panel flex min-h-[320px] flex-col items-center justify-center gap-3 p-6 text-center"><CircleHelp size={30} className="red-text" /><h2 className="text-[15px] font-bold text-slate-200">Market feed unavailable</h2><p className="max-w-sm text-[11px] text-slate-500">The terminal could not reach the market snapshot. Check the connection and try again.</p><button type="button" onClick={refresh} data-testid="button-retry-market" className="rounded-md bg-[hsl(var(--primary))] px-3 py-2 text-[11px] font-bold text-[hsl(var(--primary-foreground))]">Retry feed</button></div> : <div className="space-y-4">
            {(activeView === 'overview' || activeView === 'hunter' || activeView === 'strategies') && <OverviewStats marketBreadth={snapshot?.marketBreadth ?? 0} sessionPnl={snapshot?.sessionPnl ?? 0} coinCount={coins.length} />}
            {activeView === 'overview' && <><div className="grid gap-4 xl:grid-cols-[1.65fr_1fr]"><MarketOverview coins={coins} watchlist={ids} toggle={toggle} onSelectCoin={selectCoin} /><VsaDesk checks={snapshot?.vsaChecks ?? []} coins={coins} onSelectCoin={selectCoin} /></div><div className="grid gap-4 xl:grid-cols-[1.1fr_1fr_1fr]"><StrategyDesk strategies={strategies} onStrategyChange={(item) => setSelectedStrategyId(item.id)} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /></div><div className="grid gap-4 xl:grid-cols-[1fr_1fr]"><CopyBots strategies={strategies} /><ExecutionLog logs={logs} coins={coins} /></div></>}
            {activeView === 'hunter' && <><div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]"><MarketOverview coins={coins} watchlist={ids} toggle={toggle} onSelectCoin={selectCoin} huntingMode /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /></>}
-           {activeView === 'signals' && <div className="grid gap-4 xl:grid-cols-[1fr_1.15fr]"><VsaDesk checks={snapshot?.vsaChecks ?? []} coins={coins} onSelectCoin={selectCoin} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
+           {activeView === 'signals' && <div className="grid gap-4 xl:grid-cols-[1fr_1.15fr]"><VsaDesk checks={snapshot?.vsaChecks ?? []} coins={coins} onSelectCoin={selectCoin} limit={8} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
            {activeView === 'strategies' && <div className="grid gap-4 xl:grid-cols-[1fr_1.15fr]"><StrategyDesk strategies={strategies} onStrategyChange={(item) => setSelectedStrategyId(item.id)} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
            {activeView === 'bots' && <div className="grid gap-4 xl:grid-cols-[1fr_1fr]"><CopyBots strategies={strategies} /><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /><div className="xl:col-span-2"><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div></div>}
            {activeView === 'watchlist' && <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]"><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
            {activeView === 'logs' && <div className="grid gap-4 xl:grid-cols-[1fr_1fr]"><UrduNotepad /><ExecutionLog logs={logs} coins={coins} /><div className="xl:col-span-2"><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div></div>}
-           {activeView === 'settings' && <section className="panel max-w-2xl p-5"><div className="eyebrow">Terminal settings</div><h2 className="mt-2 text-xl font-bold text-slate-100">Feed and execution controls</h2><p className="mt-2 text-[12px] leading-relaxed text-slate-500">Live market connectors can be attached here without changing the strategy contract. The current terminal runs on the typed market snapshot and keeps favorite states in the active session.</p><div className="mt-5 space-y-2"><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Market snapshot polling</span><span className="teal-text">CONNECTED</span></div><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Chart overlay engine</span><span className="teal-text">LIGHTWEIGHT CHARTS</span></div><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Urdu execution stream</span><span className="teal-text">STREAMING</span></div></div></section>}
+            {activeView === 'settings' && <section className="panel max-w-2xl p-5"><div className="eyebrow">Terminal settings</div><h2 className="mt-2 text-xl font-bold text-slate-100">Feed and execution controls</h2><p className="mt-2 text-[12px] leading-relaxed text-slate-500">The terminal refreshes a live top-500 market universe every 30 seconds. Binance USDT tickers override live price, 24h change, and quote volume; CoinGecko supplies rank, market cap, and supply metadata.</p><div className="mt-5 space-y-2"><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Live market snapshot polling</span><span className="teal-text">BINANCE + COINGECKO</span></div><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Chart overlay engine</span><span className="teal-text">CANDLE + RSI SUB-PANE</span></div><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Urdu execution stream</span><span className="teal-text">STREAMING</span></div></div></section>}
          </div>}
       </div>
     </main>

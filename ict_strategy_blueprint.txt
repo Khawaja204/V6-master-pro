@@ -1,0 +1,26 @@
+V6 MASTER PRO — ICT METHOD 2
+============================
+
+English description
+-------------------
+Session-based liquidity framework. The setup starts with consolidation and
+the dealing range, then studies the final minutes of the active session for
+displacement, a liquidity sweep, and a return to fair value.
+
+Rules
+-----
+1. Mark the consolidation range and dealing range before expansion.
+2. Define the active session high, low, open, and equilibrium.
+3. Analyze the final minutes of the active session, not random candles.
+4. Require a clear displacement candle after a liquidity sweep.
+5. Confirm that the sweep takes external liquidity and rejects back inside.
+6. Enter on the return to the fair value area / imbalance.
+7. Invalidate beyond the sweep extreme.
+8. Target opposing liquidity or the next dealing-range extreme.
+
+اردو وضاحت
+-----------
+پہلے consolidation اور dealing range mark کریں۔ active session کے آخری
+minutes میں liquidity sweep اور displacement candle تلاش کریں۔ sweep کے بعد
+price fair value area میں واپس آئے تو entry لیں۔ sweep extreme کے باہر close
+ہو جائے تو setup ختم سمجھیں۔

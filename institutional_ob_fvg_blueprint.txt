@@ -1,0 +1,27 @@
+V6 MASTER PRO — INSTITUTIONAL ORDER BLOCK + FAIR VALUE GAP
+============================================================
+
+English description
+-------------------
+Higher-timeframe order-flow model using body, wick, and trend-base candle
+classification. An order block is active only after 1W/1D structure and a
+multi-drop reaction validate it.
+
+Rules
+-----
+1. Classify the candle body, upper/lower wick, and trend-base context.
+2. Mark the final opposing candle before the displacement as the candidate OB.
+3. Validate the block on both 1W and 1D structure.
+4. Require a multi-drop reaction from the zone before calling it active.
+5. Pair the block with an unfilled Fair Value Gap where possible.
+6. Reject a zone that has already been fully mitigated.
+7. Entry occurs on a confirmed return to the active OB/FVG.
+8. Invalidate beyond the far side of the block.
+9. Target the next external liquidity pool.
+
+اردو وضاحت
+-----------
+candle کے body، wick اور trend-base کو الگ دیکھیں۔ displacement سے پہلے
+آنے والے opposing candle کو candidate Order Block بنائیں، لیکن اسے صرف اس
+وقت valid مانیں جب 1W اور 1D structure اور multi-drop reaction confirmation
+دیں۔ unfilled FVG کے ساتھ confluence ہو تو setup مضبوط ہے۔

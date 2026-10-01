@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import {
-  GetMarketSnapshotResponse,
+  GetMarketCandlesQueryParams,
+  GetMarketCandlesResponse,
   GetWatchlistResponse,
   ListExecutionLogsResponse,
   ListStrategiesResponse,
@@ -8,164 +9,14 @@ import {
   ToggleWatchlistParams,
   ToggleWatchlistResponse,
 } from "@workspace/api-zod";
-import type { Coin, ExecutionLog, Strategy, VsaCheck } from "@workspace/api-zod";
+import type { ExecutionLog, Strategy } from "@workspace/api-zod";
+import {
+  getLiveCandles,
+  getLiveMarketSnapshot,
+  type CandleInterval,
+} from "../services/market-data";
 
 const router: IRouter = Router();
-
-const coins: Coin[] = [
-  {
-    id: "btc",
-    symbol: "BTC",
-    name: "Bitcoin",
-    price: 106482.12,
-    change24h: 2.84,
-    volume24h: 28400000000,
-    followers: 12400000,
-    circulatingSupply: 19.85,
-    maxSupply: 21,
-    marketCap: 2113000000000,
-    vsa: "ok_up",
-  },
-  {
-    id: "eth",
-    symbol: "ETH",
-    name: "Ethereum",
-    price: 3864.73,
-    change24h: 1.62,
-    volume24h: 12600000000,
-    followers: 8100000,
-    circulatingSupply: 120.4,
-    maxSupply: 120.4,
-    marketCap: 465300000000,
-    vsa: "ok_up",
-  },
-  {
-    id: "sol",
-    symbol: "SOL",
-    name: "Solana",
-    price: 228.64,
-    change24h: -1.18,
-    volume24h: 4800000000,
-    followers: 2900000,
-    circulatingSupply: 476.9,
-    maxSupply: 592.6,
-    marketCap: 109000000000,
-    vsa: "manipulation_buy",
-  },
-  {
-    id: "link",
-    symbol: "LINK",
-    name: "Chainlink",
-    price: 24.81,
-    change24h: -2.46,
-    volume24h: 910000000,
-    followers: 1800000,
-    circulatingSupply: 587.1,
-    maxSupply: 1000,
-    marketCap: 14570000000,
-    vsa: "manipulation_buy",
-  },
-  {
-    id: "arb",
-    symbol: "ARB",
-    name: "Arbitrum",
-    price: 0.742,
-    change24h: 3.91,
-    volume24h: 680000000,
-    followers: 780000,
-    circulatingSupply: 3862.2,
-    maxSupply: 10000,
-    marketCap: 2866000000,
-    vsa: "manipulation_sell",
-  },
-  {
-    id: "avax",
-    symbol: "AVAX",
-    name: "Avalanche",
-    price: 38.12,
-    change24h: -0.72,
-    volume24h: 410000000,
-    followers: 1300000,
-    circulatingSupply: 409.1,
-    maxSupply: 715.7,
-    marketCap: 15590000000,
-    vsa: "ok_down",
-  },
-  {
-    id: "near",
-    symbol: "NEAR",
-    name: "NEAR Protocol",
-    price: 5.18,
-    change24h: 4.12,
-    volume24h: 320000000,
-    followers: 650000,
-    circulatingSupply: 1190.4,
-    maxSupply: 1210.2,
-    marketCap: 6160000000,
-    vsa: "ok_up",
-  },
-  {
-    id: "op",
-    symbol: "OP",
-    name: "Optimism",
-    price: 1.91,
-    change24h: -3.14,
-    volume24h: 270000000,
-    followers: 590000,
-    circulatingSupply: 1500.1,
-    maxSupply: 4294.9,
-    marketCap: 2865000000,
-    vsa: "ok_down",
-  },
-];
-
-const vsaChecks: VsaCheck[] = [
-  {
-    id: "vsa-1",
-    coinId: "btc",
-    label: "Volume Increase + Price Increase",
-    detail: "مقدار اور قیمت دونوں بڑھ رہے ہیں — رجحان صحت مند ہے۔",
-    status: "ok",
-    volumeChange: 18.4,
-    priceChange: 2.84,
-  },
-  {
-    id: "vsa-2",
-    coinId: "eth",
-    label: "Volume Increase + Price Increase",
-    detail: "خریداری کی طاقت موجود ہے، confirmation کا انتظار کریں۔",
-    status: "ok",
-    volumeChange: 11.8,
-    priceChange: 1.62,
-  },
-  {
-    id: "vsa-3",
-    coinId: "sol",
-    label: "Volume Increase + Price Decrease",
-    detail: "ممکنہ manipulation — demand zone میں Buy setup دیکھیں۔",
-    status: "manipulation",
-    volumeChange: 31.6,
-    priceChange: -1.18,
-  },
-  {
-    id: "vsa-4",
-    coinId: "arb",
-    label: "Volume Decrease + Price Increase",
-    detail: "ممکنہ distribution — Sell setup اور liquidity sweep چیک کریں۔",
-    status: "manipulation",
-    volumeChange: -14.2,
-    priceChange: 3.91,
-  },
-  {
-    id: "vsa-5",
-    coinId: "avax",
-    label: "Volume Decrease + Price Decrease",
-    detail: "مقدار اور قیمت دونوں کم ہیں — فی الحال انتظار کریں۔",
-    status: "ok",
-    volumeChange: -8.7,
-    priceChange: -0.72,
-  },
-];
 
 const strategies: Strategy[] = [
   {
@@ -193,9 +44,9 @@ const strategies: Strategy[] = [
     bias: "Reactive",
     rules: [
       "Use 4H open-close direction as the session anchor.",
-      "Map 1H support and resistance before taking a trade.",
-      "Target 1–3% and validate liquidity with the Coinglass heatmap.",
-      "Skip entries when liquidation clusters sit against the setup.",
+      "Map valid 1H support, resistance, order blocks, and fair value gaps.",
+      "Target 1–3% and validate 12h/24h liquidity with the Coinglass heatmap.",
+      "In an uptrend, RSI around 30 can confirm a Buy; in a downtrend, require RSI 15–25 plus structure shift.",
     ],
     winRate: 63.1,
     trades: 89,
@@ -256,42 +107,70 @@ const executionLogs: ExecutionLog[] = [
     timestamp: "09:42:16",
     type: "VSA",
     message: "SOL پر Volume Increase + Price Decrease ملا — Manipulation Buy zone فعال ہے۔",
-    coinId: "sol",
+    coinId: "solana",
   },
   {
     id: "log-2",
     timestamp: "09:40:02",
     type: "V1",
     message: "BTC کا 1D filter bullish ہے اور RSI 55 سے اوپر ہے — 1% TP setup تیار ہے۔",
-    coinId: "btc",
+    coinId: "bitcoin",
   },
   {
     id: "log-3",
     timestamp: "09:37:48",
     type: "PA",
     message: "ETH کا 1H support hold کر رہا ہے، heatmap میں مخالف liquidity کم ہے۔",
-    coinId: "eth",
+    coinId: "ethereum",
   },
   {
     id: "log-4",
     timestamp: "09:35:11",
     type: "SMC",
     message: "LINK میں RSI 36 پر hidden bullish divergence confirm ہوئی۔",
-    coinId: "link",
+    coinId: "chainlink",
   },
 ];
 
-let watchlist = new Set(["btc", "sol", "link"]);
+let watchlist = new Set(["bitcoin", "solana", "chainlink"]);
 
-router.get("/market/snapshot", (_req, res) => {
-  const data = GetMarketSnapshotResponse.parse({
-    updatedAt: "2026-09-24T09:42:16+05:00",
-    coins,
-    vsaChecks,
-    marketBreadth: 61.8,
-    sessionPnl: 3.42,
-  });
-  res.json(data);
+router.get("/market/snapshot", async (_req, res) => {
+  try {
+    const snapshot = await getLiveMarketSnapshot();
+    res.json(snapshot);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown live feed error";
+    res.status(503).json({
+      message: "Live market data is temporarily unavailable.",
+      detail,
+    });
+  }
+});
+
+router.get("/market/candles", async (req, res) => {
+  const parsedQuery = GetMarketCandlesQueryParams.safeParse(req.query);
+  if (!parsedQuery.success) {
+    res.status(400).json({ message: "Valid coinId, interval, and limit are required." });
+    return;
+  }
+  const { coinId, interval, limit } = parsedQuery.data;
+
+  try {
+    const snapshot = await getLiveMarketSnapshot();
+    const coin = snapshot.coins.find((item) => item.id === coinId);
+    if (!coin) {
+      res.status(404).json({ message: "Asset was not found in the live market snapshot." });
+      return;
+    }
+    const candles = await getLiveCandles(coin.symbol, interval as CandleInterval, limit);
+    res.json(GetMarketCandlesResponse.parse({ coinId, interval, candles }));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown live exchange error";
+    res.status(503).json({
+      message: "Live exchange candles are temporarily unavailable for this asset.",
+      detail,
+    });
+  }
 });
 
 router.get("/strategies", (_req, res) => {

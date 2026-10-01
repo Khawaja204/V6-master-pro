@@ -1,0 +1,26 @@
+V6 MASTER PRO — RSI DIVERGENCE + SMC SCALP 4
+=============================================
+
+English description
+-------------------
+Short-timeframe reversal model combining hidden RSI divergence with a market
+structure shift. The scalp remains tight and is invalidated by a fresh swing
+break.
+
+Rules and levels
+----------------
+Hidden bullish divergence: price makes a higher low while RSI makes a lower
+low, preferably with RSI in the 30–40 zone.
+Hidden bearish divergence: price makes a lower high while RSI makes a higher
+high, preferably with RSI above 50.
+Structure shift: a confirmed break in the expected reversal direction.
+Entry: divergence + structure shift + liquidity/SMC confirmation.
+Invalidation: fresh swing break against the position.
+Target: nearest internal liquidity, then external liquidity if momentum holds.
+
+اردو وضاحت
+-----------
+Hidden bullish divergence میں price higher low بنائے مگر RSI lower low بنائے،
+خاص طور پر RSI 30 سے 40 کے درمیان۔ Hidden bearish divergence میں price lower
+high بنائے مگر RSI 50 سے اوپر ہو۔ صرف divergence پر trade نہ لیں؛ market
+structure shift لازمی ہے۔ fresh swing break ہو تو scalp invalidate ہے۔
