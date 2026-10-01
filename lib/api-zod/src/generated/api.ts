@@ -50,6 +50,34 @@ export const GetMarketSnapshotResponse = zod.object({
 
 
 /**
+ * @summary Get live Binance candlesticks for an asset
+ */
+export const getMarketCandlesQueryLimitDefault = 100;
+export const getMarketCandlesQueryLimitMin = 30;
+export const getMarketCandlesQueryLimitMax = 100;
+
+
+
+export const GetMarketCandlesQueryParams = zod.object({
+  "coinId": zod.coerce.string(),
+  "interval": zod.enum(['15m', '1h', '4h', '1d']),
+  "limit": zod.coerce.number().int().min(getMarketCandlesQueryLimitMin).max(getMarketCandlesQueryLimitMax).default(getMarketCandlesQueryLimitDefault)
+})
+
+export const GetMarketCandlesResponse = zod.object({
+  "coinId": zod.string(),
+  "interval": zod.enum(['15m', '1h', '4h', '1d']),
+  "candles": zod.array(zod.object({
+  "time": zod.number().int().describe('Unix timestamp in seconds'),
+  "open": zod.number(),
+  "high": zod.number(),
+  "low": zod.number(),
+  "close": zod.number()
+}))
+})
+
+
+/**
  * @summary List supported strategies and copy bots
  */
 export const ListStrategiesResponseItem = zod.object({

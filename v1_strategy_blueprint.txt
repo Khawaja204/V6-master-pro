@@ -1,0 +1,47 @@
+V6 MASTER PRO — V1 SMOOTHED HEIKIN ASHI + RSI 55
+==================================================
+
+English description
+-------------------
+Trend-following setup using Smoothed Heikin Ashi candles, a 30-minute entry
+chart, and a 1-day structure filter. The trade is valid only when the lower
+timeframe signal agrees with the higher timeframe direction.
+
+Core formulas
+-------------
+Heikin Ashi Close  = (Open + High + Low + Close) / 4
+Heikin Ashi Open   = (Previous HA Open + Previous HA Close) / 2
+Heikin Ashi High   = max(High, HA Open, HA Close)
+Heikin Ashi Low    = min(Low, HA Open, HA Close)
+Smoothed HA        = EMA(HA value, smoothing length)
+RSI                = 100 - (100 / (1 + Average Gain / Average Loss))
+
+Buy rules
+---------
+1. The 1D structure is bullish or has reclaimed a major support level.
+2. The 30m Smoothed Heikin Ashi candle closes bullish in the trend direction.
+3. RSI is above 55 and rising; RSI 55 is the momentum gate.
+4. Volume and price direction pass the VSA check.
+5. Mark entry only after candle close confirmation.
+
+Sell / invalidation rules
+-------------------------
+1. Reject a long when the 1D structure is bearish.
+2. Invalidate when the entry candle wick breaks the protected swing level.
+3. Do not enter during a contradictory VSA manipulation signal.
+4. A failed reclaim or close back below the mapped level cancels the setup.
+
+Risk and target
+---------------
+Entry: confirmed 30m close after all filters agree.
+Invalidation: protected wick / swing break.
+Take profit: 1% from entry for the standard V1 setup.
+Risk rule: never move invalidation farther away after entry.
+
+اردو وضاحت
+-----------
+یہ ٹرینڈ فالو کرنے والی حکمتِ عملی ہے۔ پہلے 1D structure، پھر 30m
+Smoothed Heikin Ashi candle اور RSI 55 کو چیک کریں۔ RSI 55 سے اوپر ہو،
+candle trend کے رخ میں close ہو اور VSA healthy flow دکھائے تو Buy setup
+قابلِ غور ہے۔ wick protected swing کو توڑے تو trade فوراً invalidate ہے۔
+معیاری V1 target entry سے 1% اوپر ہے۔

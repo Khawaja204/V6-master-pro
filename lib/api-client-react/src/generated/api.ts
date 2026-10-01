@@ -21,7 +21,9 @@ import type {
 
 import type {
   ExecutionLog,
+  GetMarketCandlesParams,
   HealthStatus,
+  MarketCandles,
   MarketSnapshot,
   Strategy,
   Watchlist,
@@ -198,6 +200,90 @@ export function useGetMarketSnapshot<TData = Awaited<ReturnType<typeof getMarket
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMarketSnapshotQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMarketCandlesUrl = (params: GetMarketCandlesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/market/candles?${stringifiedParams}` : `/api/market/candles`
+}
+
+/**
+ * @summary Get live Binance candlesticks for an asset
+ */
+export const getMarketCandles = async (params: GetMarketCandlesParams, options?: Parameters<typeof customFetch>[1]): Promise<MarketCandles> => {
+
+  return customFetch<MarketCandles>(getGetMarketCandlesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMarketCandlesQueryKey = (params?: GetMarketCandlesParams,) => {
+    return [
+    `/api/market/candles`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMarketCandlesQueryOptions = <TData = Awaited<ReturnType<typeof getMarketCandles>>, TError = ErrorType<void>>(params: GetMarketCandlesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketCandles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMarketCandlesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMarketCandles>>> = ({ signal }) => getMarketCandles(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMarketCandles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMarketCandlesQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketCandles>>>
+export type GetMarketCandlesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get live Binance candlesticks for an asset
+ */
+
+export function useGetMarketCandles<TData = Awaited<ReturnType<typeof getMarketCandles>>, TError = ErrorType<void>>(
+ params: GetMarketCandlesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketCandles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMarketCandlesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

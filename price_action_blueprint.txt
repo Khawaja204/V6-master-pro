@@ -1,0 +1,40 @@
+V6 MASTER PRO — PRICE ACTION / SCALP-INTRADAY
+=============================================
+
+English description
+-------------------
+Scalp and intraday framework built from the 4H open-close direction, 1H
+support and resistance, order blocks, fair value gaps, RSI context, and
+Coinglass liquidation/liquidity heatmaps.
+
+Rules and formulas
+------------------
+4H direction = bullish when 4H Close > 4H Open; bearish when 4H Close < 4H Open.
+Support      = confirmed 1H swing-low reaction zone.
+Resistance   = confirmed 1H swing-high reaction zone.
+Risk/Reward  = (Target - Entry) / (Entry - Invalidation).
+Target band  = 1% to 3% from entry, selected by the nearest valid liquidity.
+Heatmap     = inspect both 12h and 24h liquidity/liquidation concentrations.
+
+Entry rules
+-----------
+1. Use the 4H open-close direction as the session anchor.
+2. Map valid 1H support and resistance before taking a trade.
+3. If 1H support/resistance is not valid, do not call the level an Order Block
+   or Fair Value Gap; skip the setup until structure is confirmed.
+4. Validate the direction against the 12h and 24h Coinglass heatmaps.
+5. Skip an entry when a liquidation cluster sits directly against the trade.
+6. RSI uptrend Buy signal: look for RSI holding/reclaiming around 30 with
+   price structure confirmation.
+7. RSI downtrend Buy signal: only consider an exhaustion reversal when RSI is
+   between 15 and 25 and a bullish structure shift confirms it.
+8. Sell setups require a resistance rejection, bearish structure, and no
+   opposing liquidity sweep.
+
+اردو وضاحت
+-----------
+4H open اور close سے session direction لیں، پھر 1H support اور resistance
+درست طور پر mark کریں۔ اگر 1H level valid نہیں تو اسے OB یا FVG نہ سمجھیں۔
+12h اور 24h Coinglass heatmap میں مخالف liquidity ہو تو trade چھوڑ دیں۔
+Uptrend میں RSI تقریباً 30 کے قریب Buy signal دے سکتا ہے، جبکہ downtrend
+میں صرف 15 سے 25 RSI exhaustion کے بعد structure shift پر reversal دیکھیں۔

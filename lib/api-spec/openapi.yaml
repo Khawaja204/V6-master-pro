@@ -44,6 +44,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MarketSnapshot"
+  /market/candles:
+    get:
+      operationId: getMarketCandles
+      tags: [market]
+      summary: Get live Binance candlesticks for an asset
+      parameters:
+        - name: coinId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: interval
+          in: query
+          required: true
+          schema: { type: string, enum: [15m, 1h, 4h, 1d] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 30, maximum: 100, default: 100 }
+      responses:
+        "200":
+          description: Live exchange candlestick series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketCandles"
+        "400":
+          description: Invalid timeframe or request
+        "404":
+          description: Asset is not in the current live market universe
+        "503":
+          description: Exchange candlestick data is unavailable
   /strategies:
     get:
       operationId: listStrategies
@@ -156,6 +187,24 @@ components:
           items: { $ref: "#/components/schemas/VsaCheck" }
         marketBreadth: { type: number }
         sessionPnl: { type: number }
+    MarketCandle:
+      type: object
+      required: [time, open, high, low, close]
+      properties:
+        time: { type: integer, description: Unix timestamp in seconds }
+        open: { type: number }
+        high: { type: number }
+        low: { type: number }
+        close: { type: number }
+    MarketCandles:
+      type: object
+      required: [coinId, interval, candles]
+      properties:
+        coinId: { type: string }
+        interval: { type: string, enum: [15m, 1h, 4h, 1d] }
+        candles:
+          type: array
+          items: { $ref: "#/components/schemas/MarketCandle" }
     Strategy:
       type: object
       required: [id, name, shortName, category, timeframe, bias, rules, winRate, trades]

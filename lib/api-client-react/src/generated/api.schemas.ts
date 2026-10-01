@@ -59,6 +59,31 @@ export interface MarketSnapshot {
   sessionPnl: number;
 }
 
+export interface MarketCandle {
+  /** Unix timestamp in seconds */
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export type MarketCandlesInterval = typeof MarketCandlesInterval[keyof typeof MarketCandlesInterval];
+
+
+export const MarketCandlesInterval = {
+  '15m': '15m',
+  '1h': '1h',
+  '4h': '4h',
+  '1d': '1d',
+} as const;
+
+export interface MarketCandles {
+  coinId: string;
+  interval: MarketCandlesInterval;
+  candles: MarketCandle[];
+}
+
 export interface Strategy {
   id: string;
   name: string;
@@ -95,4 +120,24 @@ export interface ExecutionLog {
   message: string;
   coinId: string;
 }
+
+export type GetMarketCandlesParams = {
+coinId: string;
+interval: GetMarketCandlesInterval;
+/**
+ * @minimum 30
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type GetMarketCandlesInterval = typeof GetMarketCandlesInterval[keyof typeof GetMarketCandlesInterval];
+
+
+export const GetMarketCandlesInterval = {
+  '15m': '15m',
+  '1h': '1h',
+  '4h': '4h',
+  '1d': '1d',
+} as const;
 

@@ -1,0 +1,34 @@
+V6 MASTER PRO — COIN EXPLORER / HUNTING FILTER
+================================================
+
+English description
+-------------------
+The explorer consumes the top 500 market-cap assets, displays live market
+reference data, and filters for liquidity, community attention, and supply
+distribution before a coin reaches the hunting desk.
+
+Required filters
+-----------------
+1. Market-cap rank <= 500.
+2. Followers >= 200,000.
+3. Maximum / total supply is known and <= 50,000,000,000.
+4. Maximum supply must be greater than zero.
+5. Circulating supply ratio >= 70%.
+
+Formulas
+--------
+Circulating Ratio % = (Circulating Supply / Max Supply) * 100
+Fully Diluted Value = Current Price * Max Supply
+Market Cap Check     = Current Price * Circulating Supply
+Supply Headroom      = Max Supply - Circulating Supply
+
+If Max Supply is unavailable or zero, the circulating ratio is unknown and
+the coin must not pass the locked-supply filter. Never compare supplies with
+different units; both values must use the same base token unit.
+
+اردو وضاحت
+-----------
+Top 500 coins میں سے صرف وہ assets hunting list میں آئیں جن کے followers کم
+از کم 200K ہوں، max supply 50B یا اس سے کم ہو، اور circulating supply کم از
+کم 70% ہو۔ ratio ہمیشہ circulating کو max supply سے divide کر کے نکالیں۔
+اگر max supply معلوم نہ ہو تو coin کو locked-supply filter میں pass نہ کریں۔
