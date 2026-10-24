@@ -13,7 +13,11 @@ sp() {
 }
 
 req() {
-  python -m pip freeze
+  if [[ ! -x "$project_root/.venv/bin/python" ]]; then
+    printf 'Python environment is not initialized. Run scripts/setup-python-venv.sh first.\n' >&2
+    return 1
+  fi
+  uv pip freeze --python "$project_root/.venv/bin/python"
 }
 
 deploy() {
@@ -26,7 +30,11 @@ deploy() {
 push() {
   git add -- \
     .bash_aliases \
+    .gitignore \
+    .replitignore \
     '*_blueprint.txt' \
+    requirements.txt \
+    scripts/setup-python-venv.sh \
     artifacts/api-server/src/routes/trading.ts \
     artifacts/api-server/src/services/market-data.ts \
     artifacts/v6-master-pro/src/App.tsx \

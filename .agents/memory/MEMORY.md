@@ -1,1 +1,2 @@
 - [GitHub connector write pacing](github-connector-write-pacing.md) — throttle bulk GitHub Git-Database writes to stay below the connector's request limit.
+- [Python venv on Nix](python-venv-on-nix.md) — install Python requirements into a project-local uv environment, never the immutable system interpreter.
