@@ -43,3 +43,4 @@ sc_push() {
 push()   { sc_push "${*:-Update screener}"; }
 save()   { sc_push "${*:-Save progress}"; }
 deploy() { sc_check && sc_run; }
+status() { cd ~/workspace/screener && tail -n 5 bot.log && grep -c "BUY signal" bot.log; }
