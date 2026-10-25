@@ -227,10 +227,10 @@ function MiniSparkline({ positive = true }: { positive?: boolean }) {
 function OverviewStats({ marketBreadth, sessionPnl, coinCount }: { marketBreadth: number; sessionPnl: number; coinCount: number }) {
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      <StatCard label="Market breadth" value={`${marketBreadth.toFixed(1)}%`} sub="▲ 4.8% vs previous session" tone="positive" icon={BarChart3} />
+      <StatCard label="Market breadth" value={`${marketBreadth.toFixed(1)}%`} sub="Live from market snapshot" tone="positive" icon={BarChart3} />
        <StatCard label="Market pulse" value={`${sessionPnl >= 0 ? '+' : ''}${sessionPnl.toFixed(2)}%`} sub="Live average move across top assets" tone="positive" icon={TrendingUp} />
-      <StatCard label="Assets tracked" value={String(coinCount).padStart(2, '0')} sub="Across 12 active venues" tone="neutral" icon={Grid2X2} />
-      <StatCard label="Signal confidence" value="82.4%" sub="High conviction · 6 setups" tone="amber" icon={Zap} />
+      <StatCard label="Assets tracked" value={String(coinCount).padStart(2, '0')} sub="Binance + CoinGecko feed" tone="neutral" icon={Grid2X2} />
+      <StatCard label="Signal confidence" value="N/A" sub="Not calculated (demo value removed)" tone="amber" icon={Zap} />
     </div>
   );
 }
