@@ -43,3 +43,11 @@ _Populate as you build — sharp edges, "always run X before Y" rules._
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+
+## Project rules (for Replit Agent)
+- Web app: only the dashboard in artifacts/ is published. Do not add Python requirements files to the web app.
+- Scanner bots live in screener/ and screener2/. They run from Shell with their own .venv. Do not publish or change them as part of the web app.
+- Do not change code, files, or settings unless I ask in that message.
+- Publish only when I explicitly ask. Do not retry a failed publish. Show me the exact error and stop.
+- Never write secrets, tokens, or chat IDs into any file. Use Replit Secrets only.
+- Before any change, tell me which files you plan to touch.
