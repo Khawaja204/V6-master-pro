@@ -53,8 +53,9 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { TopUsdtSignals } from '@/components/top-usdt-signals';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import CoinPage from '@/pages/coin';
 import NotFound from '@/pages/not-found';
-import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
+import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import {
   useTopUsdtPairs,
   type KlineInterval,
@@ -164,6 +165,14 @@ function Sidebar({
             {activeView === id && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}
           </button>
         ))}
+        <Link
+          href="/coin"
+          data-testid="link-nav-coin-sidebar"
+          className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-500 transition-colors hover:bg-white/[.035] hover:text-slate-200"
+        >
+          <Search size={16} strokeWidth={1.8} />
+          <span className="text-[12px] font-semibold">Coin lookup</span>
+        </Link>
       </nav>
        <div className="mt-auto pt-24">
         <div className="panel-muted p-3">
@@ -194,6 +203,15 @@ function Topbar({ activeView, connection }: { activeView: string; connection: St
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <Link
+          href="/coin"
+          data-testid="link-nav-coin-mobile"
+          aria-label="Coin lookup"
+          title="Coin lookup"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[.08] text-slate-400 transition-colors hover:border-white/[.16] hover:text-slate-100 lg:hidden"
+        >
+          <Search size={14} />
+        </Link>
         <div className="hidden items-center gap-2 rounded-full border border-white/[.08] bg-white/[.025] px-3 py-1.5 md:flex">
           {connection === 'connected' ? <Wifi size={13} className="teal-text" /> : <Activity size={13} className="amber-text" />}
           <span className="mono text-[10px] text-slate-400">{connectionText}</span>
@@ -511,7 +529,7 @@ function Terminal() {
 }
 
 function Router() {
-  return <ErrorBoundary resetKey={useLocation()[0]}><Switch><Route path="/" component={Terminal} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={useLocation()[0]}><Switch><Route path="/" component={Terminal} /><Route path="/coin" component={CoinPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {
