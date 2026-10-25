@@ -50,10 +50,17 @@ import {
 } from '@workspace/api-client-react';
 import type { Coin, ExecutionLog, MarketCandle, Strategy, VsaCheck } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { TopUsdtSignals } from '@/components/top-usdt-signals';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
+import {
+  useTopUsdtPairs,
+  type KlineInterval,
+  type StreamStatus,
+  type TopUsdtPair,
+} from '@/lib/binance-top-usdt';
 import '../src/index.css';
 
 const queryClient = new QueryClient();
@@ -126,14 +133,18 @@ function Logo() {
   );
 }
 
-function Sidebar({ activeView, setActiveView }: { activeView: string; setActiveView: (view: string) => void }) {
+function Sidebar({
+  activeView,
+  setActiveView,
+  connection,
+}: {
+  activeView: string;
+  setActiveView: (view: string) => void;
+  connection: StreamStatus;
+}) {
   const items = [
-    { id: 'overview', label: 'Workspace', icon: LayoutDashboard },
-    { id: 'hunter', label: 'Coin explorer', icon: Target },
-    { id: 'signals', label: 'VSA desk', icon: Crosshair },
-    { id: 'logs', label: 'Notepad / logs', icon: Activity },
-    { id: 'strategies', label: '5 strategies', icon: LineChart },
-    { id: 'watchlist', label: 'Watchlist', icon: Star },
+    { id: 'overview', label: 'Top 20 scanner', icon: LayoutDashboard },
+    { id: 'chart', label: 'Closed-candle chart', icon: LineChart },
   ];
   return (
     <aside className="hidden min-h-dvh w-[236px] shrink-0 border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-4 py-5 lg:block">
@@ -154,49 +165,39 @@ function Sidebar({ activeView, setActiveView }: { activeView: string; setActiveV
           </button>
         ))}
       </nav>
-       <div className="mt-8 border-t border-white/[.07] pt-6 px-3 eyebrow">Execution modules</div>
-      <div className="mt-3 space-y-1">
-         <button type="button" onClick={() => setActiveView('bots')} data-testid="button-nav-bots" className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${activeView === 'bots' ? 'bg-[rgba(47,207,176,.1)] text-[hsl(var(--primary))]' : 'text-slate-500 hover:bg-white/[.035] hover:text-slate-200'}`}>
-           <Bot size={16} strokeWidth={1.8} />
-           <span className="text-[12px] font-semibold">Whale copy bots</span>
-        </button>
-      </div>
-      <div className="mt-auto pt-24">
+       <div className="mt-auto pt-24">
         <div className="panel-muted p-3">
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-300"><ShieldCheck size={14} className="teal-text" /> Terminal status</div>
-          <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500"><span className="status-dot" /> API connected <span className="ml-auto mono text-[9px] text-slate-600">LIVE</span></div>
+           <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-300"><ShieldCheck size={14} className="teal-text" /> Binance stream</div>
+           <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500"><span className={`status-dot ${connection === 'connected' ? '' : 'amber'}`} /> {connection === 'connected' ? 'Connected' : connection === 'reconnecting' ? 'Reconnecting' : 'Connecting'}</div>
         </div>
-        <button type="button" onClick={() => setActiveView('settings')} data-testid="button-nav-settings" className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-slate-500 hover:text-slate-200">
-          <Settings2 size={16} strokeWidth={1.8} /><span className="text-[12px] font-semibold">Terminal settings</span>
-        </button>
       </div>
     </aside>
   );
 }
 
-function Topbar({ activeView, onRefresh, refreshing, health }: { activeView: string; onRefresh: () => void; refreshing: boolean; health?: { status: string } }) {
+function Topbar({ activeView, connection }: { activeView: string; connection: StreamStatus }) {
+  const connectionText = connection === 'connected'
+    ? 'BINANCE STREAM LIVE'
+    : connection === 'reconnecting'
+      ? 'RECONNECTING'
+      : connection === 'error'
+        ? 'FEED ERROR'
+        : 'CONNECTING';
   return (
     <header className="flex min-h-[74px] items-center justify-between gap-4 border-b border-white/[.07] px-5 py-4 lg:px-8">
       <div className="flex items-center gap-4">
         <div className="lg:hidden"><Logo /></div>
         <div className="hidden h-8 w-px bg-white/[.08] lg:block" />
         <div>
-          <div className="eyebrow">{activeView === 'overview' ? 'Live market intelligence' : activeView.replace('-', ' ')}</div>
-          <div className="mt-1 text-[12px] text-slate-500">One workspace for decisive execution</div>
+          <div className="eyebrow">{activeView === 'overview' ? 'Binance market scanner' : 'Live chart'}</div>
+          <div className="mt-1 text-[12px] text-slate-500">Top USDT pairs by 24h quote volume</div>
         </div>
       </div>
       <div className="flex items-center gap-2">
         <div className="hidden items-center gap-2 rounded-full border border-white/[.08] bg-white/[.025] px-3 py-1.5 md:flex">
-          <Wifi size={13} className="teal-text" />
-          <span className="mono text-[10px] text-slate-400">{health?.status === 'ok' ? 'FEED STABLE' : 'SYNCING FEED'}</span>
+          {connection === 'connected' ? <Wifi size={13} className="teal-text" /> : <Activity size={13} className="amber-text" />}
+          <span className="mono text-[10px] text-slate-400">{connectionText}</span>
         </div>
-        <button type="button" onClick={onRefresh} disabled={refreshing} data-testid="button-refresh-terminal" className="flex h-8 items-center gap-2 rounded-lg border border-white/[.08] px-2.5 text-slate-400 transition hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))]">
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /><span className="hidden text-[11px] font-semibold sm:block">Refresh</span>
-        </button>
-        <button type="button" data-testid="button-notifications" className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-white/[.08] text-slate-400 hover:text-slate-200">
-          <Bell size={15} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[hsl(var(--accent))]" />
-        </button>
-        <div className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#2b766e] text-[11px] font-bold text-[#d9fff4]" data-testid="avatar-user">AK</div>
       </div>
     </header>
   );
@@ -315,19 +316,25 @@ function StrategyDesk({ strategies, onStrategyChange }: { strategies: Strategy[]
   );
 }
 
-function ChartMapping({ coin, strategy }: { coin?: Coin; strategy?: Strategy }) {
-  const [period, setPeriod] = useState<'15M' | '1H' | '4H' | '1D'>('1H');
+function ChartMapping({
+  pair,
+  strategy,
+  strategies,
+  onStrategyChange,
+}: {
+  pair?: TopUsdtPair;
+  strategy?: Strategy;
+  strategies: Strategy[];
+  onStrategyChange: (strategyId: string) => void;
+}) {
+  const [period, setPeriod] = useState<KlineInterval>('1h');
   const chartContainer = useRef<HTMLDivElement | null>(null);
   const rsiContainer = useRef<HTMLDivElement | null>(null);
-  const periods: Array<'15M' | '1H' | '4H' | '1D'> = ['15M', '1H', '4H', '1D'];
-  const interval = ({ '15M': '15m', '1H': '1h', '4H': '4h', '1D': '1d' } as const)[period];
-  const candlesQuery = useGetMarketCandles(
-    { coinId: coin?.id ?? '', interval, limit: 100 },
-    { query: { queryKey: ['/api/market/candles', coin?.id ?? '', interval, 100], enabled: Boolean(coin), staleTime: 30_000, refetchInterval: 60_000 } },
-  );
-  const candles = candlesQuery.data?.candles ?? [];
+  const periods: KlineInterval[] = ['15m', '1h'];
+  const candles = pair?.candles[period] ?? [];
+  const pairSymbol = pair?.symbol;
   useEffect(() => {
-    if (!chartContainer.current || !rsiContainer.current || !coin || candles.length < 2) return;
+    if (!chartContainer.current || !rsiContainer.current || !pairSymbol || candles.length < 2) return;
     const container = chartContainer.current;
     const chart = createChart(container, {
       autoSize: true,
@@ -337,7 +344,13 @@ function ChartMapping({ coin, strategy }: { coin?: Coin; strategy?: Strategy }) 
       timeScale: { borderColor: 'rgba(148, 163, 184, 0.12)', timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' }, horzLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' } },
     });
-    const chartCandles = candles.map((candle) => ({ ...candle, time: candle.time as Time }));
+    const chartCandles = candles.map((candle) => ({
+      time: candle.time as Time,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+    }));
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
     series.setData(chartCandles);
     const firstTime = chartCandles[0].time;
@@ -382,11 +395,11 @@ function ChartMapping({ coin, strategy }: { coin?: Coin; strategy?: Strategy }) 
       chart.remove();
       rsiChart.remove();
     };
-  }, [candles, coin, period, strategy]);
+  }, [candles, pairSymbol, period, strategy]);
   return (
     <section className="panel animate-rise delay-3 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance live candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{coin?.symbol ?? 'BTC'} / USDT</span><span className="mono text-[10px] text-slate-500">{coin ? formatPrice(coin.price) : '$0.00'}</span><span className={coin?.change24h && coin.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{coin ? `${coin.change24h > 0 ? '+' : ''}${coin.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item}</button>)}</div></div>
-      <div className="relative h-[270px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!coin || candlesQuery.isLoading || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!coin ? 'Select an asset to load live exchange candles.' : candlesQuery.isError ? `Live Binance candles unavailable for ${coin.symbol}/USDT.` : 'Loading live Binance candles…'}</div>}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>
+      <div className="relative h-[270px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!pair || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!pair ? 'Select a pair from the scanner.' : 'Waiting for closed Binance candles…'}</div>}</div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[82px] w-full" /></div>
       <div className="flex flex-wrap gap-3 border-t border-white/[.07] px-4 py-3 mono text-[9px] text-slate-500"><span className="teal-text">TARGET {strategy?.id === 'price-action' ? '2.5%' : '1.0%'}</span><span className="amber-text">ENTRY -0.8%</span><span className="red-text">INVALIDATION -2.4%</span><span className="ml-auto text-slate-600">{strategy?.shortName ?? 'V1'} overlay active</span></div>
     </section>
@@ -416,7 +429,7 @@ function UrduNotepad() {
     { name: 'Price Action / Scalp', description: '4H open-close اور 1H structure سے 1–3% scalp پلان کریں۔', rules: ['Valid 1H support/resistance کے بغیر Order Block یا FVG نہ بنائیں۔', '12h اور 24h heatmap میں مخالف liquidity ہو تو trade چھوڑ دیں۔', 'Uptrend میں RSI تقریباً 30، downtrend reversal میں RSI 15–25 اور structure shift ضروری ہے۔'] },
     { name: 'ICT Method 2', description: 'Session consolidation، sweep اور fair value return دیکھیں۔', rules: ['Dealing range اور active session کے آخری minutes پہلے mark کریں۔', 'Displacement اور clean liquidity sweep کے بعد fair value area پر entry لیں۔', 'Sweep extreme کے باہر close ہو تو setup ختم ہے۔'] },
     { name: 'Institutional OB + FVG', description: '1W/1D order-flow اور multi-drop validation استعمال کریں۔', rules: ['Body، wick اور trend-base candle classify کریں۔', '1W اور 1D structure، multi-drop reaction اور unfilled FVG سے block validate کریں۔', 'Fresh mitigation یا far-side break پر level invalidate کریں۔'] },
-    { name: 'RSI Divergence + SMC Scalp 4', description: 'RSI divergence کو market structure shift کے ساتھ trade کریں۔', rules: ['Hidden bullish divergence RSI 30–40 میں Buy condition ہے۔', 'Hidden bearish divergence RSI 50 سے اوپر Sell condition ہے۔', 'Fresh swing break کے خلاف ہو تو tight scalp فوراً invalidate کریں۔'] },
+    { name: 'RSI Divergence + SMC Scalp 4', description: 'RSI divergence کو market structure shift کے ساتھ trade کریں۔', rules: ['Hidden bullish divergence RSI 30–40 میں confirmation ہے۔', 'Hidden bearish divergence RSI 50 سے اوپر Sell condition ہے۔', 'Fresh swing break کے خلاف ہو تو tight scalp فوراً invalidate کریں۔'] },
   ];
   return <section className="panel animate-rise delay-3">
     <div className="border-b border-white/[.07] px-4 py-4"><div className="eyebrow">Urdu strategy notepad</div><div className="mt-1 text-[12px] text-slate-400">حکمتِ عملی کے مرحلہ وار اصول</div></div>
@@ -434,51 +447,64 @@ function SkeletonWorkspace() {
 
 function Terminal() {
   const [activeView, setActiveView] = useState('overview');
-  const [selectedCoinId, setSelectedCoinId] = useState<string | null>(null);
+  const [selectedPairSymbol, setSelectedPairSymbol] = useState<string | null>(null);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
-  const market = useGetMarketSnapshot({ query: { queryKey: ['/api/market/snapshot'], refetchInterval: 30_000, staleTime: 15_000 } });
+  const marketFeed = useTopUsdtPairs();
   const strategiesQuery = useListStrategies();
-  const watchlistQuery = useGetWatchlist();
-  const logsQuery = useListExecutionLogs();
-  const healthQuery = useHealthCheck();
-  const toggleWatchlist = useToggleWatchlist();
-  const snapshot = market.data;
-  const coins = snapshot?.coins ?? [];
   const strategies = strategiesQuery.data ?? [];
-  const watchlist = watchlistQuery.data?.coinIds ?? [];
-  const logs = logsQuery.data ?? [];
-  const [localWatchlist, setLocalWatchlist] = useState<string[] | null>(null);
-  const ids = localWatchlist ?? watchlist;
-  const selectedCoin = coins.find((coin) => coin.id === selectedCoinId) ?? coins[0];
+  const selectedPair = marketFeed.pairs.find((pair) => pair.symbol === selectedPairSymbol) ?? marketFeed.pairs[0];
   const selectedStrategy = strategies.find((item) => item.id === selectedStrategyId) ?? strategies[0];
-  const isLoading = market.isLoading || strategiesQuery.isLoading || watchlistQuery.isLoading || logsQuery.isLoading;
-  const refresh = () => { void market.refetch(); void strategiesQuery.refetch(); void watchlistQuery.refetch(); void logsQuery.refetch(); void healthQuery.refetch(); };
-  const selectCoin = (coin: Coin) => {
-    setSelectedCoinId(coin.id);
-    if (activeView === 'overview') setActiveView('hunter');
+  useEffect(() => {
+    if (!marketFeed.pairs.length) {
+      setSelectedPairSymbol(null);
+      return;
+    }
+    if (!marketFeed.pairs.some((pair) => pair.symbol === selectedPairSymbol)) {
+      setSelectedPairSymbol(marketFeed.pairs[0].symbol);
+    }
+  }, [marketFeed.pairs, selectedPairSymbol]);
+
+  const selectPair = (symbol: string) => {
+    setSelectedPairSymbol(symbol);
+    setActiveView('chart');
   };
-  const toggle = (coin: Coin) => {
-    const favorite = !ids.includes(coin.id);
-    setLocalWatchlist(favorite ? [...ids, coin.id] : ids.filter((id) => id !== coin.id));
-    toggleWatchlist.mutate({ coinId: coin.id, data: { favorite } }, { onSuccess: (next) => setLocalWatchlist(next.coinIds) });
-  };
+
   return <div className="terminal-shell flex">
-    <Sidebar activeView={activeView} setActiveView={setActiveView} />
+    <Sidebar activeView={activeView} setActiveView={setActiveView} connection={marketFeed.status} />
     <main className="min-w-0 flex-1">
-      <Topbar activeView={activeView} onRefresh={refresh} refreshing={market.isFetching} health={healthQuery.data} />
+      <Topbar activeView={activeView} connection={marketFeed.status} />
        <div className="mx-auto max-w-[1540px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
-         <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><div className="flex items-center gap-2"><span className="status-dot" /><span className="mono text-[10px] font-medium tracking-[.12em] teal-text">MARKETS OPEN · 24/7</span></div><h1 className="display-font mt-2 text-[25px] font-bold tracking-tight text-slate-100 sm:text-[29px]">Good morning, trader<span className="text-[hsl(var(--primary))]">.</span></h1><p className="mt-1 text-[12px] text-slate-500">Your edge, in one view. Last sync {snapshot ? timeAgo(snapshot.updatedAt) : 'pending'}.</p></div><button type="button" data-testid="button-focus-mode" onClick={() => setActiveView('hunter')} className="flex items-center gap-2 rounded-lg border border-[rgba(47,207,176,.24)] bg-[rgba(47,207,176,.07)] px-3 py-2 text-[11px] font-semibold teal-text hover:bg-[rgba(47,207,176,.12)]"><Crosshair size={14} /> Open focus mode <ChevronRight size={13} /></button></div>
-         {isLoading ? <SkeletonWorkspace /> : market.error ? <div className="panel flex min-h-[320px] flex-col items-center justify-center gap-3 p-6 text-center"><CircleHelp size={30} className="red-text" /><h2 className="text-[15px] font-bold text-slate-200">Market feed unavailable</h2><p className="max-w-sm text-[11px] text-slate-500">The terminal could not reach the market snapshot. Check the connection and try again.</p><button type="button" onClick={refresh} data-testid="button-retry-market" className="rounded-md bg-[hsl(var(--primary))] px-3 py-2 text-[11px] font-bold text-[hsl(var(--primary-foreground))]">Retry feed</button></div> : <div className="space-y-4">
-           {(activeView === 'overview' || activeView === 'hunter' || activeView === 'strategies') && <OverviewStats marketBreadth={snapshot?.marketBreadth ?? 0} sessionPnl={snapshot?.sessionPnl ?? 0} coinCount={coins.length} />}
-           {activeView === 'overview' && <><div className="grid gap-4 xl:grid-cols-[1.65fr_1fr]"><MarketOverview coins={coins} watchlist={ids} toggle={toggle} onSelectCoin={selectCoin} /><VsaDesk checks={snapshot?.vsaChecks ?? []} coins={coins} onSelectCoin={selectCoin} /></div><div className="grid gap-4 xl:grid-cols-[1.1fr_1fr_1fr]"><StrategyDesk strategies={strategies} onStrategyChange={(item) => setSelectedStrategyId(item.id)} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /></div><div className="grid gap-4 xl:grid-cols-[1fr_1fr]"><CopyBots strategies={strategies} /><ExecutionLog logs={logs} coins={coins} /></div></>}
-           {activeView === 'hunter' && <><div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]"><MarketOverview coins={coins} watchlist={ids} toggle={toggle} onSelectCoin={selectCoin} huntingMode /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /></>}
-           {activeView === 'signals' && <div className="grid gap-4 xl:grid-cols-[1fr_1.15fr]"><VsaDesk checks={snapshot?.vsaChecks ?? []} coins={coins} onSelectCoin={selectCoin} limit={8} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
-           {activeView === 'strategies' && <div className="grid gap-4 xl:grid-cols-[1fr_1.15fr]"><StrategyDesk strategies={strategies} onStrategyChange={(item) => setSelectedStrategyId(item.id)} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
-           {activeView === 'bots' && <div className="grid gap-4 xl:grid-cols-[1fr_1fr]"><CopyBots strategies={strategies} /><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /><div className="xl:col-span-2"><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div></div>}
-           {activeView === 'watchlist' && <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]"><Watchlist coins={coins} ids={ids} toggle={toggle} onSelectCoin={selectCoin} /><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div>}
-           {activeView === 'logs' && <div className="grid gap-4 xl:grid-cols-[1fr_1fr]"><UrduNotepad /><ExecutionLog logs={logs} coins={coins} /><div className="xl:col-span-2"><ChartMapping coin={selectedCoin} strategy={selectedStrategy} /></div></div>}
-            {activeView === 'settings' && <section className="panel max-w-2xl p-5"><div className="eyebrow">Terminal settings</div><h2 className="mt-2 text-xl font-bold text-slate-100">Feed and execution controls</h2><p className="mt-2 text-[12px] leading-relaxed text-slate-500">The terminal refreshes a live top-500 market universe every 30 seconds. Binance USDT tickers override live price, 24h change, and quote volume; CoinGecko supplies rank, market cap, and supply metadata.</p><div className="mt-5 space-y-2"><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Live market snapshot polling</span><span className="teal-text">BINANCE + COINGECKO</span></div><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Chart overlay engine</span><span className="teal-text">CANDLE + RSI SUB-PANE</span></div><div className="panel-muted flex items-center justify-between p-3 text-[11px]"><span>Urdu execution stream</span><span className="teal-text">STREAMING</span></div></div></section>}
-         </div>}
+         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+           <div>
+             <div className="flex items-center gap-2"><span className={`status-dot ${marketFeed.status === 'connected' ? '' : 'amber'}`} /><span className="mono text-[10px] font-medium tracking-[.12em] teal-text">BINANCE SPOT · PUBLIC FEED</span></div>
+             <h1 className="display-font mt-2 text-[25px] font-bold tracking-tight text-slate-100 sm:text-[29px]">Top 20 USDT pairs<span className="text-[hsl(var(--primary))]">.</span></h1>
+             <p className="mt-1 text-[12px] text-slate-500">24h quote-volume ranking refreshes every 10 minutes. Signal calculations use closed candles only.</p>
+           </div>
+           <div className="flex gap-2 lg:hidden">
+             {(['overview', 'chart'] as const).map((view) => <button key={view} type="button" onClick={() => setActiveView(view)} className={`rounded-md border px-3 py-2 text-[10px] font-semibold ${activeView === view ? 'border-[rgba(47,207,176,.3)] teal-text' : 'border-white/[.08] text-slate-500'}`}>{view === 'overview' ? 'Scanner' : 'Chart'}</button>)}
+           </div>
+         </div>
+         <div className="space-y-4">
+           {activeView === 'overview' && (
+             <TopUsdtSignals
+               pairs={marketFeed.pairs}
+               status={marketFeed.status}
+               isLoading={marketFeed.isLoading}
+               lastTickerRefresh={marketFeed.lastTickerRefresh}
+               error={marketFeed.error}
+               selectedSymbol={selectedPair?.symbol ?? null}
+               onSelectPair={selectPair}
+             />
+           )}
+           {activeView === 'chart' && (
+             <ChartMapping
+               pair={selectedPair}
+               strategy={selectedStrategy}
+               strategies={strategies}
+               onStrategyChange={setSelectedStrategyId}
+             />
+           )}
+         </div>
       </div>
     </main>
   </div>;
