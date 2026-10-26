@@ -374,18 +374,6 @@ function ChartMapping({
     const firstTime = chartCandles[0].time;
     const lastCandle = chartCandles[chartCandles.length - 1];
     const lastTime = lastCandle.time;
-    const entry = lastCandle.close * 0.992;
-    const stop = lastCandle.close * 0.976;
-    const takeProfit = lastCandle.close * (1 + (strategy?.id === 'price-action' ? 0.025 : 0.01));
-    const levels = [
-      { value: entry, color: '#f6be51', title: 'ENTRY' },
-      { value: stop, color: '#f27a78', title: 'INVALIDATION' },
-      { value: takeProfit, color: '#2fcfb0', title: 'TARGET' },
-    ];
-    levels.forEach((level) => {
-      const line = chart.addSeries(LineSeries, { color: level.color, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: true, lastValueVisible: true, title: level.title });
-      line.setData([{ time: firstTime, value: level.value }, { time: lastTime, value: level.value }]);
-    });
     chart.timeScale().fitContent();
     const rsiChart = createChart(rsiContainer.current, {
       autoSize: true,
@@ -419,7 +407,6 @@ function ChartMapping({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>
       <div className="relative h-[270px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!pair || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!pair ? 'Select a pair from the scanner.' : 'Waiting for closed Binance candles…'}</div>}</div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[82px] w-full" /></div>
-      <div className="flex flex-wrap gap-3 border-t border-white/[.07] px-4 py-3 mono text-[9px] text-slate-500"><span className="teal-text">TARGET {strategy?.id === 'price-action' ? '2.5%' : '1.0%'}</span><span className="amber-text">ENTRY -0.8%</span><span className="red-text">INVALIDATION -2.4%</span><span className="ml-auto text-slate-600">{strategy?.shortName ?? 'V1'} overlay active</span></div>
     </section>
   );
 }
