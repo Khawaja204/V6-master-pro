@@ -245,7 +245,7 @@ function makeSnapshot(
     return [{
       ...pair,
       lastPrice:
-        candles["15m"].at(-1)?.close ??
+        (Number(selected.find((t) => t.symbol === symbol)?.lastPrice) || candles["15m"].at(-1)?.close) ??
         candles["1h"].at(-1)?.close ??
         null,
       candles,
@@ -427,6 +427,7 @@ export function useTopUsdtPairs() {
           pairStore.set(ticker.symbol, {
             symbol: ticker.symbol,
             baseAsset,
+            lastPrice: Number(ticker.lastPrice),
             change24h: Number(ticker.priceChangePercent),
             quoteVolume24h: Number(ticker.quoteVolume),
             candles: previous?.candles ?? emptyCandles(),
