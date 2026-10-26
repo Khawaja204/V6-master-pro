@@ -42,12 +42,12 @@ function draw(){
 }
 setInterval(()=>{
  if(!lastBids.length||!lastAsks.length)return;
- snaps.push({bids:lastBids.map(([p,q])=>[+p,+q]),asks:lastAsks.map(([p,q])=>[+p,+q])});
+ snaps.push({bids:lastBids.map(([p,q])=>[+p,+q]),asks:lastAsks.map(([p,q])=>[+p,+q])});if(snaps.length>600)snaps=snaps.slice(-600);try{localStorage.setItem('hm_snaps_'+sym,JSON.stringify(snaps))}catch(e){}
  if(snaps.length>MAX)snaps.shift();
  draw();
 },1000);
 window.onresize=draw;
-function setSym(s){sym=s;$('sym').value=s;snaps=[];lastBids=[];lastAsks=[];draw();connect()}
+function setSym(s){sym=s;$('sym').value=s;snaps=[];lastBids=[];lastAsks=[];try{snaps=JSON.parse(localStorage.getItem('hm_snaps_'+s)||'[]')}catch(e){snaps=[]};draw();connect()}
 $('pick').onchange=()=>setSym($('pick').value);
 $('sym').onchange=()=>setSym($('sym').value.trim().toUpperCase());
 setSym('BTCUSDT');
