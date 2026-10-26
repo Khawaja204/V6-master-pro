@@ -15,7 +15,7 @@ let ws=null,rec=null,sym='BTCUSDT',minute=0,cur={},hist=[],big=[],last=0,pend=fa
 function step(p){const t=$('tick').value.trim();const n=Number(t);return n>0?n:p*0.0005}
 function onT(t){
  const p=+t.p,q=+t.q,buyer=!t.m,m=Math.floor(t.T/60000);
- if(minute&&m!==minute){hist.unshift({m:minute,cur});hist=hist.slice(0,15);cur={}}
+ if(minute&&m!==minute){hist.unshift({m:minute,cur});hist=hist.slice(0,15);cur={};try{localStorage.setItem('fp_hist_'+sym,JSON.stringify(hist))}catch(e){}}
  minute=m;last=p;
  const s=step(p);const key=(Math.round(p/s)*s).toPrecision(10);
  cur[key]=cur[key]||{b:0,s:0};
@@ -49,7 +49,7 @@ function connect(){
  ws.onmessage=e=>onT(JSON.parse(e.data));
  ws.onclose=()=>{$('st').textContent='disconnected, reconnecting…';rec=setTimeout(connect,3000)};
 }
-function setSym(s){sym=s;$('sym').value=s;cur={};hist=[];big=[];minute=0;render();connect()}
+function setSym(s){sym=s;$('sym').value=s;cur={};big=[];minute=0;try{hist=JSON.parse(localStorage.getItem('fp_hist_'+s)||'[]')}catch(e){hist=[]};render();connect()}
 $('pick').onchange=()=>setSym($('pick').value);
 $('sym').onchange=()=>setSym($('sym').value.trim().toUpperCase());
 setSym('BTCUSDT');
