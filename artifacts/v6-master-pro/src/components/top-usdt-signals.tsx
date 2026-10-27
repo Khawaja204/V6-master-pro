@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { useMemo } from "react";
+import { screenSymbol } from "@/lib/screen-entry";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -86,6 +88,14 @@ export function TopUsdtSignals({
   selectedSymbol,
   onSelectPair,
 }: TopUsdtSignalsProps) {
+  const visiblePairs = useMemo(() => {
+    const mode = strategy ?? "Pump";
+    return pairs.filter((pair) => {
+      const c = pair.candles?.["15m"] ?? [];
+      const r = screenSymbol(pair.symbol, c);
+      return mode === "Pump" ? r.pump : r.normal;
+    });
+  }, [pairs, strategy]);
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "waiting";
@@ -145,7 +155,7 @@ export function TopUsdtSignals({
             </tr>
           </thead>
           <tbody>
-            {pairs.map((pair, index) => {
+            {visiblePairs.map((pair, index) => {
               const selected = pair.symbol === selectedSymbol;
               return (
                 <tr
@@ -172,14 +182,14 @@ export function TopUsdtSignals({
                 </tr>
               );
             })}
-            {isLoading && pairs.length === 0 && (
+            {isLoading && visiblePairs.length === 0 && (
               <tr>
                 <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   Loading Binance ticker and closed-candle data…
                 </td>
               </tr>
             )}
-            {!isLoading && pairs.length === 0 && (
+            {!isLoading && visiblePairs.length === 0 && (
               <tr>
                 <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   No eligible USDT pairs are available.
