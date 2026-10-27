@@ -245,7 +245,7 @@ function makeSnapshot(
     return [{
       ...pair,
       lastPrice:
-        (Number(selected.find((t) => t.symbol === symbol)?.lastPrice) || candles["15m"].at(-1)?.close) ??
+        candles["15m"].at(-1)?.close ??
         candles["1h"].at(-1)?.close ??
         null,
       candles,
