@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
+import { screenSymbol } from "@/lib/screen-entry";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -88,6 +90,13 @@ export function TopUsdtSignals({
   strategy,
   onStrategyChange,
 }: TopUsdtSignalsProps) {
+  const [mode, setMode] = useState<"Pump" | "Normal">(strategy ?? "Pump");
+  const visiblePairs = useMemo(() => {
+    return pairs.filter((pair) => {
+      const r = screenSymbol(pair.symbol, pair.candles?.["15m"] ?? []);
+      return mode === "Pump" ? r.pump : r.normal;
+    });
+  }, [pairs, mode]);
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "waiting";
@@ -99,7 +108,7 @@ export function TopUsdtSignals({
           <div className="eyebrow">Top 20 USDT pairs · 24h quote volume</div>
           <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
             {(["Pump", "Normal"] as const).map((m) => (
-              <button key={m} type="button" onClick={() => onStrategyChange?.(m)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${(strategy ?? "Pump") === m ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-500"}`}>{m}</button>
+              <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${mode === m ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-500"}`}>{m}</button>
             ))}
             <span className="mono text-[9px] text-slate-500">Screening only, not a signal</span>
           </div>
@@ -147,7 +156,7 @@ export function TopUsdtSignals({
             </tr>
           </thead>
           <tbody>
-            {pairs.map((pair, index) => {
+            {visiblePairs.map((pair, index) => {
               const selected = pair.symbol === selectedSymbol;
               return (
                 <tr
@@ -174,14 +183,14 @@ export function TopUsdtSignals({
                 </tr>
               );
             })}
-            {isLoading && pairs.length === 0 && (
+            {isLoading && visiblePairs.length === 0 && (
               <tr>
                 <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   Loading Binance ticker and closed-candle data…
                 </td>
               </tr>
             )}
-            {!isLoading && pairs.length === 0 && (
+            {!isLoading && visiblePairs.length === 0 && (
               <tr>
                 <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   No eligible USDT pairs are available.

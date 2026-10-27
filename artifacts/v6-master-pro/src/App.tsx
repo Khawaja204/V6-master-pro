@@ -359,6 +359,8 @@ function ChartMapping({
     const container = chartContainer.current;
     const chart = createChart(container, {
       autoSize: true,
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
       layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#64748b' },
       grid: { vertLines: { color: 'rgba(148, 163, 184, 0.06)' }, horzLines: { color: 'rgba(148, 163, 184, 0.06)' } },
       rightPriceScale: { borderColor: 'rgba(148, 163, 184, 0.12)' },
