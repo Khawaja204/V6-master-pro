@@ -40,6 +40,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { detectFvg } from "@/lib/ocs-fvg";
+import { createSeriesMarkers } from "lightweight-charts";
 
 import {
   useGetMarketCandles,
@@ -379,8 +380,9 @@ function ChartMapping({
         const col = z.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
         const from = candles[z.confirmIndex - 2].time as Time;
         const to = (z.fillIndex !== null ? candles[z.fillIndex].time : candles[candles.length - 1].time) as Time;
-        const top = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false, title: "FVG zone (not a signal)" });
+        const top = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
         top.setData([{ time: from, value: z.top }, { time: to, value: z.top }]);
+        createSeriesMarkers(top, [{ time: from, position: "aboveBar", color: z.kind === "bullish" ? "#2fcfb0" : "#ff1744", shape: "square", size: 0, text: "FVG" }]);
         const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
         bot.setData([{ time: from, value: z.bottom }, { time: to, value: z.bottom }]);
       }
