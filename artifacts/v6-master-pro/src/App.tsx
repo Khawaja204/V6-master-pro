@@ -39,6 +39,8 @@ import {
   createChart,
   type Time,
 } from 'lightweight-charts';
+import { detectFvg } from "@/lib/ocs-fvg";
+
 import {
   useGetMarketCandles,
   useGetMarketSnapshot,
@@ -371,6 +373,18 @@ function ChartMapping({
     }));
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
     series.setData(chartCandles);
+    {
+      const fvgZones = detectFvg(candles).slice(-20);
+      for (const z of fvgZones) {
+        const col = z.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
+        const from = candles[z.confirmIndex - 2].time as Time;
+        const to = (z.fillIndex !== null ? candles[z.fillIndex].time : candles[candles.length - 1].time) as Time;
+        const top = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false, title: "FVG zone (not a signal)" });
+        top.setData([{ time: from, value: z.top }, { time: to, value: z.top }]);
+        const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+        bot.setData([{ time: from, value: z.bottom }, { time: to, value: z.bottom }]);
+      }
+    }
     const firstTime = chartCandles[0].time;
     const lastCandle = chartCandles[chartCandles.length - 1];
     const lastTime = lastCandle.time;
