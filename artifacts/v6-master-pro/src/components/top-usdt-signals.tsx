@@ -14,6 +14,8 @@ interface TopUsdtSignalsProps {
   error: string | null;
   selectedSymbol: string | null;
   onSelectPair: (symbol: string) => void;
+  strategy?: "Pump" | "Normal";
+  onStrategyChange?: (s: "Pump" | "Normal") => void;
 }
 
 function formatPrice(value: number | null): string {
@@ -93,6 +95,12 @@ export function TopUsdtSignals({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4">
         <div>
           <div className="eyebrow">Top 20 USDT pairs · 24h quote volume</div>
+          <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+            {(["Pump", "Normal"] as const).map((m) => (
+              <button key={m} type="button" onClick={() => onStrategyChange?.(m)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${(strategy ?? "Pump") === m ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-500"}`}>{m}</button>
+            ))}
+            <span className="mono text-[9px] text-slate-500">Screening only, not a signal</span>
+          </div>
           <p className="mt-1 text-[11px] text-slate-400">
             Binance public market data · ranking refreshes every 10 minutes · closed candles only
           </p>
