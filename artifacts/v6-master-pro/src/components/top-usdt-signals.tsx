@@ -85,6 +85,8 @@ export function TopUsdtSignals({
   error,
   selectedSymbol,
   onSelectPair,
+  strategy,
+  onStrategyChange,
 }: TopUsdtSignalsProps) {
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
