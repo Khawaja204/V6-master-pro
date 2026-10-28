@@ -40,6 +40,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { detectFvg } from "@/lib/ocs-fvg";
+import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 
 import {
@@ -475,14 +476,18 @@ function Terminal() {
   const marketFeed = useTopUsdtPairs();
   const strategiesQuery = useListStrategies();
   const strategies = strategiesQuery.data ?? [];
-  const selectedPair = marketFeed.pairs.find((pair) => pair.symbol === selectedPairSymbol) ?? marketFeed.pairs[0];
+  const isTopPair = marketFeed.pairs.some((pair) => pair.symbol === selectedPairSymbol);
+  const extraPair = useExtraPair(selectedPairSymbol && !isTopPair ? selectedPairSymbol : null);
+  const selectedPair = marketFeed.pairs.find((pair) => pair.symbol === selectedPairSymbol)
+    ?? (extraPair && extraPair.symbol === selectedPairSymbol ? extraPair : undefined)
+    ?? (selectedPairSymbol ? undefined : marketFeed.pairs[0]);
   const selectedStrategy = strategies.find((item) => item.id === selectedStrategyId) ?? strategies[0];
   useEffect(() => {
     if (!marketFeed.pairs.length) {
       setSelectedPairSymbol(null);
       return;
     }
-    if (!marketFeed.pairs.some((pair) => pair.symbol === selectedPairSymbol)) {
+    if (!selectedPairSymbol) {
       setSelectedPairSymbol(marketFeed.pairs[0].symbol);
     }
   }, [marketFeed.pairs, selectedPairSymbol]);
@@ -491,6 +496,14 @@ function Terminal() {
     setSelectedPairSymbol(symbol);
     setActiveView('chart');
   };
+
+  useEffect(() => {
+    const sym = new URLSearchParams(window.location.search).get("symbol");
+    if (sym) {
+      selectPair(normalizeSymbol(sym));
+      window.history.replaceState(null, "", "/");
+    }
+  }, []);
 
   return <div className="terminal-shell flex">
     <Sidebar activeView={activeView} setActiveView={setActiveView} connection={marketFeed.status} />

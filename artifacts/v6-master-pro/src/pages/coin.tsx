@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Activity,
   ArrowLeft,
@@ -165,6 +165,7 @@ export default function CoinPage() {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [selected, setSelected] = useState<UsdtSpotPair | null>(null);
+  const [, setLocation] = useLocation();
   const [ticker, setTicker] = useState<CoinTicker | null>(null);
   const [candles15m, setCandles15m] = useState<ClosedCoinCandle[] | null>(null);
   const [candles1h, setCandles1h] = useState<ClosedCoinCandle[] | null>(null);
@@ -252,6 +253,7 @@ export default function CoinPage() {
   const choosePair = (pair: UsdtSpotPair) => {
     setSelected(pair);
     setQuery(pair.baseAsset);
+    setLocation("/?symbol=" + encodeURIComponent(pair.symbol));
     setSearchOpen(false);
     searchRef.current?.blur();
   };
