@@ -43,6 +43,7 @@ import {
 import { detectFvg } from "@/lib/ocs-fvg";
 import { detectOrderBlocks, freshOrderBlocks } from "@/lib/ob-zones";
 import { candleDelta, cumulativeDelta } from "@/lib/delta";
+import { volumeProfile } from "@/lib/volume-profile";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 
@@ -383,6 +384,14 @@ function ChartMapping({
     }));
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
     series.setData(chartCandles);
+    {
+      const vp = volumeProfile(candles);
+      if (vp) {
+        series.createPriceLine({ price: vp.poc, color: '#f6be51', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'POC' });
+        series.createPriceLine({ price: vp.vah, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: 'VAH' });
+        series.createPriceLine({ price: vp.val, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: 'VAL' });
+      }
+    }
     {
       const fvgZones = detectFvg(candles).slice(-20);
       for (const z of fvgZones) {
