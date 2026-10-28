@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { screenSymbol } from "@/lib/screen-entry";
 import { candleDelta } from "@/lib/delta";
+import { matchesMethod, METHODS, type MethodId } from "@/lib/lecture-methods";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -97,6 +98,7 @@ export function TopUsdtSignals({
   onStrategyChange,
 }: TopUsdtSignalsProps) {
   const [mode, setMode] = useState<"Pump" | "Normal">(strategy ?? "Pump");
+  const [method, setMethod] = useState<MethodId | null>(null);
   const pumpNow = useMemo(() => new Set(
     pairs.filter((p) => screenSymbol(p.symbol, p.candles?.["15m"] ?? []).pump).map((p) => p.symbol),
   ), [pairs]);
@@ -130,10 +132,11 @@ export function TopUsdtSignals({
   };
   const visiblePairs = useMemo(() => {
     return pairs.filter((pair) => {
+      if (method) return matchesMethod(method, pair.candles?.["15m"] ?? [], pair.candles?.["1h"] ?? []);
       const r = screenSymbol(pair.symbol, pair.candles?.["15m"] ?? []);
       return mode === "Pump" ? r.pump : r.normal;
     });
-  }, [pairs, mode]);
+  }, [pairs, mode, method]);
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "waiting";
@@ -148,6 +151,9 @@ export function TopUsdtSignals({
               <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${mode === m ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-500"}`}>{m}</button>
             ))}
             <span className="mono text-[9px] text-slate-500">Screening only, not a signal</span>
+            {METHODS.map((m) => (
+              <button key={m.id} type="button" onClick={() => setMethod(method === m.id ? null : m.id)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${method === m.id ? "border-[rgba(246,190,81,.4)] amber-text" : "border-white/[.08] text-slate-500"}`}>{m.label}</button>
+            ))}
           </div>
           <p className="mt-1 text-[11px] text-slate-400">
             Binance public market data · ranking refreshes every 10 minutes · closed candles only
