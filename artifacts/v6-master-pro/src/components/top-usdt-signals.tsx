@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { screenSymbol } from "@/lib/screen-entry";
+import { candleDelta } from "@/lib/delta";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -37,6 +38,11 @@ function formatQuoteVolume(value: number): string {
     notation: "compact",
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatDeltaPct(value: number | null): string {
+  if (value === null) return "—";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
 function formatMetric(value: number | null, digits = 2): string {
@@ -143,6 +149,7 @@ export function TopUsdtSignals({
               <th rowSpan={2} className="px-3 py-3">Last price</th>
               <th rowSpan={2} className="px-3 py-3">24h</th>
               <th rowSpan={2} className="px-3 py-3">24h quote vol</th>
+              <th rowSpan={2} className="px-3 py-3">15m Δ%</th>
               <th colSpan={5} className="border-l border-white/[.07] px-3 py-2 text-center">15m · closed candles</th>
               <th colSpan={5} className="border-l border-white/[.07] px-3 py-2 text-center">1h · closed candles</th>
             </tr>
@@ -178,6 +185,7 @@ export function TopUsdtSignals({
                     </span>
                   </td>
                   <td className="px-3 py-3 mono text-[10px] text-slate-400">{formatQuoteVolume(pair.quoteVolume24h)}</td>
+                  <td className="px-3 py-3 mono text-[10px] text-slate-300">{formatDeltaPct(candleDelta(pair.candles["15m"]).at(-1)?.deltaPct ?? null)}</td>
                   {intervalCells(pair.metrics["15m"])}
                   {intervalCells(pair.metrics["1h"])}
                 </tr>
@@ -185,14 +193,14 @@ export function TopUsdtSignals({
             })}
             {isLoading && visiblePairs.length === 0 && (
               <tr>
-                <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
+                <td colSpan={16} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   Loading Binance ticker and closed-candle data…
                 </td>
               </tr>
             )}
             {!isLoading && visiblePairs.length === 0 && (
               <tr>
-                <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
+                <td colSpan={16} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   No pairs match the {mode} filter right now.
                 </td>
               </tr>
