@@ -36,11 +36,13 @@ import {
   ColorType,
   LineSeries,
   LineStyle,
+  HistogramSeries,
   createChart,
   type Time,
 } from 'lightweight-charts';
 import { detectFvg } from "@/lib/ocs-fvg";
 import { detectOrderBlocks, freshOrderBlocks } from "@/lib/ob-zones";
+import { candleDelta, cumulativeDelta } from "@/lib/delta";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 
@@ -355,11 +357,12 @@ function ChartMapping({
   const [period, setPeriod] = useState<KlineInterval>('1h');
   const chartContainer = useRef<HTMLDivElement | null>(null);
   const rsiContainer = useRef<HTMLDivElement | null>(null);
+  const deltaContainer = useRef<HTMLDivElement | null>(null);
   const periods: KlineInterval[] = ['15m', '1h'];
   const candles = pair?.candles[period] ?? [];
   const pairSymbol = pair?.symbol;
   useEffect(() => {
-    if (!chartContainer.current || !rsiContainer.current || !pairSymbol || candles.length < 2) return;
+    if (!chartContainer.current || !rsiContainer.current || !deltaContainer.current || !pairSymbol || candles.length < 2) return;
     const container = chartContainer.current;
     const chart = createChart(container, {
       autoSize: true,
@@ -432,9 +435,24 @@ function ChartMapping({
       threshold.setData([{ time: firstTime, value }, { time: lastTime, value }]);
     });
     rsiChart.timeScale().fitContent();
+    const deltaChart = createChart(deltaContainer.current, {
+      autoSize: true,
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#64748b' },
+      grid: { vertLines: { color: 'rgba(148, 163, 184, 0.04)' }, horzLines: { color: 'rgba(148, 163, 184, 0.04)' } },
+      rightPriceScale: { borderColor: 'rgba(148, 163, 184, 0.12)' },
+      timeScale: { borderColor: 'rgba(148, 163, 184, 0.12)', timeVisible: false, secondsVisible: false },
+    });
+    const usdtDeltas = candleDelta(candles).map((d, i) => d ? { ...d, delta: d.delta * candles[i].close } : null);
+    const cum = cumulativeDelta(usdtDeltas);
+    const deltaBars = deltaChart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false });
+    deltaBars.setData(usdtDeltas.flatMap((d) => d ? [{ time: d.time as Time, value: d.delta, color: d.delta >= 0 ? 'rgba(47,207,176,0.7)' : 'rgba(242,122,120,0.7)' }] : []));
+    const cumLine = deltaChart.addSeries(LineSeries, { color: '#f6be51', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'CVD' });
+    cumLine.setData(candles.map((c, i) => ({ time: c.time as Time, value: cum[i] })));
+    deltaChart.timeScale().fitContent();
     return () => {
       chart.remove();
       rsiChart.remove();
+      deltaChart.remove();
     };
   }, [candles, pairSymbol, period, strategy]);
   return (
@@ -442,6 +460,7 @@ function ChartMapping({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>
       <div className="relative h-[270px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!pair || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!pair ? (loading ? 'Loading coin data…' : 'Select a pair from the scanner.') : 'Waiting for closed Binance candles…'}</div>}</div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[82px] w-full" /></div>
+      <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">Delta per candle · CVD (approx USDT)</div><div ref={deltaContainer} className="mt-1 h-[82px] w-full" /></div>
     </section>
   );
 }
