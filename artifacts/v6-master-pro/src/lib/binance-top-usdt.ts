@@ -30,6 +30,7 @@ export interface ClosedCandle {
   close: number;
   volume: number;
   quoteVolume: number;
+  takerBuyVolume?: number;
 }
 
 export interface CandleMetrics {
@@ -77,6 +78,7 @@ interface BinanceKline {
   c: string;
   v: string;
   q: string;
+  V: string;
   x: boolean;
 }
 
@@ -134,6 +136,7 @@ function parseRestCandles(rows: unknown[][]): ClosedCandle[] {
       const close = finiteNumber(row[4]);
       const volume = finiteNumber(row[5]);
       const quoteVolume = finiteNumber(row[7]);
+      const takerBuyVolume = finiteNumber(row[9]);
 
       if (
         openTime === null ||
@@ -157,6 +160,7 @@ function parseRestCandles(rows: unknown[][]): ClosedCandle[] {
         close,
         volume,
         quoteVolume,
+        takerBuyVolume: takerBuyVolume ?? undefined,
       };
     })
     .filter((candle): candle is ClosedCandle => candle !== null);
@@ -310,6 +314,7 @@ export function useTopUsdtPairs() {
           close: Number(kline.c),
           volume: Number(kline.v),
           quoteVolume: Number(kline.q),
+          takerBuyVolume: Number(kline.V),
         };
         if (
           !Number.isFinite(candle.close) ||
