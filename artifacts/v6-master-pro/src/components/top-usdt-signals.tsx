@@ -183,7 +183,7 @@ export function TopUsdtSignals({
       )}
 
       <div className="mobile-scroll overflow-x-auto">
-        <table className="w-full min-w-[1640px] border-collapse">
+        <table className="w-full min-w-[1760px] border-collapse">
           <thead>
             <tr className="eyebrow text-left">
               <th rowSpan={2} className="px-4 py-3">#</th>
