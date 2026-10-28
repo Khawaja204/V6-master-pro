@@ -193,7 +193,7 @@ export function TopUsdtSignals({
             {!isLoading && visiblePairs.length === 0 && (
               <tr>
                 <td colSpan={15} className="px-4 py-12 text-center text-[11px] text-slate-500">
-                  No eligible USDT pairs are available.
+                  No pairs match the {mode} filter right now.
                 </td>
               </tr>
             )}
