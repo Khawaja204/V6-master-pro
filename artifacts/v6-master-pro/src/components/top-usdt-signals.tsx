@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { screenSymbol } from "@/lib/screen-entry";
 import { candleDelta } from "@/lib/delta";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
@@ -97,6 +97,37 @@ export function TopUsdtSignals({
   onStrategyChange,
 }: TopUsdtSignalsProps) {
   const [mode, setMode] = useState<"Pump" | "Normal">(strategy ?? "Pump");
+  const pumpNow = useMemo(() => new Set(
+    pairs.filter((p) => screenSymbol(p.symbol, p.candles?.["15m"] ?? []).pump).map((p) => p.symbol),
+  ), [pairs]);
+  const prevPump = useRef<Set<string> | null>(null);
+  const [pumpAlerts, setPumpAlerts] = useState<string[]>([]);
+  const canNotify = typeof Notification !== "undefined";
+  const [notifyOn, setNotifyOn] = useState<boolean>(canNotify && Notification.permission === "granted");
+  useEffect(() => {
+    if (prevPump.current === null) {
+      if (pairs.length) prevPump.current = pumpNow;
+      return;
+    }
+    const before = prevPump.current;
+    prevPump.current = pumpNow;
+    const fresh = [...pumpNow].filter((sym) => !before.has(sym)).map((sym) => sym.replace("USDT", ""));
+    if (!fresh.length) return;
+    const stamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    setPumpAlerts((prev) => [...fresh.map((c) => `${stamp} · ${c}`), ...prev].slice(0, 8));
+    if (notifyOn) {
+      try {
+        new Notification("Pump condition met", { body: `${fresh.join(", ")} · screening only, not a signal` });
+      } catch {
+        // Some mobile browsers do not allow page notifications; the banner still shows it.
+      }
+    }
+  }, [pumpNow, notifyOn, pairs.length]);
+  const enableNotify = async () => {
+    if (!canNotify) return;
+    const result = await Notification.requestPermission();
+    setNotifyOn(result === "granted");
+  };
   const visiblePairs = useMemo(() => {
     return pairs.filter((pair) => {
       const r = screenSymbol(pair.symbol, pair.candles?.["15m"] ?? []);
@@ -134,6 +165,17 @@ export function TopUsdtSignals({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/[.07] px-4 py-3">
+        <span className="text-[10px] font-semibold text-slate-300">Pump alerts</span>
+        {canNotify && !notifyOn && (
+          <button type="button" onClick={enableNotify} className="rounded-md border border-white/[.08] px-2.5 py-1 text-[9px] text-slate-400 hover:text-slate-200">Enable notifications</button>
+        )}
+        {pumpAlerts.length ? pumpAlerts.map((a, i) => (
+          <span key={`${a}-${i}`} className="mono text-[9px] teal-text">{a}</span>
+        )) : (
+          <span className="mono text-[9px] text-slate-600">No new Pump condition yet. Checked on every closed 15m candle.</span>
+        )}
+      </div>
       {error && (
         <div role="status" className="border-b border-amber-500/10 bg-amber-500/[.04] px-4 py-2 text-[10px] text-amber-200">
           Binance data is incomplete: {error}
