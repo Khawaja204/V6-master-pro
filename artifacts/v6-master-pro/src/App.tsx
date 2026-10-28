@@ -394,15 +394,15 @@ function ChartMapping({
       }
     }
     {
-      const obZones = freshOrderBlocks(detectOrderBlocks(candles)).slice(-10);
+      const obZones = freshOrderBlocks(detectOrderBlocks(candles)).slice(-20);
       for (const ob of obZones) {
-        const col = ob.kind === "bullish" ? "rgba(47,207,176,0.7)" : "rgba(255,23,68,0.7)";
+        const col = ob.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
         const from = ob.time as Time;
         const to = candles[candles.length - 1].time as Time;
-        const top = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 1, priceLineVisible: false, lastValueVisible: false });
+        const top = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
         top.setData([{ time: from, value: ob.top }, { time: to, value: ob.top }]);
-        createSeriesMarkers(top, [{ time: from, position: ob.kind === "bullish" ? "belowBar" : "aboveBar", color: col, shape: "circle", size: 0, text: "OB" }]);
-        const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 1, priceLineVisible: false, lastValueVisible: false });
+        createSeriesMarkers(top, [{ time: from, position: "aboveBar", color: ob.kind === "bullish" ? "#2fcfb0" : "#ff1744", shape: "square", size: 0, text: "OB" }]);
+        const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
         bot.setData([{ time: from, value: ob.bottom }, { time: to, value: ob.bottom }]);
       }
     }
