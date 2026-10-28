@@ -181,6 +181,14 @@ function Sidebar({
           <Search size={16} strokeWidth={1.8} />
           <span className="text-[12px] font-semibold">Coin lookup</span>
         </Link>
+        <a href="/footprint.html" className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-500 transition-colors hover:bg-white/[.035] hover:text-slate-200">
+          <BarChart3 size={16} strokeWidth={1.8} />
+          <span className="text-[12px] font-semibold">Footprint</span>
+        </a>
+        <a href="/heatmap.html" className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-500 transition-colors hover:bg-white/[.035] hover:text-slate-200">
+          <Grid2X2 size={16} strokeWidth={1.8} />
+          <span className="text-[12px] font-semibold">Heatmap</span>
+        </a>
       </nav>
        <div className="mt-auto pt-24">
         <div className="panel-muted p-3">
