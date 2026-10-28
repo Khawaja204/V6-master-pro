@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 const BINANCE_REST = "https://api.binance.com/api/v3";
 const BINANCE_STREAM = "wss://stream.binance.com:9443/stream";
 const TICKER_REFRESH_MS = 10 * 60 * 1000;
-const INITIAL_KLINE_LIMIT = 100;
-const MAX_CANDLES = 100;
+const INITIAL_KLINE_LIMIT = 500;
+const MAX_CANDLES = 500;
 const INTERVALS = ["15m", "1h"] as const;
 const EXCLUDED_BASE_ASSETS = new Set([
   "USDC",
