@@ -388,8 +388,8 @@ function ChartMapping({
       const vp = volumeProfile(candles);
       if (vp) {
         series.createPriceLine({ price: vp.poc, color: '#f6be51', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'POC' });
-        series.createPriceLine({ price: vp.vah, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: 'VAH' });
-        series.createPriceLine({ price: vp.val, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: 'VAL' });
+        series.createPriceLine({ price: vp.vah, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAH' });
+        series.createPriceLine({ price: vp.val, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAL' });
       }
     }
     {
