@@ -27,12 +27,13 @@ function parseKlines(rows: unknown[][]): ClosedCandle[] {
     const close = num(row[4]);
     const volume = num(row[5]);
     const quoteVolume = num(row[7]);
+    const takerBuyVolume = num(row[9]);
     if (
       openTime === null || closeTime === null || closeTime > now ||
       open === null || high === null || low === null || close === null ||
       volume === null || quoteVolume === null
     ) continue;
-    candles.push({ time: Math.floor(openTime / 1000), open, high, low, close, volume, quoteVolume });
+    candles.push({ time: Math.floor(openTime / 1000), open, high, low, close, volume, quoteVolume, takerBuyVolume: takerBuyVolume ?? undefined });
   }
   return candles;
 }
