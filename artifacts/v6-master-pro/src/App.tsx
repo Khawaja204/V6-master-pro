@@ -505,8 +505,12 @@ function SkeletonWorkspace() {
 }
 
 function Terminal() {
-  const [activeView, setActiveView] = useState('overview');
-  const [selectedPairSymbol, setSelectedPairSymbol] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState(() =>
+    new URLSearchParams(window.location.search).get("symbol") ? 'chart' : 'overview');
+  const [selectedPairSymbol, setSelectedPairSymbol] = useState<string | null>(() => {
+    const sym = new URLSearchParams(window.location.search).get("symbol");
+    return sym ? normalizeSymbol(sym) : null;
+  });
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const marketFeed = useTopUsdtPairs();
   const strategiesQuery = useListStrategies();
@@ -518,10 +522,7 @@ function Terminal() {
     ?? (selectedPairSymbol ? undefined : marketFeed.pairs[0]);
   const selectedStrategy = strategies.find((item) => item.id === selectedStrategyId) ?? strategies[0];
   useEffect(() => {
-    if (!marketFeed.pairs.length) {
-      setSelectedPairSymbol(null);
-      return;
-    }
+    if (!marketFeed.pairs.length) return;
     if (!selectedPairSymbol) {
       setSelectedPairSymbol(marketFeed.pairs[0].symbol);
     }
@@ -532,13 +533,14 @@ function Terminal() {
     setActiveView('chart');
   };
 
+  const [currentLocation] = useLocation();
   useEffect(() => {
     const sym = new URLSearchParams(window.location.search).get("symbol");
     if (sym) {
       selectPair(normalizeSymbol(sym));
       window.history.replaceState(null, "", "/");
     }
-  }, []);
+  }, [currentLocation]);
 
   return <div className="terminal-shell flex">
     <Sidebar activeView={activeView} setActiveView={setActiveView} connection={marketFeed.status} />
