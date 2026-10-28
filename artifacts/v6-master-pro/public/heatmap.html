@@ -2,7 +2,7 @@
 <style>body{margin:0;background:#0b0f14;color:#cbd5e1;font:13px system-ui,sans-serif}header{padding:12px 14px;border-bottom:1px solid #ffffff14;display:flex;gap:10px;align-items:center;flex-wrap:wrap}input,select{background:#000a;color:#e2e8f0;border:1px solid #ffffff1f;border-radius:6px;padding:6px 8px}a{color:#2fcfb0}canvas{width:100%;height:70vh;display:block;background:#05080c}.d{color:#64748b;font-size:11px;padding:0 12px 16px}</style></head><body>
 <header><b>Session depth heatmap</b> <select id="pick"></select> <input id="sym" value="BTCUSDT" size="10"> <a href="/depth.html">Order book</a> <a href="/footprint.html">Footprint</a> <a href="/">Scanner</a> <span id="st" style="color:#64748b;font-size:11px"></span></header>
 <canvas id="c"></canvas>
-<p class="d">Informational only. Not financial advice. Built in your browser from live Binance depth (top 20 levels, sampled once per second) while this page is open. Only the last 10 minutes since page open are kept. Bright bands = large resting size at that price for that time. Not a signal.</p>
+<p class="d">Informational only. Not financial advice. Built in your browser from live Binance depth (top 20 levels, sampled once per second) while this page is open. The last 10 minutes are kept in this browser. Bright bands = large resting size at that price for that time. Not a signal.</p>
 <script>
 const $=id=>document.getElementById(id);
 const TOP=['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','NEARUSDT','BNBUSDT','DOGEUSDT','ADAUSDT','LINKUSDT','AVAXUSDT','DOTUSDT','LTCUSDT','TRXUSDT','SUIUSDT','PEPEUSDT','WLDUSDT'];
@@ -42,12 +42,12 @@ function draw(){
 }
 setInterval(()=>{
  if(!lastBids.length||!lastAsks.length)return;
- snaps.push({bids:lastBids.map(([p,q])=>[+p,+q]),asks:lastAsks.map(([p,q])=>[+p,+q])});if(snaps.length>600)snaps=snaps.slice(-600);try{localStorage.setItem('hm_snaps_'+sym,JSON.stringify(snaps))}catch(e){}
+ snaps.push({t:Date.now(),bids:lastBids.map(([p,q])=>[+p,+q]),asks:lastAsks.map(([p,q])=>[+p,+q])});if(snaps.length>600)snaps=snaps.slice(-600);try{localStorage.setItem('hm_snaps_'+sym,JSON.stringify(snaps))}catch(e){}
  if(snaps.length>MAX)snaps.shift();
  draw();
 },1000);
 window.onresize=draw;
-function setSym(s){sym=s;$('sym').value=s;snaps=[];lastBids=[];lastAsks=[];try{snaps=JSON.parse(localStorage.getItem('hm_snaps_'+s)||'[]')}catch(e){snaps=[]};draw();connect()}
+function setSym(s){sym=s;$('sym').value=s;snaps=[];lastBids=[];lastAsks=[];try{const cut=Date.now()-600000;snaps=JSON.parse(localStorage.getItem('hm_snaps_'+s)||'[]').filter(x=>x.t>=cut)}catch(e){snaps=[]};draw();connect()}
 $('pick').onchange=()=>setSym($('pick').value);
 $('sym').onchange=()=>setSym($('sym').value.trim().toUpperCase());
 setSym('BTCUSDT');

@@ -1,11 +1,11 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V6 Live Footprint</title>
 <style>body{margin:0;background:#0b0f14;color:#cbd5e1;font:13px system-ui,sans-serif}header{padding:12px 14px;border-bottom:1px solid #ffffff14;display:flex;gap:10px;align-items:center;flex-wrap:wrap}input,select{background:#000a;color:#e2e8f0;border:1px solid #ffffff1f;border-radius:6px;padding:6px 8px}a{color:#2fcfb0}main{display:grid;gap:12px;padding:12px;grid-template-columns:1fr}@media(min-width:900px){main{grid-template-columns:2fr 1fr}}.card{border:1px solid #ffffff14;border-radius:10px;padding:10px;overflow:auto}.g{color:#2fcfb0}.r{color:#f27a78}table{width:100%;border-collapse:collapse;font:12px ui-monospace,monospace}td{padding:2px 6px;text-align:right}th{text-align:right;color:#64748b;font-weight:600;padding:2px 6px}.d{color:#64748b;font-size:11px}</style></head><body>
-<header><b>Live footprint (current minute)</b> <select id="pick"></select> <input id="sym" value="BTCUSDT" size="10"> <label class="d">tick <input id="tick" value="auto" size="8"></label> <label class="d">big trade $ <input id="th" value="50000" size="8"></label> <a href="/depth.html">Order book</a> <a href="/heatmap.html">Heatmap</a> <a href="/heatmap.html">Heatmap</a> <a href="/">Scanner</a> <span id="st" class="d"></span></header>
+<header><b>Live footprint (current minute)</b> <select id="pick"></select> <input id="sym" value="BTCUSDT" size="10"> <label class="d">tick <input id="tick" value="auto" size="8"></label> <label class="d">big trade $ <input id="th" value="50000" size="8"></label> <a href="/depth.html">Order book</a> <a href="/heatmap.html">Heatmap</a> <a href="/">Scanner</a> <span id="st" class="d"></span></header>
 <main>
 <div class="card"><b>Price levels (sell | price | buy | delta)</b><div id="tot" style="margin:6px 0"></div><table id="fp"></table></div>
 <div class="card"><b>Last 15 minutes (since page open)</b><table id="hist" style="margin-top:6px"></table><b style="display:block;margin-top:12px">Big trades</b><table id="big" style="margin-top:6px"></table></div>
 </main>
-<p class="d" style="padding:0 12px 16px">Informational only. Not financial advice. Live public Binance trades, built in your browser while this page is open. Only the current minute and the last 15 minutes since page open are kept; reloading resets them. Not a signal.</p>
+<p class="d" style="padding:0 12px 16px">Informational only. Not financial advice. Live public Binance trades, built in your browser while this page is open. The current minute resets on reload; the last 15 minutes are kept in this browser. Not a signal.</p>
 <script>
 const $=id=>document.getElementById(id);
 const f=(n,d=2)=>Number(n).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:0});
@@ -49,7 +49,7 @@ function connect(){
  ws.onmessage=e=>onT(JSON.parse(e.data));
  ws.onclose=()=>{$('st').textContent='disconnected, reconnecting…';rec=setTimeout(connect,3000)};
 }
-function setSym(s){sym=s;$('sym').value=s;cur={};big=[];minute=0;try{hist=JSON.parse(localStorage.getItem('fp_hist_'+s)||'[]')}catch(e){hist=[]};render();connect()}
+function setSym(s){sym=s;$('sym').value=s;cur={};big=[];minute=0;try{const cut=Math.floor(Date.now()/60000)-15;hist=JSON.parse(localStorage.getItem('fp_hist_'+s)||'[]').filter(h=>h.m>=cut).slice(0,15)}catch(e){hist=[]};render();connect()}
 $('pick').onchange=()=>setSym($('pick').value);
 $('sym').onchange=()=>setSym($('sym').value.trim().toUpperCase());
 setSym('BTCUSDT');
