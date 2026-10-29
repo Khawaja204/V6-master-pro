@@ -520,6 +520,11 @@ function ChartMapping({
     } else {
       charts.forEach((c) => c.timeScale().fitContent());
     }
+    const syncRange = chart.timeScale().getVisibleRange();
+    if (syncRange) {
+      rsiChart.timeScale().setVisibleRange(syncRange);
+      deltaChart.timeScale().setVisibleRange(syncRange);
+    }
     return () => {
       const r = chart.timeScale().getVisibleRange();
       if (r) savedRangeRef.current = { key: `${pairSymbol}|${period}`, from: r.from, to: r.to };
