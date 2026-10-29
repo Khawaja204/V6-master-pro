@@ -46,6 +46,7 @@ import { candleDelta, cumulativeDelta } from "@/lib/delta";
 import { volumeProfile } from "@/lib/volume-profile";
 import { utBotSignals, formatTagPrice } from "@/lib/ut-bot";
 import { powerSignals } from "@/lib/power-indicator";
+import { volSignals } from "@/lib/ocs-vol";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 
@@ -401,16 +402,20 @@ function ChartMapping({
     {
       const ut = utBotSignals(candles).signals.map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "UT" }));
       const pwr = powerSignals(candles).map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "PWR" }));
-      const tags = [...ut, ...pwr].sort((a, b) => a.time - b.time).slice(-40);
+      const vol = volSignals(candles).map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "VOL" }));
+      const tags = [...ut, ...pwr, ...vol].sort((a, b) => a.time - b.time).slice(-60);
       createSeriesMarkers(series, tags.map((t) => {
         const isBuy = t.kind === "buy";
-        const isUt = t.label === "UT";
+        const shape = t.label === "UT" ? (isBuy ? "arrowUp" : "arrowDown") : t.label === "PWR" ? "circle" : "square";
+        const text = t.label === "VOL" && !isBuy
+          ? `VOL WARN ${formatTagPrice(t.price)}`
+          : `${t.label} ${isBuy ? "BUY" : "SELL"} ${formatTagPrice(t.price)}`;
         return {
           time: t.time as Time,
           position: (isBuy ? "belowBar" : "aboveBar") as const,
-          color: isBuy ? "#00E676" : "#FF1744",
-          shape: (isUt ? (isBuy ? "arrowUp" : "arrowDown") : "circle") as const,
-          text: `${t.label} ${isBuy ? "BUY" : "SELL"} ${formatTagPrice(t.price)}`,
+          color: t.label === "VOL" && !isBuy ? "#FF00FF" : isBuy ? "#00E676" : "#FF1744",
+          shape: shape as const,
+          text,
         };
       }));
     }
