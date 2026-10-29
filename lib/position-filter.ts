@@ -58,6 +58,7 @@ export function positionStatsFor(candles: ClosedCandle[]) {
 
 export function fmtTrades(s: TradeStat): string {
   if (s.closed === 0) return s.open ? "0 closed · open" : "0 closed";
-  const base = `${s.closed} closed · ${Math.round((s.wins / s.closed) * 100)}% win · avg ${s.avgPct!.toFixed(2)}%`;
+  const net = s.avgPct! - 0.2;
+  const base = `${s.closed} closed · ${Math.round((s.wins / s.closed) * 100)}% win · avg ${s.avgPct!.toFixed(2)}% · net after fees ${net.toFixed(2)}%`;
   return s.open ? `${base} · open` : base;
 }
