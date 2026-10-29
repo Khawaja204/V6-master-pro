@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { screenSymbol } from "@/lib/screen-entry";
 import { candleDelta } from "@/lib/delta";
 import { matchesMethod, METHODS, type MethodId } from "@/lib/lecture-methods";
+import { useHtfMap } from "@/lib/htf-data";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -130,13 +131,14 @@ export function TopUsdtSignals({
     const result = await Notification.requestPermission();
     setNotifyOn(result === "granted");
   };
+  const htfMap = useHtfMap(pairs.map((p) => p.symbol));
   const visiblePairs = useMemo(() => {
     return pairs.filter((pair) => {
-      if (method) return matchesMethod(method, pair.candles?.["15m"] ?? [], pair.candles?.["1h"] ?? []);
+      if (method) return matchesMethod(method, pair.candles?.["15m"] ?? [], pair.candles?.["1h"] ?? [], htfMap[pair.symbol]);
       const r = screenSymbol(pair.symbol, pair.candles?.["15m"] ?? []);
       return mode === "Pump" ? r.pump : r.normal;
     });
-  }, [pairs, mode, method]);
+  }, [pairs, mode, method, htfMap]);
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "waiting";
@@ -205,6 +207,7 @@ export function TopUsdtSignals({
               <th rowSpan={2} className="px-3 py-3">15m Δ%</th>
               <th colSpan={5} className="border-l border-white/[.07] px-3 py-2 text-center">15m · closed candles</th>
               <th colSpan={5} className="border-l border-white/[.07] px-3 py-2 text-center">1h · closed candles</th>
+              <th rowSpan={2} className="px-3 py-3">Chart</th>
             </tr>
             <tr className="eyebrow text-left">
               {["EMA21", "EMA50", "RSI14", "RVOL", "Condition"].map((label) => (
@@ -222,7 +225,7 @@ export function TopUsdtSignals({
                 <tr
                   key={pair.symbol}
                   onClick={() => onSelectPair(pair.symbol)}
-                  className={`cursor-pointer border-t border-white/[.045] transition-colors hover:bg-white/[.025] ${selected ? "bg-[rgba(47,207,176,.045)]" : ""}`}
+                  className={`cursor-pointer border-t border-white/[.045] transition-colors hover:bg-white/[.025] ${selected ? "bg-[rgba(47,207,176,.045)]" : ""} ${method ? "shadow-[inset_3px_0_0_rgba(246,190,81,.85)] bg-[rgba(246,190,81,.03)]" : ""}`}
                   data-testid={`row-top-usdt-${pair.symbol.toLowerCase()}`}
                 >
                   <td className="px-4 py-3 mono text-[10px] text-slate-600">{String(index + 1).padStart(2, "0")}</td>
@@ -241,19 +244,22 @@ export function TopUsdtSignals({
                   <td className="px-3 py-3 mono text-[10px] text-slate-300">{formatDeltaPct(candleDelta(pair.candles["15m"]).at(-1)?.deltaPct ?? null)}</td>
                   {intervalCells(pair.metrics["15m"])}
                   {intervalCells(pair.metrics["1h"])}
+                  <td className="px-3 py-3">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); onSelectPair(pair.symbol); }} className="rounded-md border border-white/[.08] px-2 py-1 text-[9px] font-semibold text-slate-300 hover:text-[hsl(var(--primary))]">Open chart</button>
+                  </td>
                 </tr>
               );
             })}
             {isLoading && visiblePairs.length === 0 && (
               <tr>
-                <td colSpan={16} className="px-4 py-12 text-center text-[11px] text-slate-500">
+                <td colSpan={17} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   Loading Binance ticker and closed-candle data…
                 </td>
               </tr>
             )}
             {!isLoading && visiblePairs.length === 0 && (
               <tr>
-                <td colSpan={16} className="px-4 py-12 text-center text-[11px] text-slate-500">
+                <td colSpan={17} className="px-4 py-12 text-center text-[11px] text-slate-500">
                   No pairs match the {mode} filter right now.
                 </td>
               </tr>
