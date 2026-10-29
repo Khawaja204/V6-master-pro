@@ -471,6 +471,8 @@ function ChartMapping({
     const lastTime = lastCandle.time;
     const rsiChart = createChart(rsiContainer.current, {
       autoSize: true,
+      handleScale: false,
+      handleScroll: false,
       layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#64748b' },
       grid: { vertLines: { color: 'rgba(148, 163, 184, 0.04)' }, horzLines: { color: 'rgba(148, 163, 184, 0.04)' } },
       rightPriceScale: { borderColor: 'rgba(148, 163, 184, 0.12)', scaleMargins: { top: 0.08, bottom: 0.08 } },
@@ -492,6 +494,8 @@ function ChartMapping({
     });
     const deltaChart = createChart(deltaContainer.current, {
       autoSize: true,
+      handleScale: false,
+      handleScroll: false,
       layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#64748b' },
       grid: { vertLines: { color: 'rgba(148, 163, 184, 0.04)' }, horzLines: { color: 'rgba(148, 163, 184, 0.04)' } },
       rightPriceScale: { borderColor: 'rgba(148, 163, 184, 0.12)' },
@@ -504,13 +508,11 @@ function ChartMapping({
     const cumLine = deltaChart.addSeries(LineSeries, { color: '#f6be51', lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: 'CVD' });
     cumLine.setData(candles.map((c, i) => ({ time: c.time as Time, value: cum[i] })));
     const charts = [chart, rsiChart, deltaChart];
-    let syncing = false;
-    charts.forEach((src) => src.timeScale().subscribeVisibleTimeRangeChange((r) => {
-      if (syncing || !r) return;
-      syncing = true;
-      charts.forEach((t) => { if (t !== src) t.timeScale().setVisibleRange(r); });
-      syncing = false;
-    }));
+    chart.timeScale().subscribeVisibleTimeRangeChange((r) => {
+      if (!r) return;
+      rsiChart.timeScale().setVisibleRange(r);
+      deltaChart.timeScale().setVisibleRange(r);
+    });
     const rangeKey = `${pairSymbol}|${period}`;
     const saved = savedRangeRef.current;
     if (saved && saved.key === rangeKey) {
