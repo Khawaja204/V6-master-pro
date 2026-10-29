@@ -135,7 +135,7 @@ export function matchesMethod(id: MethodId, c15: ClosedCandle[], c1h: ClosedCand
     const ema21 = emaSeries(closes15, 21).at(-1) ?? NaN;
     const uptrend = last15.close > ema21;
     const prev = c15[c15.length - 2];
-    const prevRedWithMove = prev.close < prev.open && ((prev.high - prev.low) / prev.low) * 100 >= 1;
+    const prevRedWithMove = prev.close < prev.open && ((prev.open - prev.close) / prev.open) * 100 >= 1;
     return (consolidated || uptrend) && last15.close > last15.open && prevRedWithMove;
   }
 
