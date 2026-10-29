@@ -97,6 +97,7 @@ export function volSignals(candles: ClosedCandle[], mode: "Pump" | "Normal" = "P
   let stop = NaN;
   let tp1 = NaN;
   let tp2 = NaN;
+  let warned = false;
 
   for (let i = 25; i < n; i += 1) {
     const c = candles[i];
@@ -113,6 +114,7 @@ export function volSignals(candles: ClosedCandle[], mode: "Pump" | "Normal" = "P
 
     if (earlyBuy && !inTrade) {
       inTrade = true;
+      warned = false;
       const risk = Math.max(SL_ATR * a, 1e-10);
       stop = c.close - risk;
       tp1 = c.close + TP1_R * risk;
@@ -126,7 +128,10 @@ export function volSignals(candles: ClosedCandle[], mode: "Pump" | "Normal" = "P
     const rvolFade = rv[i] < rv[i - 1] && rv[i - 1] < rv[i - 2];
     const sellFade = nearTP1 && rvolFade;
     const sellSpike = nearTP1 && rv[i] >= RV_EXPLOSIVE && c.close < c.open;
-    if (sellFade || sellSpike) out.push({ time: c.time, kind: "warn", price: c.close });
+    if ((sellFade || sellSpike) && !warned) {
+      warned = true;
+      out.push({ time: c.time, kind: "warn", price: c.close });
+    }
   }
   return out;
 }
