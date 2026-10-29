@@ -4,6 +4,7 @@ export interface UtBotSignal {
   time: number;
   kind: "buy" | "sell";
   stop: number;
+  price: number;
 }
 
 // ATR with Wilder (RMA) smoothing, same as Pine ta.atr.
@@ -23,6 +24,12 @@ function atrRma(candles: ClosedCandle[], period: number): (number | null)[] {
 }
 
 // UT Bot: ATR trailing stop. Buy when price crosses above the stop, sell when it crosses below.
+export function formatTagPrice(v: number): string {
+  if (v >= 100) return v.toFixed(2);
+  if (v >= 1) return v.toFixed(4);
+  return String(Number(v.toPrecision(4)));
+}
+
 export function utBotSignals(
   candles: ClosedCandle[],
   keyValue = 1,
@@ -49,8 +56,8 @@ export function utBotSignals(
 
     const above = src > stop && srcPrev <= prevStop;
     const below = stop > src && prevStop <= srcPrev;
-    if (above && src > stop) signals.push({ time: candles[i].time, kind: "buy", stop });
-    if (below && src < stop) signals.push({ time: candles[i].time, kind: "sell", stop });
+    if (above && src > stop) signals.push({ time: candles[i].time, kind: "buy", stop, price: src });
+    if (below && src < stop) signals.push({ time: candles[i].time, kind: "sell", stop, price: src });
   }
   return { signals, stops };
 }

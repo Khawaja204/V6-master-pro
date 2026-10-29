@@ -44,7 +44,7 @@ import { detectFvg } from "@/lib/ocs-fvg";
 import { detectOrderBlocks, freshOrderBlocks } from "@/lib/ob-zones";
 import { candleDelta, cumulativeDelta } from "@/lib/delta";
 import { volumeProfile } from "@/lib/volume-profile";
-import { utBotSignals } from "@/lib/ut-bot";
+import { utBotSignals, formatTagPrice } from "@/lib/ut-bot";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 
@@ -404,7 +404,7 @@ function ChartMapping({
         position: sig.kind === "buy" ? "belowBar" : "aboveBar",
         color: sig.kind === "buy" ? "#00E676" : "#FF1744",
         shape: sig.kind === "buy" ? "arrowUp" : "arrowDown",
-        text: sig.kind === "buy" ? "UT BUY (tag)" : "UT SELL (tag)",
+        text: `${sig.kind === "buy" ? "UT BUY" : "UT SELL"} ${formatTagPrice(sig.price)}`,
       })));
     }
     {
