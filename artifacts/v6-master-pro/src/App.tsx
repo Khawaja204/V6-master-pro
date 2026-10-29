@@ -44,6 +44,7 @@ import { detectFvg } from "@/lib/ocs-fvg";
 import { detectOrderBlocks, freshOrderBlocks } from "@/lib/ob-zones";
 import { candleDelta, cumulativeDelta } from "@/lib/delta";
 import { volumeProfile } from "@/lib/volume-profile";
+import { utBotSignals } from "@/lib/ut-bot";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 
@@ -396,6 +397,16 @@ function ChartMapping({
     }));
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
     series.setData(chartCandles);
+    {
+      const ut = utBotSignals(candles);
+      createSeriesMarkers(series, ut.signals.slice(-30).map((sig) => ({
+        time: sig.time as Time,
+        position: sig.kind === "buy" ? "belowBar" : "aboveBar",
+        color: sig.kind === "buy" ? "#00E676" : "#FF1744",
+        shape: sig.kind === "buy" ? "arrowUp" : "arrowDown",
+        text: sig.kind === "buy" ? "UT BUY (tag)" : "UT SELL (tag)",
+      })));
+    }
     {
       const vp = volumeProfile(candles);
       if (vp) {
