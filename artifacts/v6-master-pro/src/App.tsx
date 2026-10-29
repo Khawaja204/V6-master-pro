@@ -43,6 +43,7 @@ import {
 import { detectFvg } from "@/lib/ocs-fvg";
 import { detectOrderBlocks, freshOrderBlocks } from "@/lib/ob-zones";
 import { candleDelta, cumulativeDelta } from "@/lib/delta";
+import { useHtfMap } from "@/lib/htf-data";
 import { volumeProfile } from "@/lib/volume-profile";
 import { utBotSignals, formatTagPrice } from "@/lib/ut-bot";
 import { powerSignals } from "@/lib/power-indicator";
@@ -383,6 +384,8 @@ function ChartMapping({
   const periods: KlineInterval[] = ['15m', '1h'];
   const candles = pair?.candles[period] ?? [];
   const posData = useMemo(() => positionStatsFor(candles), [candles]);
+  const htfMap = useHtfMap(pair ? [pair.symbol] : []);
+  const htf = pair ? htfMap[pair.symbol] : undefined;
   const ctxLines = useMemo(() => recentContext(candles, 3), [candles]);
   const eng = useMemo(() => runEngine(candles), [candles]);
   const { snap: flow, summary: flowSummary } = useFlow(pair?.symbol ?? null, pair?.lastPrice ?? null);
@@ -472,6 +475,32 @@ function ChartMapping({
         bot.setData([{ time: from, value: ob.bottom }, { time: to, value: ob.bottom }]);
       }
     }
+    if (htf) {
+      const frames = [{ name: "1D", cs: htf.d1 }, { name: "1W", cs: htf.w1 }] as const;
+      const startT = candles[0].time;
+      const endT = candles[candles.length - 1].time as Time;
+      for (const fr of frames) {
+        if (fr.cs.length < 30) continue;
+        for (const ob of detectOrderBlocks(fr.cs).filter((z) => !z.mitigated && z.time >= startT).slice(-4)) {
+          const col = ob.kind === "bullish" ? "rgba(47,207,176,0.7)" : "rgba(255,23,68,0.7)";
+          const from = ob.time as Time;
+          const top = chart.addSeries(LineSeries, { color: col, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+          top.setData([{ time: from, value: ob.top }, { time: endT, value: ob.top }]);
+          createSeriesMarkers(top, [{ time: from, position: "aboveBar", color: col, shape: "square", size: 0, text: `${fr.name} OB` }]);
+          const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+          bot.setData([{ time: from, value: ob.bottom }, { time: endT, value: ob.bottom }]);
+        }
+        for (const z of detectFvg(fr.cs).filter((g) => g.fillIndex === null && fr.cs[g.confirmIndex - 2].time >= startT).slice(-4)) {
+          const col = z.kind === "bullish" ? "rgba(246,190,81,0.7)" : "rgba(255,23,68,0.5)";
+          const from = fr.cs[z.confirmIndex - 2].time as Time;
+          const top = chart.addSeries(LineSeries, { color: col, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+          top.setData([{ time: from, value: z.top }, { time: endT, value: z.top }]);
+          createSeriesMarkers(top, [{ time: from, position: "aboveBar", color: col, shape: "square", size: 0, text: `${fr.name} FVG` }]);
+          const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+          bot.setData([{ time: from, value: z.bottom }, { time: endT, value: z.bottom }]);
+        }
+      }
+    }
     const firstTime = chartCandles[0].time;
     const lastCandle = chartCandles[chartCandles.length - 1];
     const lastTime = lastCandle.time;
@@ -538,7 +567,7 @@ function ChartMapping({
       rsiChart.remove();
       deltaChart.remove();
     };
-  }, [candles, pairSymbol, period, strategy, deltaUsdt, strictOb, impulseOne, tagView]);
+  }, [candles, pairSymbol, period, strategy, deltaUsdt, strictOb, impulseOne, tagView, htf]);
   return (
     <section className="panel animate-rise delay-3 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>

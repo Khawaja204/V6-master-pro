@@ -154,6 +154,11 @@ export function TopUsdtSignals({
             {METHODS.map((m) => (
               <button key={m.id} type="button" onClick={() => setMethod(method === m.id ? null : m.id)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${method === m.id ? "border-[rgba(246,190,81,.4)] amber-text" : "border-white/[.08] text-slate-500"}`}>{m.label}</button>
             ))}
+            {method && (
+              <span className="mono text-[9px] text-[hsl(var(--primary))]">
+                Matching now ({visiblePairs.length}): {visiblePairs.map((p) => p.baseAsset).join(", ") || "none"} · these rows are in the table below
+              </span>
+            )}
           </div>
           <p className="mt-1 text-[11px] text-slate-400">
             Binance public market data · ranking refreshes every 10 minutes · closed candles only
