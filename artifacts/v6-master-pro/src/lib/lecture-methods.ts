@@ -1,7 +1,7 @@
 import type { ClosedCandle } from "./binance-top-usdt";
 import type { HtfData } from "./htf-data";
 
-export type MethodId = "m1" | "m2" | "m3" | "m4" | "m5" | "m6";
+export type MethodId = "m1" | "m2" | "m3" | "m4" | "m5" | "m6" | "m7";
 
 export const METHODS: { id: MethodId; label: string }[] = [
   { id: "m1", label: "M1 Price Action" },
@@ -10,6 +10,7 @@ export const METHODS: { id: MethodId; label: string }[] = [
   { id: "m4", label: "M4 Hidden Bullish RSI" },
   { id: "m5", label: "M5 Support + RS vs BTC" },
   { id: "m6", label: "M6 EMA9 + RSI 50 swing" },
+  { id: "m7", label: "M7 Hidden Bearish (short scan)" },
 ];
 
 function emaSeries(values: number[], period: number): number[] {
@@ -176,6 +177,36 @@ export function matchesMethod(
     const btcCl = htf.btc1h.map((c) => c.close);
     const btcRet = btcCl[btcCl.length - 1] / btcCl[btcCl.length - 25] - 1;
     return nearSupport && coinRet > btcRet;
+  }
+
+  if (id === "m7") {
+    // Hidden bearish (scanner only, not a trade): 1H pivot highs where price makes a lower high
+    // while RSI makes a higher high; pivot RSI 50-70; live 1H RSI 50-70; latest pivot within 6 bars;
+    // 1H close below EMA50 (downtrend continuation).
+    const pivHi: number[] = [];
+    for (let i = 3; i < c1h.length - 3; i += 1) {
+      let ok = true;
+      for (let k = 1; k <= 3; k += 1) {
+        if (c1h[i].high <= c1h[i - k].high || c1h[i].high < c1h[i + k].high) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok && lastIdx - i <= 80) pivHi.push(i);
+    }
+    if (pivHi.length < 2) return false;
+    const h2 = pivHi[pivHi.length - 1];
+    const h1 = pivHi[pivHi.length - 2];
+    const rh1 = rsi1h[h1];
+    const rh2 = rsi1h[h2];
+    const liveRsiS = rsi1h[lastIdx];
+    const ema50S = emaSeries(closes1h, 50).at(-1) ?? NaN;
+    return rh1 !== null && rh2 !== null && liveRsiS !== null
+      && c1h[h2].high < c1h[h1].high
+      && rh2 > rh1 && rh1 >= 50 && rh1 <= 70
+      && liveRsiS >= 50 && liveRsiS <= 70
+      && lastIdx - h2 <= 6
+      && close1hLast < ema50S;
   }
 
   // M6: price above EMA9 (1H), and RSI14 crossed above 50 from the 40-50 zone in the last 3 bars.
