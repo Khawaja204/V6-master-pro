@@ -544,7 +544,7 @@ function ChartMapping({
         position: (p.kind === "bull" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
         color: p.kind === "bull" ? "#76ff03" : "#ff00ff",
         shape: (p.kind === "bull" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
-        text: p.name,
+        text: "",
       })),
       ...stBars.map((s) => ({
         time: s.time as Time,
