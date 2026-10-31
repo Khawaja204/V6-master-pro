@@ -46,7 +46,7 @@ import { candleDelta, cumulativeDelta } from "@/lib/delta";
 import { useHtfMap } from "@/lib/htf-data";
 import { volumeProfile } from "@/lib/volume-profile";
 import { utBotSignals, formatTagPrice } from "@/lib/ut-bot";
-import { powerSignals } from "@/lib/power-indicator";
+import { powerSignals, powerTrades } from "@/lib/power-indicator";
 import { volSignals } from "@/lib/ocs-vol";
 import { positionStatsFor, fmtTrades } from "@/lib/position-filter";
 import { useFlow, formatFlow, formatFlowTrack } from "@/lib/flow-data";
@@ -455,6 +455,15 @@ function ChartMapping({
       }
       if (closesArr.length > 200) {
         series.createPriceLine({ price: emaLast(closesArr, 200), color: '#00e676', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'MAIN EMA' });
+      }
+    }
+    {
+      // Power trade: aakhri khuli trade ki SL aur TP1 lines (sirf Power signal par)
+      const pt = powerTrades(candles);
+      const lastPt = pt.length ? pt[pt.length - 1] : null;
+      if (lastPt && lastPt.exitTime === null) {
+        series.createPriceLine({ price: lastPt.stop, color: '#ff1744', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'PWR SL' });
+        series.createPriceLine({ price: lastPt.tp1, color: '#00e676', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'PWR TP1' });
       }
     }
     {
