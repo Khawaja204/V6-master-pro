@@ -87,3 +87,27 @@ export function powerTrades(
   return trades;
 }
 
+// Power trades ka khulasa: band trades ki tadaad, win %, fees ke baad net average, aur open trade ka status.
+export interface PowerStats {
+  closed: number;
+  wins: number;
+  winPct: number | null;
+  netAvg: number | null;
+  open: boolean;
+}
+
+export function powerStats(trades: PowerTrade[], feePct = 0.2): PowerStats {
+  const nets = trades
+    .filter((t) => t.exit !== null)
+    .map((t) => ((t.exit as number) / t.entry - 1) * 100 - feePct);
+  const wins = nets.filter((n) => n > 0).length;
+  return {
+    closed: nets.length,
+    wins,
+    winPct: nets.length ? (wins * 100) / nets.length : null,
+    netAvg: nets.length ? nets.reduce((a, b) => a + b, 0) / nets.length : null,
+    open: trades.some((t) => t.exit === null),
+  };
+}
+
+
