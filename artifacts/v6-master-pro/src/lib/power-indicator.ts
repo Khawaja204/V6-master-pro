@@ -110,4 +110,22 @@ export function powerStats(trades: PowerTrade[], feePct = 0.2): PowerStats {
   };
 }
 
+// Training / test split: pehle share% candles par training, baqi par test.
+// Trade ka faisla entry time se hota hai. Faisla training par, test sirf check ke liye.
+export interface PowerSplit {
+  train: PowerStats;
+  test: PowerStats;
+}
+
+export function powerSplit(candles: ClosedCandle[], share = 0.6, feePct = 0.2): PowerSplit {
+  if (candles.length < 2) return { train: powerStats([], feePct), test: powerStats([], feePct) };
+  const trades = powerTrades(candles);
+  const cut = candles[Math.floor(candles.length * share)].time;
+  return {
+    train: powerStats(trades.filter((t) => t.entryTime < cut), feePct),
+    test: powerStats(trades.filter((t) => t.entryTime >= cut), feePct),
+  };
+}
+
+
 

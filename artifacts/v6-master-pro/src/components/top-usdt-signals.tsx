@@ -4,6 +4,7 @@ import { screenSymbol } from "@/lib/screen-entry";
 import { candleDelta } from "@/lib/delta";
 import { matchesMethod, m8ForwardTest, METHODS, type MethodId } from "@/lib/lecture-methods";
 import { useHtfMap } from "@/lib/htf-data";
+import { powerSplit } from "@/lib/power-indicator";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -160,6 +161,25 @@ export function TopUsdtSignals({
       win: signals ? `${((wins / signals) * 100).toFixed(0)}%` : "-",
     };
   }, [pairs, method]);
+  // Power test: tamam top-20 pairs, 1H candles, training 60% aur test 40%
+  const powerTest = useMemo(() => {
+    const acc = { trainN: 0, trainW: 0, trainSum: 0, testN: 0, testW: 0, testSum: 0 };
+    for (const p of pairs) {
+      const sp = powerSplit(p.candles?.["1h"] ?? []);
+      acc.trainN += sp.train.closed;
+      acc.trainW += sp.train.wins;
+      acc.trainSum += (sp.train.netAvg ?? 0) * sp.train.closed;
+      acc.testN += sp.test.closed;
+      acc.testW += sp.test.wins;
+      acc.testSum += (sp.test.netAvg ?? 0) * sp.test.closed;
+    }
+    const fmt = (n: number, w: number, sum: number) =>
+      n ? `n ${n} · win ${((w * 100) / n).toFixed(0)}% · net avg ${(sum / n).toFixed(2)}%` : "n 0";
+    return {
+      train: fmt(acc.trainN, acc.trainW, acc.trainSum),
+      test: fmt(acc.testN, acc.testW, acc.testSum),
+    };
+  }, [pairs]);
   const visiblePairs = useMemo(() => {
     const q = query.trim().toUpperCase();
     return pairs.filter((pair) => {
@@ -193,6 +213,7 @@ export function TopUsdtSignals({
             {METHODS.map((m) => (
               <button key={m.id} type="button" onClick={() => setMethod(method === m.id ? null : m.id)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${method === m.id ? "border-[rgba(246,190,81,.4)] amber-text" : "border-white/[.08] text-slate-500"}`}>{m.label}</button>
             ))}
+            <span className="mono text-[9px] teal-text">PWR test (top 20, 1H, fees 0.2%) · train 60%: {powerTest.train} · test 40%: {powerTest.test}</span>
             {method === "m8" && m8Summary && (
               <span className="mono text-[9px] text-slate-300">
                 M8 test (top 20, 1H): signals {m8Summary.signals} · after 12 candles {m8Summary.t12} · after 24 {m8Summary.t24} · base {m8Summary.base} · win12 {m8Summary.win}
