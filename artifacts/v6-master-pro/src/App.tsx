@@ -770,7 +770,7 @@ function ChartMapping({
           <span className="mono text-[9px] teal-text">6 Power Indicator · {layout === "mobile" ? "Mobile" : "Laptop"} view</span>
           <button type="button" onClick={() => setLayout((l) => (l === "laptop" ? "mobile" : "laptop"))} className="rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{layout === "laptop" ? "Mobile view" : "Laptop view"}</button>
         </div>
-        <div className={`grid ${layout === "mobile" ? "grid-cols-1" : "grid-cols-2"} gap-1 mono`}>
+        <div className={`grid ${layout === "mobile" ? "grid-cols-1" : "grid-cols-2"} gap-0.5 mono`}>
           {[
             `${dash.state === "-" ? "" : ""}6 Power Indicator | ${dash.state}`,
             `Signal: ${dash.sigTxt}`,
@@ -778,7 +778,7 @@ function ChartMapping({
             `TP1 ${dash.tp1} | TP2 ${dash.tp2}`,
             `Win ${dash.win}% · n=${dash.n}`,
           ].map((t, i) => (
-            <div key={`L${i}`} className={`rounded border border-white/[.06] bg-white/[.02] ${layout === "mobile" ? "px-2 py-1 text-[9px]" : "px-3 py-1.5 text-[10px]"} text-slate-300`}>{t}</div>
+            <div key={`L${i}`} className={`rounded border border-white/[.06] bg-white/[.02] ${layout === "mobile" ? "px-1.5 py-0.5 text-[8px] leading-tight" : "px-2 py-1 text-[9px] leading-tight"} text-slate-300 truncate`}>{t}</div>
           ))}
           {[
             `RSI 15m ${dash.r15} · 30m - · 1h ${dash.r1h} · 4h - · 1D ${dash.r1d}`,
@@ -787,7 +787,7 @@ function ChartMapping({
             `EMA50 ${dash.ema50} | Main EMA200 ${dash.ema200}`,
             `BOS: ${dash.lastStruct} · L/S ${dash.ls}`,
           ].map((t, i) => (
-            <div key={`R${i}`} className={`rounded border border-white/[.06] bg-white/[.02] ${layout === "mobile" ? "px-2 py-1 text-[9px]" : "px-3 py-1.5 text-[10px]"} text-slate-300`}>{t}</div>
+            <div key={`R${i}`} className={`rounded border border-white/[.06] bg-white/[.02] ${layout === "mobile" ? "px-1.5 py-0.5 text-[8px] leading-tight" : "px-2 py-1 text-[9px] leading-tight"} text-slate-300 truncate`}>{t}</div>
           ))}
         </div>
       </div>
