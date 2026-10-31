@@ -55,6 +55,7 @@ import { runEngine, formatEngine } from "@/lib/engine";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 import { srLevels, candlePatterns, structureMarks } from "@/lib/chart-sr";
+import { lxOverlay, type LxSeg } from "@/lib/luxalgo-look";
 import { adxLast } from "@/lib/lecture-methods";
 import type { ClosedCandle } from "@/lib/binance-top-usdt";
 
@@ -614,6 +615,29 @@ function ChartMapping({
       if (lastPt && lastPt.exitTime === null) {
         series.createPriceLine({ price: lastPt.stop, color: '#ff1744', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'PWR SL' });
         series.createPriceLine({ price: lastPt.tp1, color: '#00e676', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'PWR TP1' });
+      }
+    }
+    {
+      // LuxAlgo-style structure: swing (solid) aur internal (dashed), BOS/CHoCH labels, premium/discount
+      const sw = lxOverlay(candles, 5, 3);
+      const inr = lxOverlay(candles, 2, 3);
+      const drawSeg = (s: LxSeg, dashed: boolean) => {
+        const ls = chart.addSeries(LineSeries, {
+          color: s.color,
+          lineWidth: 1,
+          lineStyle: dashed ? LineStyle.Dashed : LineStyle.Solid,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+        ls.setData([{ time: s.t1 as Time, value: s.price }, { time: s.t2 as Time, value: s.price }]);
+        createSeriesMarkers(ls, [{ time: s.t2 as Time, position: "aboveBar", color: s.color, shape: "circle", size: 1, text: s.label }]);
+      };
+      sw.segs.forEach((s) => drawSeg(s, false));
+      inr.segs.forEach((s) => drawSeg(s, true));
+      if (sw.zones) {
+        series.createPriceLine({ price: sw.zones.top, color: "rgba(242,54,69,.55)", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "PREMIUM" });
+        series.createPriceLine({ price: sw.zones.eq, color: "rgba(135,139,148,.55)", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "EQ" });
+        series.createPriceLine({ price: sw.zones.bottom, color: "rgba(8,153,129,.55)", lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "DISCOUNT" });
       }
     }
     {
