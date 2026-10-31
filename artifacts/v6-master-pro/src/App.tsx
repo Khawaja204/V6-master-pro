@@ -473,6 +473,8 @@ function ChartMapping({
   const [strictOb, setStrictOb] = useState(true);
   const [impulseOne, setImpulseOne] = useState(false);
   const [layout, setLayout] = useState<"laptop" | "mobile">("laptop");
+  const [ovl, setOvl] = useState({ sr: true, pattern: true, structure: true, fvg: false, ob: true, htf: false, vp: true, ema: true });
+  const toggleOvl = (k: keyof typeof ovl) => setOvl((o) => ({ ...o, [k]: !o[k] }));
   const [obCount, setObCount] = useState(0);
   const [tagView, setTagView] = useState<"pwr" | "none">("pwr");
   const chartContainer = useRef<HTMLDivElement | null>(null);
@@ -507,7 +509,7 @@ function ChartMapping({
       crosshair: { vertLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' }, horzLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' } },
     });
     // Candlestick pattern bars ka rang (hammer/engulf green, shooting star/bear engulf magenta)
-    const patBars = candlePatterns(candles);
+    const patBars = ovl.pattern ? candlePatterns(candles) : [];
     const patColor = new Map<number, string>(patBars.map((p) => [p.time, p.kind === "bull" ? "#76ff03" : "#ff00ff"]));
     const chartCandles = candles.map((candle) => {
       const pc = patColor.get(candle.time);
@@ -523,7 +525,7 @@ function ChartMapping({
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
     series.setData(chartCandles);
     // Dynamic S/R lines: right side par "R 53000 | 3x" ya "S 48000 | 2x" (STRONG agar 3 ya zyada touch)
-    for (const lv of srLevels(candles)) {
+    for (const lv of (ovl.sr ? srLevels(candles) : [])) {
       series.createPriceLine({
         price: lv.price,
         color: lv.side === "R" ? (lv.strong ? "#ff1744" : "rgba(255,23,68,.5)") : (lv.strong ? "#00e676" : "rgba(0,230,118,.5)"),
@@ -534,7 +536,7 @@ function ChartMapping({
       });
     }
     // Pattern arrows aur BOS/CHoCH markers (ek transparent line series par)
-    const stBars = structureMarks(candles);
+    const stBars = ovl.pattern ? structureMarks(candles) : [];
     const closeAt = new Map<number, number>(candles.map((c) => [c.time, c.close]));
     const markerBars = [
       ...patBars.map((p) => ({
@@ -585,7 +587,7 @@ function ChartMapping({
       }));
     }
     {
-      const vp = volumeProfile(candles);
+      const vp = ovl.vp ? volumeProfile(candles) : null;
       if (vp) {
         series.createPriceLine({ price: vp.poc, color: '#f6be51', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'POC' });
         series.createPriceLine({ price: vp.vah, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAH' });
@@ -601,10 +603,10 @@ function ChartMapping({
         return e;
       };
       const closesArr = candles.map((c) => c.close);
-      if (closesArr.length > 50) {
+      if (ovl.ema && closesArr.length > 50) {
         series.createPriceLine({ price: emaLast(closesArr, 50), color: '#ffb300', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'EMA50' });
       }
-      if (closesArr.length > 200) {
+      if (ovl.ema && closesArr.length > 200) {
         series.createPriceLine({ price: emaLast(closesArr, 200), color: '#00e676', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'MAIN EMA' });
       }
     }
@@ -619,8 +621,8 @@ function ChartMapping({
     }
     {
       // LuxAlgo-style structure: swing (solid) aur internal (dashed), BOS/CHoCH labels, premium/discount
-      const sw = lxOverlay(candles, 5, 3);
-      const inr = lxOverlay(candles, 2, 3);
+      const sw = ovl.structure ? lxOverlay(candles, 5, 3) : { segs: [], zones: null };
+      const inr = ovl.structure ? lxOverlay(candles, 2, 3) : { segs: [], zones: null };
       const drawSeg = (s: LxSeg, dashed: boolean) => {
         const ls = chart.addSeries(LineSeries, {
           color: s.color,
@@ -641,7 +643,7 @@ function ChartMapping({
       }
     }
     {
-      const fvgZones = detectFvg(candles).slice(-20);
+      const fvgZones = ovl.fvg ? detectFvg(candles).slice(-20) : [];
       for (const z of fvgZones) {
         const col = z.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
         const from = candles[z.confirmIndex - 2].time as Time;
@@ -654,7 +656,7 @@ function ChartMapping({
       }
     }
     {
-      const obZones = freshOrderBlocks(detectOrderBlocks(candles, { requireSweep: strictOb, requireFvg: strictOb, impulseAtr: impulseOne ? 1.0 : 1.5 })).slice(-20);
+      const obZones = ovl.ob ? freshOrderBlocks(detectOrderBlocks(candles, { requireSweep: strictOb, requireFvg: strictOb, impulseAtr: impulseOne ? 1.0 : 1.5 })).slice(-20) : [];
       setObCount(obZones.length);
       for (const ob of obZones) {
         const col = ob.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
@@ -667,7 +669,7 @@ function ChartMapping({
         bot.setData([{ time: from, value: ob.bottom }, { time: to, value: ob.bottom }]);
       }
     }
-    if (htf) {
+    if (htf && ovl.htf) {
       const frames = [{ name: "1D", cs: htf.d1 }, { name: "1W", cs: htf.w1 }] as const;
       const startT = candles[0].time;
       const endT = candles[candles.length - 1].time as Time;
@@ -759,7 +761,7 @@ function ChartMapping({
       rsiChart.remove();
       deltaChart.remove();
     };
-  }, [candles, pairSymbol, period, strategy, deltaUsdt, strictOb, impulseOne, tagView, htf]);
+  }, [candles, pairSymbol, period, strategy, deltaUsdt, strictOb, impulseOne, tagView, htf, ovl]);
   return (
     <section className="panel animate-rise delay-3 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>
@@ -791,7 +793,15 @@ function ChartMapping({
       </div>
       <div className="relative h-[420px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!pair || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!pair ? (loading ? 'Loading coin data…' : 'Select a pair from the scanner.') : 'Waiting for closed Binance candles…'}</div>}</div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[120px] w-full" /></div>
-      <div className="border-t border-white/[.07] px-4 pt-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="eyebrow">Delta per candle · CVD {deltaUsdt ? "(approx USDT)" : "(coin units)"}</div><button type="button" onClick={() => setDeltaUsdt((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{deltaUsdt ? "Show coin units" : "Show USDT"}</button><button type="button" onClick={() => setStrictOb((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{strictOb ? "OB: strict" : "OB: loose"}</button><button type="button" onClick={() => setImpulseOne((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{impulseOne ? "Impulse: 1.0 ATR" : "Impulse: 1.5 ATR"}</button><button type="button" onClick={() => setTagView((v) => (v === "pwr" ? "none" : "pwr"))} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">Tags: {tagView}</button><span className="basis-full mono text-[9px] text-slate-500">Flow: {formatFlow(flow)}</span><span className="basis-full mono text-[9px] text-slate-500">{formatFlowTrack(flowSummary)}</span><span className="basis-full mono text-[9px] teal-text">PWR trades: {pwrS.closed} closed · win {pwrS.winPct === null ? "-" : pwrS.winPct.toFixed(0)}% · net avg {pwrS.netAvg === null ? "-" : pwrS.netAvg.toFixed(2)}%{pwrS.open ? " · open" : ""}</span><span className="basis-full mono text-[9px] text-slate-500">Last tags vs zones: {ctxLines.length ? ctxLines.join("  ·  ") : "building…"}</span><span className="whitespace-nowrap mono text-[9px] text-slate-500">OB zones: {obCount}</span></div><div ref={deltaContainer} className="mt-3 h-[120px] w-full" /></div>
+      <div className="border-t border-white/[.07] px-4 pt-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="eyebrow">Delta per candle · CVD {deltaUsdt ? "(approx USDT)" : "(coin units)"}</div><button type="button" onClick={() => setDeltaUsdt((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{deltaUsdt ? "Show coin units" : "Show USDT"}</button><button type="button" onClick={() => setStrictOb((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{strictOb ? "OB: strict" : "OB: loose"}</button><button type="button" onClick={() => setImpulseOne((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{impulseOne ? "Impulse: 1.0 ATR" : "Impulse: 1.5 ATR"}</button><button type="button" onClick={() => setTagView((v) => (v === "pwr" ? "none" : "pwr"))} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">Tags: {tagView}</button><span className="basis-full mono text-[9px] text-slate-500">Flow: {formatFlow(flow)}</span><span className="basis-full mono text-[9px] text-slate-500">{formatFlowTrack(flowSummary)}</span><span className="basis-full mono text-[9px] teal-text">PWR trades: {pwrS.closed} closed · win {pwrS.winPct === null ? "-" : pwrS.winPct.toFixed(0)}% · net avg {pwrS.netAvg === null ? "-" : pwrS.netAvg.toFixed(2)}%{pwrS.open ? " · open" : ""}</span><span className="basis-full mono text-[9px] text-slate-500">Last tags vs zones: {ctxLines.length ? ctxLines.join("  ·  ") : "building…"}</span><div className="basis-full flex flex-wrap gap-1.5 pt-1">
+              {([
+                ["sr", "S/R"], ["pattern", "Patterns"], ["structure", "Structure"], ["fvg", "FVG"],
+                ["ob", "OB"], ["htf", "1D/1W zones"], ["vp", "POC/VAH/VAL"], ["ema", "EMA tags"],
+              ] as const).map(([k, label]) => (
+                <button key={k} type="button" onClick={() => toggleOvl(k)} className={`rounded-md border px-2 py-0.5 mono text-[9px] ${ovl[k] ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-600"}`}>{label}: {ovl[k] ? "on" : "off"}</button>
+              ))}
+            </div>
+            <span className="whitespace-nowrap mono text-[9px] text-slate-500">OB zones: {obCount}</span></div><div ref={deltaContainer} className="mt-3 h-[120px] w-full" /></div>
     </section>
   );
 }
