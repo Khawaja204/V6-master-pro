@@ -376,7 +376,7 @@ function ChartMapping({
   const [strictOb, setStrictOb] = useState(true);
   const [impulseOne, setImpulseOne] = useState(false);
   const [obCount, setObCount] = useState(0);
-  const [tagView, setTagView] = useState<"all" | "ut" | "pwr" | "vol" | "eng" | "none">("all");
+  const [tagView, setTagView] = useState<"pwr" | "none">("pwr");
   const chartContainer = useRef<HTMLDivElement | null>(null);
   const rsiContainer = useRef<HTMLDivElement | null>(null);
   const deltaContainer = useRef<HTMLDivElement | null>(null);
@@ -414,16 +414,9 @@ function ChartMapping({
     series.setData(chartCandles);
     {
       const pos = positionStatsFor(candles).kept;
-      const ut = pos.ut.map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "UT" }));
       const pwr = pos.pwr.map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "PWR" }));
-      const vol = pos.vol.map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "VOL" }));
-      const engTags = eng.marks.map((m) => ({ time: m.time, kind: m.kind, price: m.price, label: "ENG" }));
-      const shown = [
-        ...(tagView === "all" || tagView === "ut" ? ut : []),
-        ...(tagView === "all" || tagView === "pwr" ? pwr : []),
-        ...(tagView === "all" || tagView === "vol" ? vol : []),
-        ...(tagView === "all" || tagView === "eng" ? engTags : []),
-      ];
+      // Sirf Power indicator ke signals (UT, VOL aur ENGINE tags band hain)
+      const shown = tagView === "pwr" ? pwr : [];
       const tags = shown.sort((a, b) => a.time - b.time).slice(-60);
       createSeriesMarkers(series, tags.map((t) => {
         const isBuy = t.kind === "buy";
@@ -446,6 +439,22 @@ function ChartMapping({
         series.createPriceLine({ price: vp.poc, color: '#f6be51', lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'POC' });
         series.createPriceLine({ price: vp.vah, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAH' });
         series.createPriceLine({ price: vp.val, color: 'rgba(148,163,184,.6)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAL' });
+      }
+    }
+    {
+      // Moving average live price tags (right side): EMA50 aur Main EMA (200)
+      const emaLast = (vals: number[], period: number): number => {
+        const k = 2 / (period + 1);
+        let e = vals[0];
+        for (let i = 1; i < vals.length; i += 1) e = vals[i] * k + e * (1 - k);
+        return e;
+      };
+      const closesArr = candles.map((c) => c.close);
+      if (closesArr.length > 50) {
+        series.createPriceLine({ price: emaLast(closesArr, 50), color: '#ffb300', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'EMA50' });
+      }
+      if (closesArr.length > 200) {
+        series.createPriceLine({ price: emaLast(closesArr, 200), color: '#00e676', lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: 'MAIN EMA' });
       }
     }
     {
@@ -573,7 +582,7 @@ function ChartMapping({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>
       <div className="relative h-[420px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!pair || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!pair ? (loading ? 'Loading coin data…' : 'Select a pair from the scanner.') : 'Waiting for closed Binance candles…'}</div>}</div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[120px] w-full" /></div>
-      <div className="border-t border-white/[.07] px-4 pt-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="eyebrow">Delta per candle · CVD {deltaUsdt ? "(approx USDT)" : "(coin units)"}</div><button type="button" onClick={() => setDeltaUsdt((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{deltaUsdt ? "Show coin units" : "Show USDT"}</button><button type="button" onClick={() => setStrictOb((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{strictOb ? "OB: strict" : "OB: loose"}</button><button type="button" onClick={() => setImpulseOne((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{impulseOne ? "Impulse: 1.0 ATR" : "Impulse: 1.5 ATR"}</button><button type="button" onClick={() => setTagView((v) => (v === "all" ? "ut" : v === "ut" ? "pwr" : v === "pwr" ? "vol" : v === "vol" ? "eng" : v === "eng" ? "none" : "all"))} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">Tags: {tagView}</button><span className="basis-full mono text-[9px] leading-relaxed text-slate-500">Trades · UT {fmtTrades(posData.stat.ut)} · PWR {fmtTrades(posData.stat.pwr)} · VOL {fmtTrades(posData.stat.vol)}</span><span className="basis-full mono text-[9px] text-slate-500">Flow: {formatFlow(flow)}</span><span className="basis-full mono text-[9px] text-slate-500">{formatFlowTrack(flowSummary)}</span><span className="basis-full mono text-[9px] text-slate-500">Engine (UT+PWR+VOL, 2 of 3, long): {formatEngine(eng)}</span><span className="basis-full mono text-[9px] text-slate-500">Last tags vs zones: {ctxLines.length ? ctxLines.join("  ·  ") : "building…"}</span><span className="whitespace-nowrap mono text-[9px] text-slate-500">OB zones: {obCount}</span></div><div ref={deltaContainer} className="mt-3 h-[120px] w-full" /></div>
+      <div className="border-t border-white/[.07] px-4 pt-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="eyebrow">Delta per candle · CVD {deltaUsdt ? "(approx USDT)" : "(coin units)"}</div><button type="button" onClick={() => setDeltaUsdt((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{deltaUsdt ? "Show coin units" : "Show USDT"}</button><button type="button" onClick={() => setStrictOb((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{strictOb ? "OB: strict" : "OB: loose"}</button><button type="button" onClick={() => setImpulseOne((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{impulseOne ? "Impulse: 1.0 ATR" : "Impulse: 1.5 ATR"}</button><button type="button" onClick={() => setTagView((v) => (v === "pwr" ? "none" : "pwr"))} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">Tags: {tagView}</button><span className="basis-full mono text-[9px] leading-relaxed text-slate-500">Trades · UT {fmtTrades(posData.stat.ut)} · PWR {fmtTrades(posData.stat.pwr)} · VOL {fmtTrades(posData.stat.vol)}</span><span className="basis-full mono text-[9px] text-slate-500">Flow: {formatFlow(flow)}</span><span className="basis-full mono text-[9px] text-slate-500">{formatFlowTrack(flowSummary)}</span><span className="basis-full mono text-[9px] text-slate-500">Engine (UT+PWR+VOL, 2 of 3, long): {formatEngine(eng)}</span><span className="basis-full mono text-[9px] text-slate-500">Last tags vs zones: {ctxLines.length ? ctxLines.join("  ·  ") : "building…"}</span><span className="whitespace-nowrap mono text-[9px] text-slate-500">OB zones: {obCount}</span></div><div ref={deltaContainer} className="mt-3 h-[120px] w-full" /></div>
     </section>
   );
 }

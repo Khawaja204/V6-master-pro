@@ -9,7 +9,7 @@ export interface PowerSignal {
 // Power Indicator (Trading_Bites): compares each close with the close `length` bars earlier.
 // State +1 when all last `length` comparisons are "lower" (buy), -1 when all are "higher" (sell).
 // Signals fire on the bar the state crosses 0.
-export function powerSignals(candles: ClosedCandle[], length = 4): PowerSignal[] {
+export function powerSignals(candles: ClosedCandle[], length = 6): PowerSignal[] {
   const dsi: number[] = new Array(candles.length).fill(0);
   for (let i = 2 * length; i < candles.length; i += 1) {
     let up = 0;
