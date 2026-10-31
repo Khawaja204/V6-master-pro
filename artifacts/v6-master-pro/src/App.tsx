@@ -55,6 +55,8 @@ import { runEngine, formatEngine } from "@/lib/engine";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 import { srLevels, candlePatterns, structureMarks } from "@/lib/chart-sr";
+import { adxLast } from "@/lib/lecture-methods";
+import type { ClosedCandle } from "@/lib/binance-top-usdt";
 
 import {
   useGetMarketCandles,
@@ -359,6 +361,99 @@ function StrategyDesk({ strategies, onStrategyChange }: { strategies: Strategy[]
   );
 }
 
+// ---------- Phase 2: dashboard table helpers ----------
+function emaLastOf(vals: number[], period: number): number {
+  const k = 2 / (period + 1);
+  let e = vals[0];
+  for (let i = 1; i < vals.length; i += 1) e = vals[i] * k + e * (1 - k);
+  return e;
+}
+
+function rsiLastOf(arr: ClosedCandle[], period = 14): number {
+  if (arr.length <= period) return NaN;
+  let g = 0;
+  let l = 0;
+  for (let i = 1; i <= period; i += 1) {
+    const ch = arr[i].close - arr[i - 1].close;
+    g += Math.max(ch, 0);
+    l += Math.max(-ch, 0);
+  }
+  g /= period;
+  l /= period;
+  for (let i = period + 1; i < arr.length; i += 1) {
+    const ch = arr[i].close - arr[i - 1].close;
+    g = (g * (period - 1) + Math.max(ch, 0)) / period;
+    l = (l * (period - 1) + Math.max(-ch, 0)) / period;
+  }
+  return l === 0 ? 100 : 100 - 100 / (1 + g / l);
+}
+
+function buildDash(c: ClosedCandle[], c15: ClosedCandle[], c1h: ClosedCandle[], d1: ClosedCandle[]) {
+  const last = c.length ? c[c.length - 1] : null;
+  const closes = c.map((x) => x.close);
+  const ema50 = closes.length > 50 ? emaLastOf(closes, 50) : NaN;
+  const ema200 = closes.length > 200 ? emaLastOf(closes, 200) : NaN;
+  const adx = adxLast(c, 14);
+  const vols = c.map((x) => x.volume);
+  const vAvg = vols.length >= 20 ? vols.slice(-20).reduce((a, b) => a + b, 0) / 20 : NaN;
+  const rvol = vAvg > 0 ? vols[vols.length - 1] / vAvg : NaN;
+  const trs = c.slice(1).map((x, i) => Math.max(x.high - x.low, Math.abs(x.high - c[i].close), Math.abs(x.low - c[i].close)));
+  const atr = trs.length >= 14 ? trs.slice(-14).reduce((a, b) => a + b, 0) / 14 : NaN;
+  const state = !Number.isFinite(rvol) || !Number.isFinite(adx)
+    ? "-"
+    : rvol >= 3
+      ? "PUMP/HIGH VOL"
+      : adx >= 25
+        ? (last && last.close > ema200 ? "UPTREND" : "DOWNTREND")
+        : "SIDEWAYS";
+  const trades = powerTrades(c);
+  const openT = trades.length && trades[trades.length - 1].exitTime === null ? trades[trades.length - 1] : null;
+  const st = powerStats(trades);
+  const sigs = powerSignals(c, 6);
+  const lastSig = sigs.length ? sigs[sigs.length - 1] : null;
+  const sigTxt = openT
+    ? "HOLDING"
+    : lastSig && last && lastSig.time === last.time
+      ? (lastSig.kind === "buy" ? "PWR BUY" : "PWR SELL")
+      : "WAIT";
+  const slPlan = last && Number.isFinite(atr) ? last.close - 1.5 * atr : NaN;
+  const ep = openT ? openT.entry : last ? last.close : NaN;
+  const sl = openT ? openT.stop : slPlan;
+  const risk = ep - sl;
+  const tp1 = openT ? openT.tp1 : ep + 2 * risk;
+  const tp2 = ep + 3 * risk;
+  const vp = volumeProfile(c);
+  const structs = structureMarks(c);
+  const lastStruct = structs.length ? structs[structs.length - 1].name : "-";
+  const bullS = structs.filter((s) => s.kind === "bull").length;
+  const bearS = structs.filter((s) => s.kind === "bear").length;
+  const fx = (v: number, d = 0) => (Number.isFinite(v) ? v.toFixed(d) : "-");
+  const fp = (v: number) => (Number.isFinite(v) ? formatTagPrice(v) : "-");
+  return {
+    state,
+    sigTxt,
+    ep: fp(ep),
+    sl: fp(sl),
+    tp1: fp(tp1),
+    tp2: fp(tp2),
+    win: st.winPct === null ? "-" : st.winPct.toFixed(0),
+    n: st.closed,
+    r15: fx(rsiLastOf(c15)),
+    r1h: fx(rsiLastOf(c1h)),
+    r1d: fx(rsiLastOf(d1)),
+    poc: vp ? fp(vp.poc) : "-",
+    vah: vp ? fp(vp.vah) : "-",
+    val: vp ? fp(vp.val) : "-",
+    rvol: fx(rvol, 1),
+    atr: fp(atr),
+    adx: fx(adx),
+    ema50: fp(ema50),
+    ema200: fp(ema200),
+    lastStruct,
+    ls: `${bullS}/${bearS}`,
+  };
+}
+
 function ChartMapping({
   pair,
   strategy,
@@ -376,6 +471,7 @@ function ChartMapping({
   const [deltaUsdt, setDeltaUsdt] = useState(true);
   const [strictOb, setStrictOb] = useState(true);
   const [impulseOne, setImpulseOne] = useState(false);
+  const [layout, setLayout] = useState<"laptop" | "mobile">("laptop");
   const [obCount, setObCount] = useState(0);
   const [tagView, setTagView] = useState<"pwr" | "none">("pwr");
   const chartContainer = useRef<HTMLDivElement | null>(null);
@@ -388,6 +484,10 @@ function ChartMapping({
   const htfMap = useHtfMap(pair ? [pair.symbol] : []);
   const htf = pair ? htfMap[pair.symbol] : undefined;
   const ctxLines = useMemo(() => recentContext(candles, 3), [candles]);
+  const dash = useMemo(
+    () => buildDash(candles, pair?.candles?.["15m"] ?? [], pair?.candles?.["1h"] ?? [], htf?.d1 ?? []),
+    [candles, pair, htf],
+  );
   const eng = useMemo(() => runEngine(candles), [candles]);
   const pwrS = useMemo(() => powerStats(powerTrades(candles)), [candles]);
   const { snap: flow, summary: flowSummary } = useFlow(pair?.symbol ?? null, pair?.lastPrice ?? null);
@@ -639,6 +739,32 @@ function ChartMapping({
   return (
     <section className="panel animate-rise delay-3 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4"><div><div className="eyebrow">Binance closed candles · strategy overlays</div><div className="mt-1 flex items-center gap-2 text-[12px] text-slate-300"><span className="font-bold">{pair?.baseAsset ?? '—'} / USDT</span><span className="mono text-[10px] text-slate-500">{pair?.lastPrice !== null && pair?.lastPrice !== undefined ? formatPrice(pair.lastPrice) : '—'}</span><span className={pair?.change24h && pair.change24h > 0 ? 'positive mono text-[10px]' : 'negative mono text-[10px]'}>{pair ? `${pair.change24h > 0 ? '+' : ''}${pair.change24h.toFixed(2)}%` : '--'}</span></div></div><div className="flex flex-wrap items-center gap-2"><select aria-label="Chart strategy overlay" value={strategy?.id ?? ''} onChange={(event) => onStrategyChange(event.target.value)} className="h-7 max-w-[150px] rounded-md border border-white/[.08] bg-[hsl(var(--card))] px-2 mono text-[9px] text-slate-400">{strategies.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select><div className="flex rounded-md border border-white/[.08] p-0.5">{periods.map((item) => <button type="button" key={item} onClick={() => setPeriod(item)} data-testid={`button-chart-${item}`} className={`rounded px-2 py-1 mono text-[9px] ${period === item ? 'bg-white/[.1] text-slate-200' : 'text-slate-600'}`}>{item.toUpperCase()}</button>)}</div></div></div>
+      <div className="border-b border-white/[.07] px-4 py-3">
+        <div className="flex items-center justify-between gap-2 pb-2">
+          <span className="mono text-[9px] teal-text">6 Power Indicator · {layout === "mobile" ? "Mobile" : "Laptop"} view</span>
+          <button type="button" onClick={() => setLayout((l) => (l === "laptop" ? "mobile" : "laptop"))} className="rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{layout === "laptop" ? "Mobile view" : "Laptop view"}</button>
+        </div>
+        <div className={`grid ${layout === "mobile" ? "grid-cols-1" : "grid-cols-2"} gap-1 mono`}>
+          {[
+            `${dash.state === "-" ? "" : ""}6 Power Indicator | ${dash.state}`,
+            `Signal: ${dash.sigTxt}`,
+            `EP ${dash.ep} | SL ${dash.sl}`,
+            `TP1 ${dash.tp1} | TP2 ${dash.tp2}`,
+            `Win ${dash.win}% · n=${dash.n}`,
+          ].map((t, i) => (
+            <div key={`L${i}`} className={`rounded border border-white/[.06] bg-white/[.02] ${layout === "mobile" ? "px-2 py-1 text-[9px]" : "px-3 py-1.5 text-[10px]"} text-slate-300`}>{t}</div>
+          ))}
+          {[
+            `RSI 15m ${dash.r15} · 30m - · 1h ${dash.r1h} · 4h - · 1D ${dash.r1d}`,
+            `POC ${dash.poc} | VAH ${dash.vah} | VAL ${dash.val}`,
+            `RVOL ${dash.rvol}x | ATR ${dash.atr} | ADX ${dash.adx}`,
+            `EMA50 ${dash.ema50} | Main EMA200 ${dash.ema200}`,
+            `BOS: ${dash.lastStruct} · L/S ${dash.ls}`,
+          ].map((t, i) => (
+            <div key={`R${i}`} className={`rounded border border-white/[.06] bg-white/[.02] ${layout === "mobile" ? "px-2 py-1 text-[9px]" : "px-3 py-1.5 text-[10px]"} text-slate-300`}>{t}</div>
+          ))}
+        </div>
+      </div>
       <div className="relative h-[420px] p-3"><div ref={chartContainer} className="h-full w-full" />{(!pair || candles.length < 2) && <div className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--card))]/90 px-5 text-center text-[11px] text-slate-500">{!pair ? (loading ? 'Loading coin data…' : 'Select a pair from the scanner.') : 'Waiting for closed Binance candles…'}</div>}</div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="eyebrow">RSI 14 · calculated from live closes</div><div ref={rsiContainer} className="mt-1 h-[120px] w-full" /></div>
       <div className="border-t border-white/[.07] px-4 pt-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="eyebrow">Delta per candle · CVD {deltaUsdt ? "(approx USDT)" : "(coin units)"}</div><button type="button" onClick={() => setDeltaUsdt((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{deltaUsdt ? "Show coin units" : "Show USDT"}</button><button type="button" onClick={() => setStrictOb((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{strictOb ? "OB: strict" : "OB: loose"}</button><button type="button" onClick={() => setImpulseOne((v) => !v)} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">{impulseOne ? "Impulse: 1.0 ATR" : "Impulse: 1.5 ATR"}</button><button type="button" onClick={() => setTagView((v) => (v === "pwr" ? "none" : "pwr"))} className="whitespace-nowrap rounded-md border border-white/[.08] px-2 py-0.5 mono text-[9px] text-slate-400 hover:text-slate-200">Tags: {tagView}</button><span className="basis-full mono text-[9px] leading-relaxed text-slate-500">Trades · UT {fmtTrades(posData.stat.ut)} · PWR {fmtTrades(posData.stat.pwr)} · VOL {fmtTrades(posData.stat.vol)}</span><span className="basis-full mono text-[9px] text-slate-500">Flow: {formatFlow(flow)}</span><span className="basis-full mono text-[9px] text-slate-500">{formatFlowTrack(flowSummary)}</span><span className="basis-full mono text-[9px] text-slate-500">Engine (UT+PWR+VOL, 2 of 3, long): {formatEngine(eng)}</span><span className="basis-full mono text-[9px] teal-text">PWR trades: {pwrS.closed} closed · win {pwrS.winPct === null ? "-" : pwrS.winPct.toFixed(0)}% · net avg {pwrS.netAvg === null ? "-" : pwrS.netAvg.toFixed(2)}%{pwrS.open ? " · open" : ""}</span><span className="basis-full mono text-[9px] text-slate-500">Last tags vs zones: {ctxLines.length ? ctxLines.join("  ·  ") : "building…"}</span><span className="whitespace-nowrap mono text-[9px] text-slate-500">OB zones: {obCount}</span></div><div ref={deltaContainer} className="mt-3 h-[120px] w-full" /></div>
