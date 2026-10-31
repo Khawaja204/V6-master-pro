@@ -644,7 +644,20 @@ function ChartMapping({
       }
     }
     {
-      const fvgZones = ovl.fvg ? detectFvg(candles).slice(-20) : [];
+      // FVG rectangles: sirf unfilled FVG dikhte hain (filled ones hat jaate hain)
+      const fvgAll = ovl.fvg ? detectFvg(candles).slice(-20).filter((z) => z.fillIndex === null) : [];
+      const fvgLast = candles[candles.length - 1].time as unknown as number;
+      if (fvgAll.length) {
+        series.attachPrimitive(new ZonePrimitive(fvgAll.map((z) => ({
+          t1: candles[z.confirmIndex - 2].time as unknown as number,
+          t2: fvgLast,
+          top: z.top,
+          bottom: z.bottom,
+          fill: z.kind === "bullish" ? "rgba(47,207,176,0.14)" : "rgba(255,23,68,0.14)",
+          border: z.kind === "bullish" ? "rgba(47,207,176,0.5)" : "rgba(255,23,68,0.5)",
+        }))) as any);
+      }
+      const fvgZones: typeof fvgAll = [];
       for (const z of fvgZones) {
         const col = z.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
         const from = candles[z.confirmIndex - 2].time as Time;
