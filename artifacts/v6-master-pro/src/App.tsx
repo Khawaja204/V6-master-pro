@@ -54,6 +54,7 @@ import { recentContext } from "@/lib/signal-context";
 import { runEngine, formatEngine } from "@/lib/engine";
 import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
+import { srLevels, candlePatterns, structureMarks } from "@/lib/chart-sr";
 
 import {
   useGetMarketCandles,
@@ -404,15 +405,63 @@ function ChartMapping({
       timeScale: { borderColor: 'rgba(148, 163, 184, 0.12)', timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' }, horzLine: { color: 'rgba(47, 207, 176, .45)', labelBackgroundColor: '#173b37' } },
     });
-    const chartCandles = candles.map((candle) => ({
-      time: candle.time as Time,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }));
+    // Candlestick pattern bars ka rang (hammer/engulf green, shooting star/bear engulf magenta)
+    const patBars = candlePatterns(candles);
+    const patColor = new Map<number, string>(patBars.map((p) => [p.time, p.kind === "bull" ? "#76ff03" : "#ff00ff"]));
+    const chartCandles = candles.map((candle) => {
+      const pc = patColor.get(candle.time);
+      return {
+        time: candle.time as Time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        ...(pc ? { color: pc, wickColor: pc, borderColor: pc } : {}),
+      };
+    });
     const series = chart.addSeries(CandlestickSeries, { upColor: '#2fcfb0', downColor: '#f27a78', borderVisible: false, wickUpColor: '#2fcfb0', wickDownColor: '#f27a78' });
     series.setData(chartCandles);
+    // Dynamic S/R lines: right side par "R 53000 | 3x" ya "S 48000 | 2x" (STRONG agar 3 ya zyada touch)
+    for (const lv of srLevels(candles)) {
+      series.createPriceLine({
+        price: lv.price,
+        color: lv.side === "R" ? (lv.strong ? "#ff1744" : "rgba(255,23,68,.5)") : (lv.strong ? "#00e676" : "rgba(0,230,118,.5)"),
+        lineWidth: lv.strong ? 2 : 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: `${lv.strong ? "STRONG " : ""}${lv.side} ${formatTagPrice(lv.price)} | ${lv.touches}x`,
+      });
+    }
+    // Pattern arrows aur BOS/CHoCH markers (ek transparent line series par)
+    const stBars = structureMarks(candles);
+    const closeAt = new Map<number, number>(candles.map((c) => [c.time, c.close]));
+    const markerBars = [
+      ...patBars.map((p) => ({
+        time: p.time as Time,
+        position: (p.kind === "bull" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+        color: p.kind === "bull" ? "#76ff03" : "#ff00ff",
+        shape: (p.kind === "bull" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+        text: p.name,
+      })),
+      ...stBars.map((s) => ({
+        time: s.time as Time,
+        position: (s.kind === "bull" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+        color: s.kind === "bull" ? "#00e676" : "#ff1744",
+        shape: "circle" as const,
+        text: s.name,
+      })),
+    ].sort((a, b) => (a.time as number) - (b.time as number));
+    const markSeries = chart.addSeries(LineSeries, { color: "rgba(0,0,0,0)", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const seenT = new Set<number>();
+    const markData: { time: Time; value: number }[] = [];
+    for (const m of markerBars) {
+      const t = m.time as number;
+      if (seenT.has(t)) continue;
+      seenT.add(t);
+      markData.push({ time: m.time, value: closeAt.get(t) ?? 0 });
+    }
+    markSeries.setData(markData);
+    createSeriesMarkers(markSeries, markerBars);
     {
       const pos = positionStatsFor(candles).kept;
       const pwr = pos.pwr.map((sig) => ({ time: sig.time, kind: sig.kind, price: sig.price, label: "PWR" }));
