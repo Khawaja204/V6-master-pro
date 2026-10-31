@@ -56,6 +56,7 @@ import { normalizeSymbol, useExtraPair } from "@/lib/extra-pair";
 import { createSeriesMarkers } from "lightweight-charts";
 import { srLevels, candlePatterns, structureMarks } from "@/lib/chart-sr";
 import { lxOverlay, type LxSeg } from "@/lib/luxalgo-look";
+import { ZonePrimitive } from "@/lib/ob-rect";
 import { adxLast } from "@/lib/lecture-methods";
 import type { ClosedCandle } from "@/lib/binance-top-usdt";
 
@@ -658,15 +659,17 @@ function ChartMapping({
     {
       const obZones = ovl.ob ? freshOrderBlocks(detectOrderBlocks(candles, { requireSweep: strictOb, requireFvg: strictOb, impulseAtr: impulseOne ? 1.0 : 1.5 })).slice(-20) : [];
       setObCount(obZones.length);
-      for (const ob of obZones) {
-        const col = ob.kind === "bullish" ? "rgba(47,207,176,0.35)" : "rgba(255,23,68,0.35)";
-        const from = ob.time as Time;
-        const to = candles[candles.length - 1].time as Time;
-        const top = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-        top.setData([{ time: from, value: ob.top }, { time: to, value: ob.top }]);
-        createSeriesMarkers(top, [{ time: from, position: "aboveBar", color: ob.kind === "bullish" ? "#2fcfb0" : "#ff1744", shape: "square", size: 0, text: "OB" }]);
-        const bot = chart.addSeries(LineSeries, { color: col, lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-        bot.setData([{ time: from, value: ob.bottom }, { time: to, value: ob.bottom }]);
+      if (obZones.length) {
+        // OB rectangles: bullish green, bearish red (LuxAlgo jaisi halki fill)
+        const lastT = candles[candles.length - 1].time as Time;
+        series.attachPrimitive(new ZonePrimitive(obZones.map((ob) => ({
+          t1: ob.time,
+          t2: lastT as unknown as number,
+          top: ob.top,
+          bottom: ob.bottom,
+          fill: ob.kind === "bullish" ? "rgba(47,207,176,0.18)" : "rgba(255,23,68,0.18)",
+          border: ob.kind === "bullish" ? "rgba(47,207,176,0.6)" : "rgba(255,23,68,0.6)",
+        }))) as any);
       }
     }
     if (htf && ovl.htf) {
