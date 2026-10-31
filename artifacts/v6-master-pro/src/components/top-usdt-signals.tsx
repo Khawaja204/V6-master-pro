@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { screenSymbol } from "@/lib/screen-entry";
 import { candleDelta } from "@/lib/delta";
-import { matchesMethod, METHODS, type MethodId } from "@/lib/lecture-methods";
+import { matchesMethod, m8ForwardTest, METHODS, type MethodId } from "@/lib/lecture-methods";
 import { useHtfMap } from "@/lib/htf-data";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
@@ -100,6 +100,7 @@ export function TopUsdtSignals({
 }: TopUsdtSignalsProps) {
   const [mode, setMode] = useState<"Pump" | "Normal">(strategy ?? "Pump");
   const [method, setMethod] = useState<MethodId | null>(null);
+  const [query, setQuery] = useState("");
   const pumpNow = useMemo(() => new Set(
     pairs.filter((p) => screenSymbol(p.symbol, p.candles?.["15m"] ?? []).pump).map((p) => p.symbol),
   ), [pairs]);
@@ -132,13 +133,42 @@ export function TopUsdtSignals({
     setNotifyOn(result === "granted");
   };
   const htfMap = useHtfMap(pairs.map((p) => p.symbol));
+  // M8 forward test ka khulasa (tamam top-20 pairs, 1H closed candles)
+  const m8Summary = useMemo(() => {
+    if (method !== "m8") return null;
+    let signals = 0;
+    let wins = 0;
+    let sum12 = 0;
+    let sum24 = 0;
+    let baseCount = 0;
+    let baseSum = 0;
+    for (const p of pairs) {
+      const t = m8ForwardTest(p.candles?.["1h"] ?? []);
+      signals += t.signals;
+      wins += t.wins12;
+      sum12 += t.sum12;
+      sum24 += t.sum24;
+      baseCount += t.baseCount;
+      baseSum += t.baseSum12;
+    }
+    const pct = (v: number | null) => (v === null ? "-" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`);
+    return {
+      signals,
+      t12: pct(signals ? sum12 / signals : null),
+      t24: pct(signals ? sum24 / signals : null),
+      base: pct(baseCount ? baseSum / baseCount : null),
+      win: signals ? `${((wins / signals) * 100).toFixed(0)}%` : "-",
+    };
+  }, [pairs, method]);
   const visiblePairs = useMemo(() => {
+    const q = query.trim().toUpperCase();
     return pairs.filter((pair) => {
+      if (q && !pair.baseAsset.toUpperCase().includes(q) && !pair.symbol.includes(q)) return false;
       if (method) return matchesMethod(method, pair.candles?.["15m"] ?? [], pair.candles?.["1h"] ?? [], htfMap[pair.symbol]);
       const r = screenSymbol(pair.symbol, pair.candles?.["15m"] ?? []);
       return mode === "Pump" ? r.pump : r.normal;
     });
-  }, [pairs, mode, method, htfMap]);
+  }, [pairs, mode, method, htfMap, query]);
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "waiting";
@@ -153,9 +183,21 @@ export function TopUsdtSignals({
               <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${mode === m ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-500"}`}>{m}</button>
             ))}
             <span className="mono text-[9px] text-slate-500">Screening only, not a signal</span>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search coin (e.g. QNT)"
+              className="mono rounded-md border border-white/[.08] bg-transparent px-2 py-1 text-[10px] text-slate-200 outline-none focus:border-[rgba(47,207,176,.3)]"
+            />
             {METHODS.map((m) => (
               <button key={m.id} type="button" onClick={() => setMethod(method === m.id ? null : m.id)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${method === m.id ? "border-[rgba(246,190,81,.4)] amber-text" : "border-white/[.08] text-slate-500"}`}>{m.label}</button>
             ))}
+            {method === "m8" && m8Summary && (
+              <span className="mono text-[9px] text-slate-300">
+                M8 test (top 20, 1H): signals {m8Summary.signals} · after 12 candles {m8Summary.t12} · after 24 {m8Summary.t24} · base {m8Summary.base} · win12 {m8Summary.win}
+              </span>
+            )}
             {method && (
               <span className="mono text-[9px] text-[hsl(var(--primary))]">
                 Matching now ({visiblePairs.length}): {visiblePairs.map((p) => p.baseAsset).join(", ") || "none"} · these rows are in the table below
