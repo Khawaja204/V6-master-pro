@@ -62,7 +62,8 @@ export function breakoutProb(c: ClosedCandle[], perc = 1, nbr = 5, hideZero = tr
   }
 
   const last = c[n - 1];
-  const isGreen = last.close >= last.open;
+  // Pine: green = c[1] > o[1]; doji red logic mein jata hai
+  const isGreen = last.close > last.open;
   const state: BpResult["state"] = isGreen ? "green" : "red";
   const step = last.close * (perc / 100);
   const levels: BpLevel[] = [];
@@ -72,7 +73,13 @@ export function breakoutProb(c: ClosedCandle[], perc = 1, nbr = 5, hideZero = tr
     levels.push({ price: last.high + step * i, prob: pUp, side: "up", idx: i });
     levels.push({ price: last.low - step * i, prob: pDn, side: "down", idx: i });
   }
-  const shown = hideZero ? levels.filter((l) => l.prob > 0) : levels;
+  // Pine ke mutabiq: level i ek saath dikhta hai, sirf jab up aur down dono probability > 0 hon
+  const shown: BpLevel[] = [];
+  for (let i = 0; i < nbr; i += 1) {
+    const up = levels[2 * i];
+    const dn = levels[2 * i + 1];
+    if (!hideZero || (up.prob > 0 && dn.prob > 0)) shown.push(up, dn);
+  }
   return {
     state,
     levels: shown,
