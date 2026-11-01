@@ -591,16 +591,26 @@ function ChartMapping({
       }));
     }
     if (ovl.bp) {
-      // Breakout probability: UP aur DN levels, probability % ke saath
-      for (const lv of breakoutProb(candles).levels) {
-        series.createPriceLine({
-          price: lv.price,
-          color: lv.side === "up" ? "#00e676" : "#ff1744",
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `${lv.prob.toFixed(2)}%`,
-        });
+      // Breakout probability (TradingView jaisa): band fill, chhoti segments, % label line ke end par
+      const bpLevels = breakoutProb(candles).levels;
+      const span = Math.min(24, candles.length - 1);
+      const tStart = candles[candles.length - 1 - span].time as unknown as number;
+      const tEnd = candles[candles.length - 1].time as unknown as number;
+      const upL = bpLevels.filter((l) => l.side === "up").sort((a, b) => a.price - b.price);
+      const dnL = bpLevels.filter((l) => l.side === "down").sort((a, b) => b.price - a.price);
+      const bands: [typeof upL, string][] = [[upL, "rgba(0,230,118,0.10)"], [dnL, "rgba(255,23,68,0.10)"]];
+      for (const [arr, fill] of bands) {
+        for (let i = 0; i + 1 < arr.length; i += 1) {
+          const a = arr[i].price;
+          const b = arr[i + 1].price;
+          series.attachPrimitive(new ZonePrimitive([{ t1: tStart, t2: tEnd, top: Math.max(a, b), bottom: Math.min(a, b), fill, border: "transparent" }]) as any);
+        }
+      }
+      for (const lv of bpLevels) {
+        const col = lv.side === "up" ? "#00e676" : "#ff1744";
+        const ls = chart.addSeries(LineSeries, { color: col, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        ls.setData([{ time: tStart as unknown as Time, value: lv.price }, { time: tEnd as unknown as Time, value: lv.price }]);
+        createSeriesMarkers(ls, [{ time: tEnd as unknown as Time, position: lv.side === "up" ? "aboveBar" : "belowBar", color: col, shape: "circle", size: 0, text: `${lv.prob.toFixed(2)}%` }]);
       }
     }
     {
