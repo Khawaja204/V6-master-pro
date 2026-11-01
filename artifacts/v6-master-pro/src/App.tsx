@@ -59,6 +59,8 @@ import { lxOverlay, type LxSeg } from "@/lib/luxalgo-look";
 import { ZonePrimitive } from "@/lib/ob-rect";
 // Breakout Probability (Expo) (c) Zeiierman, CC BY-NC-SA 4.0
 import { breakoutProb } from "@/lib/breakout-prob";
+// Adaptive Trend Finder (c) Julien Eche, GPL-3.0
+import { adaptiveTrend } from "@/lib/adaptive-trend";
 import { adxLast } from "@/lib/lecture-methods";
 import type { ClosedCandle } from "@/lib/binance-top-usdt";
 
@@ -476,7 +478,7 @@ function ChartMapping({
   const [strictOb, setStrictOb] = useState(true);
   const [impulseOne, setImpulseOne] = useState(false);
   const [layout, setLayout] = useState<"laptop" | "mobile">("laptop");
-  const [ovl, setOvl] = useState({ sr: true, pattern: true, structure: true, fvg: false, ob: true, htf: false, vp: true, ema: true, bp: true });
+  const [ovl, setOvl] = useState({ sr: true, pattern: true, structure: true, fvg: false, ob: true, htf: false, vp: true, ema: true, bp: true, trend: true });
   const toggleOvl = (k: keyof typeof ovl) => setOvl((o) => ({ ...o, [k]: !o[k] }));
   const [obCount, setObCount] = useState(0);
   const [tagView, setTagView] = useState<"pwr" | "none">("pwr");
@@ -671,6 +673,32 @@ function ChartMapping({
     }
     {
       // FVG rectangles: sirf unfilled FVG dikhte hain (filled ones hat jaate hain)
+      // Adaptive trend: regression channel (mid, upper, lower) aur projected targets
+      if (ovl.trend) {
+        const tr = adaptiveTrend(candles, 2);
+        if (tr) {
+          const startT = candles[tr.startIdx].time as unknown as Time;
+          const endT = candles[candles.length - 1].time as unknown as Time;
+          const lastI = candles.length - 1;
+          const mkLine = (fn: (k: number) => number, col: string, w: 1 | 2) => {
+            const ls = chart.addSeries(LineSeries, { color: col, lineWidth: w, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+            ls.setData([{ time: startT, value: fn(tr.startIdx) }, { time: endT, value: fn(lastI) }]);
+          };
+          mkLine(tr.mid, "#90a4ae", 2);
+          mkLine(tr.upper, "rgba(144,164,174,0.6)", 1);
+          mkLine(tr.lower, "rgba(144,164,174,0.6)", 1);
+          for (const t of tr.targets) {
+            series.createPriceLine({
+              price: t.price,
+              color: t.side === "UP" ? "#00e676" : "#ff1744",
+              lineWidth: 1,
+              lineStyle: LineStyle.Dashed,
+              axisLabelVisible: true,
+              title: `TGT +${t.h}b`,
+            });
+          }
+        }
+      }
       const fvgAll = ovl.fvg ? detectFvg(candles).slice(-20).filter((z) => z.fillIndex === null) : [];
       const fvgLast = candles[candles.length - 1].time as unknown as number;
       if (fvgAll.length) {
@@ -846,7 +874,7 @@ function ChartMapping({
               <button type="button" onClick={() => { savedRangeRef.current = null; setOvl((o) => ({ ...o })); }} className="rounded-md border border-[rgba(47,207,176,.3)] px-2 py-0.5 mono text-[9px] teal-text">Fit view</button>
               {([
                 ["sr", "S/R"], ["pattern", "Patterns"], ["structure", "Structure"], ["fvg", "FVG"],
-                ["ob", "OB"], ["htf", "1D/1W zones"], ["vp", "POC/VAH/VAL"], ["ema", "EMA tags"], ["bp", "Breakout prob"],
+                ["ob", "OB"], ["htf", "1D/1W zones"], ["vp", "POC/VAH/VAL"], ["ema", "EMA tags"], ["bp", "Breakout prob"], ["trend", "Adaptive trend"],
               ] as const).map(([k, label]) => (
                 <button key={k} type="button" onClick={() => toggleOvl(k)} className={`rounded-md border px-2 py-0.5 mono text-[9px] ${ovl[k] ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-600"}`}>{label}: {ovl[k] ? "on" : "off"}</button>
               ))}
