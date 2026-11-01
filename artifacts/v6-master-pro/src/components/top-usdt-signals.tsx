@@ -5,6 +5,7 @@ import { candleDelta } from "@/lib/delta";
 import { matchesMethod, m8ForwardTest, METHODS, type MethodId } from "@/lib/lecture-methods";
 import { useHtfMap } from "@/lib/htf-data";
 import { powerSplit } from "@/lib/power-indicator";
+import { dumpMatch } from "@/lib/dump-scan";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -99,9 +100,10 @@ export function TopUsdtSignals({
   strategy,
   onStrategyChange,
 }: TopUsdtSignalsProps) {
-  const [mode, setMode] = useState<"Pump" | "Normal">(strategy ?? "Pump");
+  const [mode, setMode] = useState<"Pump" | "Normal" | "Dump">(strategy ?? "Pump");
   const [method, setMethod] = useState<MethodId | null>(null);
   const [query, setQuery] = useState("");
+  const [dumpQuery, setDumpQuery] = useState("");
   const pumpNow = useMemo(() => new Set(
     pairs.filter((p) => screenSymbol(p.symbol, p.candles?.["15m"] ?? []).pump).map((p) => p.symbol),
   ), [pairs]);
@@ -182,13 +184,15 @@ export function TopUsdtSignals({
   }, [pairs]);
   const visiblePairs = useMemo(() => {
     const q = query.trim().toUpperCase();
+    const dq = dumpQuery.trim().toUpperCase();
     return pairs.filter((pair) => {
       if (q && !pair.baseAsset.toUpperCase().includes(q) && !pair.symbol.includes(q)) return false;
       if (method) return matchesMethod(method, pair.candles?.["15m"] ?? [], pair.candles?.["1h"] ?? [], htfMap[pair.symbol]);
+      if (mode === "Dump") return dumpMatch(pair.candles?.["15m"] ?? []) && (!dq || pair.baseAsset.toUpperCase().includes(dq));
       const r = screenSymbol(pair.symbol, pair.candles?.["15m"] ?? []);
       return mode === "Pump" ? r.pump : r.normal;
     });
-  }, [pairs, mode, method, htfMap, query]);
+  }, [pairs, mode, method, htfMap, query, dumpQuery]);
   const refreshLabel = lastTickerRefresh
     ? new Date(lastTickerRefresh).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "waiting";
@@ -199,7 +203,7 @@ export function TopUsdtSignals({
         <div>
           <div className="eyebrow">Top 20 USDT pairs · 24h quote volume</div>
           <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
-            {(["Pump", "Normal"] as const).map((m) => (
+            {(["Pump", "Normal", "Dump"] as const).map((m) => (
               <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${mode === m ? "border-[rgba(47,207,176,.3)] teal-text" : "border-white/[.08] text-slate-500"}`}>{m}</button>
             ))}
             <span className="mono text-[9px] text-slate-500">Screening only, not a signal</span>
@@ -210,6 +214,15 @@ export function TopUsdtSignals({
               placeholder="Search coin (e.g. QNT)"
               className="mono rounded-md border border-white/[.08] bg-transparent px-2 py-1 text-[10px] text-slate-200 outline-none focus:border-[rgba(47,207,176,.3)]"
             />
+            {mode === "Dump" && (
+              <input
+                type="text"
+                value={dumpQuery}
+                onChange={(e) => setDumpQuery(e.target.value)}
+                placeholder="Search dump coin (e.g. SUI)"
+                className="mono rounded-md border border-white/[.08] bg-transparent px-2 py-1 text-[10px] text-slate-200 outline-none focus:border-[rgba(246,190,81,.4)]"
+              />
+            )}
             {METHODS.map((m) => (
               <button key={m.id} type="button" onClick={() => setMethod(method === m.id ? null : m.id)} className={`rounded-md border px-3 py-1 text-[10px] font-semibold ${method === m.id ? "border-[rgba(246,190,81,.4)] amber-text" : "border-white/[.08] text-slate-500"}`}>{m.label}</button>
             ))}
