@@ -5,7 +5,7 @@ import { candleDelta } from "@/lib/delta";
 import { matchesMethod, m8ForwardTest, METHODS, type MethodId } from "@/lib/lecture-methods";
 import { useHtfMap } from "@/lib/htf-data";
 import { powerSplit } from "@/lib/power-indicator";
-import { dumpMatch } from "@/lib/dump-scan";
+import { dumpMatch, dumpParts } from "@/lib/dump-scan";
 import { Activity, ArrowDownRight, ArrowUpRight, Clock3, Wifi } from "lucide-react";
 import {
   type CandleMetrics,
@@ -182,6 +182,21 @@ export function TopUsdtSignals({
       test: fmt(acc.testN, acc.testW, acc.testSum),
     };
   }, [pairs]);
+  // Dump diagnostic: har shart kitne coins poori karte hain (15m, top 20)
+  const dumpCount = useMemo(() => {
+    const acc = { n: 0, drop: 0, below: 0, rsi: 0, vol: 0, all: 0 };
+    for (const p of pairs) {
+      const c15 = p.candles?.["15m"] ?? [];
+      if (c15.length >= 60) acc.n += 1;
+      const x = dumpParts(c15);
+      if (x.drop) acc.drop += 1;
+      if (x.belowEma) acc.below += 1;
+      if (x.rsiOk) acc.rsi += 1;
+      if (x.redVol) acc.vol += 1;
+      if (x.ok) acc.all += 1;
+    }
+    return acc;
+  }, [pairs]);
   const visiblePairs = useMemo(() => {
     const q = query.trim().toUpperCase();
     const dq = dumpQuery.trim().toUpperCase();
@@ -254,6 +269,11 @@ export function TopUsdtSignals({
         </div>
       </div>
 
+      {mode === "Dump" && (
+        <div className="border-b border-white/[.07] px-4 py-2 mono text-[9px] text-slate-400">
+          Dump check (15m, {dumpCount.n} coins with data): 24-candle drop 10% {dumpCount.drop} · below EMA21 and EMA50 {dumpCount.below} · RSI14 &lt;= 50 {dumpCount.rsi} · red candle with RVOL &gt;= 1.5 {dumpCount.vol} · all four together {dumpCount.all}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-3 border-b border-white/[.07] px-4 py-3">
         <span className="text-[10px] font-semibold text-slate-300">Pump alerts</span>
         {canNotify && !notifyOn && (
